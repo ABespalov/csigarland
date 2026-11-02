@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fade",
+  "layers": [
+    {
+      "fx": "fade",
+      "col": [
+        "FFAA50"
+      ]
+    }
+  ]
+}

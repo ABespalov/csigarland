@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fairytwinkle",
+  "layers": [
+    {
+      "fx": "shimmer",
+      "sx": 96,
+      "ix": 60,
+      "col": [
+        "FFB060"
+      ]
+    }
+  ]
+}

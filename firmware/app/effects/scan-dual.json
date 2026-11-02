@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Scan Dual",
+  "layers": [
+    {
+      "fx": "scan",
+      "ix": 0,
+      "mi": true,
+      "col": [
+        "FF2000"
+      ]
+    }
+  ]
+}

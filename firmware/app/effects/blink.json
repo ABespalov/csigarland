@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Blink",
+  "layers": [
+    {
+      "fx": "blink",
+      "ix": 128,
+      "col": [
+        "FFB040"
+      ]
+    }
+  ]
+}

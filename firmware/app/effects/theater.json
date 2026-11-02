@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Marquee Lights",
+  "layers": [
+    {
+      "fx": "theater",
+      "ix": 64,
+      "col": [
+        "FFA030",
+        "200800"
+      ]
+    }
+  ]
+}

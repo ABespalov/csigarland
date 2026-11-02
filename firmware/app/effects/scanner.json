@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Golden Scanner",
+  "layers": [
+    {
+      "fx": "scanner",
+      "ix": 64,
+      "pal": [
+        0,
+        "FFE0A0",
+        255,
+        "FF6000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Candy Cane",
+  "layers": [
+    {
+      "fx": "stripes",
+      "sx": 96,
+      "ix": 32,
+      "col": [
+        "FF0000",
+        "FFFFFF"
+      ]
+    }
+  ]
+}

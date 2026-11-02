@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Blink Rainbow",
+  "layers": [
+    {
+      "fx": "blink",
+      "ix": 100,
+      "pal": "Rainbow"
+    }
+  ]
+}

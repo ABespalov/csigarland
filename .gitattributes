@@ -1,0 +1,15 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Explicit binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.step binary
+*.stp binary
+*.stl binary
+*.3mf binary
+*.bin binary
+# The utility's Windows resources: its icon and manifest, made by rsrc.
+*.syso binary

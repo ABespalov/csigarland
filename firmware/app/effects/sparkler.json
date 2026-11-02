@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sparkler",
+  "layers": [
+    {
+      "fx": "sparkler",
+      "ix": 128,
+      "pal": [
+        0,
+        "FFD060",
+        128,
+        "FF8020",
+        255,
+        "FFFFFF"
+      ]
+    }
+  ]
+}

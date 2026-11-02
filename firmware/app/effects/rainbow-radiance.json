@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Rainbow Radiance",
+  "layers": [
+    {
+      "fx": "rainbow",
+      "sx": 96,
+      "ix": 64
+    }
+  ]
+}

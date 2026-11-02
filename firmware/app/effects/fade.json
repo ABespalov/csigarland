@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fade",
+  "layers": [
+    {
+      "fx": "colorloop",
+      "ix": 0,
+      "pal": [
+        0,
+        "FFB060",
+        128,
+        "401000",
+        255,
+        "FFB060"
+      ]
+    }
+  ]
+}

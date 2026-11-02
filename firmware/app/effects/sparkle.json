@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sparkle+",
+  "layers": [
+    {
+      "fx": "sparkle",
+      "ix": 120,
+      "col": [
+        "FFFFFF",
+        "301000"
+      ]
+    }
+  ]
+}

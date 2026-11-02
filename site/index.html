@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The product's home at garland.csilab.am
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>csiGarland — color your weekdays</title>
+  <meta name="description" content="csiGarland is an open-source garland of 32 LEDs in 3D-printed figurines, run by an ESP32-C6 with its own screen, buttons, schedule and web portal, and a companion utility.">
+  <link rel="canonical" href="https://garland.csilab.am/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta property="og:title" content="csiGarland — color your weekdays">
+  <meta property="og:description" content="A garland of 3D-printed figurines that plays 154 effects, keeps a schedule, and needs no cloud.">
+  <meta property="og:url" content="https://garland.csilab.am/">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html" aria-current="page">Product</a>
+        <a href="roadmap.html">Roadmap</a>
+        <a href="documents.html">Documents</a>
+        <a href="downloads.html">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Open-source holiday lighting</p>
+          <h1>Any day can be a holiday.</h1>
+          <p class="lead">csiGarland is a garland of 32 LEDs, each inside a 3D-printed translucent figurine, run by a small controller with its own screen and three buttons. It plays 154 effects, keeps a weekly schedule, and has a web portal and a desktop utility. It needs no cloud and no account: everything works on the garland, with or without a network.</p>
+          <div class="cta-row">
+            <a class="button button-primary" href="downloads.html">Download</a>
+            <a class="button" href="documents.html">Documents</a>
+            <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">View source</a>
+          </div>
+        </div>
+        <figure>
+          <img class="shot" src="assets/garland-hanging.png" alt="Render of eight figurines hanging on the garland's cable">
+        </figure>
+      </div>
+      <p class="note">The pictures here are renders of the 3D models and pictures drawn by the firmware's and utility's own code. Photographs follow with the first garland built.</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">What it does</p>
+      <h2>A garland that stands alone</h2>
+      <div class="grid">
+        <div class="card"><h3>154 effects</h3><p>From candles and snowfall to chases and rainbows, in groups, from 101 algorithms in up to four layers. Favourites go on the EFFECT button, and your own effects upload from a file.</p></div>
+        <div class="card"><h3>Its own screen and buttons</h3><p>POWER, EFFECT and SPEED on the box, and a 1.3-inch screen that says what plays, how bright and how fast, and how many LEDs it found.</p></div>
+        <div class="card"><h3>A schedule</h3><p>Up to 32 actions a week: turn on, set brightness, speed or an effect, turn off. An optional clock module keeps the time through a power cut.</p></div>
+        <div class="card"><h3>Portal and utility</h3><p>A web portal on the garland itself, over HTTPS with its own certificate, and a desktop utility that tunes effects with a preview drawn by the firmware's own engine.</p></div>
+        <div class="card"><h3>Safe by design</h3><p>The LED rail is switched off in standby, and every frame is held to 1400 mA on a 2 A supply. No effect or setting goes around it.</p></div>
+        <div class="card"><h3>Updates you can check</h3><p>Firmware and effects update over Wi-Fi, signed under your own root, tried for a minute and kept only if they work. Every release builds again to the byte.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">The figurines</p>
+      <h2>Eight shapes, four of each</h2>
+      <p class="lead">Hollow caps of about 48 mm, printed in translucent PETG, snap onto base mounts that hold each LED and its wires. The light spreads through the whole shape.</p>
+      <div class="gallery">
+        <figure><img src="assets/figurine-tree.png" alt="Render of the tree figurine"><figcaption>Spiral pine</figcaption></figure>
+        <figure><img src="assets/figurine-star.png" alt="Render of the star figurine"><figcaption>Star</figcaption></figure>
+        <figure><img src="assets/figurine-icicle.png" alt="Render of the icicle figurine"><figcaption>Icicle cluster</figcaption></figure>
+        <figure><img src="assets/figurine-pinecone.png" alt="Render of the pinecone figurine"><figcaption>Pinecone</figcaption></figure>
+        <figure><img src="assets/figurine-bell.png" alt="Render of the bell figurine"><figcaption>Bell</figcaption></figure>
+        <figure><img src="assets/figurine-snowman.png" alt="Render of the snowman figurine"><figcaption>Snowman</figcaption></figure>
+        <figure><img src="assets/figurine-gingerbread.png" alt="Render of the gingerbread figurine"><figcaption>Gingerbread man</figcaption></figure>
+        <figure><img src="assets/figurine-lantern.png" alt="Render of the lantern figurine"><figcaption>Lantern</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">The control unit</p>
+      <h2>One box: supply, controller, switch</h2>
+      <div class="hero">
+        <div>
+          <p>A Waveshare ESP32-C6 board with its screen, a Hi-Link 5 V 2 A supply, a MOSFET that gates the LED rail, and the three buttons, in a printed enclosure. The screen follows the csiPass design.</p>
+          <div class="screens">
+            <img src="assets/screen-playing.png" alt="The screen while an effect plays">
+            <img src="assets/screen-standby.png" alt="The screen in standby">
+            <img src="assets/screen-access.png" alt="The screen asking to approve a browser">
+            <img src="assets/screen-update.png" alt="The screen while an update arrives">
+          </div>
+        </div>
+        <figure><img class="shot" src="assets/enclosure.png" alt="Render of the control unit's enclosure"></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Portal and utility</p>
+      <h2>Control it from a browser or the desktop</h2>
+      <div class="gallery">
+        <figure><img class="shot" src="assets/portal-effects.png" alt="The portal's Effects page"><figcaption>The portal on the garland</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-effects.png" alt="The utility's Effects page"><figcaption>The csiGarland utility</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-tune.png" alt="Tuning an effect in the utility"><figcaption>Tune, with a preview from the firmware's engine</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-firmware.png" alt="Updating firmware in the utility"><figcaption>Updates from the catalog of releases</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Open source</p>
+      <h2>Yours to build, check and change</h2>
+      <p class="lead">Firmware, utility, 3D models and documents are under the MIT License. A release builds again from its sources to the byte, so the file you install is the file the sources make.</p>
+      <div class="cta-row">
+        <a class="button button-primary" href="documents.html">Read the documents</a>
+        <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer">Reporting a security problem</a>
+    </div>
+  </footer>
+</body>
+</html>

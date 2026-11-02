@@ -1,0 +1,20 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Tri Fade",
+  "layers": [
+    {
+      "fx": "colorloop",
+      "ix": 0,
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "00A020",
+        170,
+        "FFA000",
+        255,
+        "E00000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Washing Machine",
+  "layers": [
+    {
+      "fx": "washing",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

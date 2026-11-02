@@ -1,0 +1,20 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chasing Flash",
+  "layers": [
+    {
+      "fx": "chasing",
+      "ix": 64,
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "00A020",
+        170,
+        "0030E0",
+        255,
+        "FFA000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase Rainbow",
+  "layers": [
+    {
+      "fx": "band",
+      "ix": 32,
+      "col": [
+        "FFFFFF"
+      ],
+      "pal": "Rainbow"
+    }
+  ]
+}

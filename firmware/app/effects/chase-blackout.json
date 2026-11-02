@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase Blackout",
+  "layers": [
+    {
+      "fx": "theater",
+      "ix": 200,
+      "col": [
+        "000000",
+        "E04000"
+      ]
+    }
+  ]
+}

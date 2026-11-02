@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Phased",
+  "layers": [
+    {
+      "fx": "phased",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

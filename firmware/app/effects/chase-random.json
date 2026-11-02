@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase Random",
+  "layers": [
+    {
+      "fx": "band-random",
+      "ix": 48,
+      "pal": "Rainbow"
+    }
+  ]
+}

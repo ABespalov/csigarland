@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Bouncing Balls",
+  "layers": [
+    {
+      "fx": "bouncing-balls",
+      "ix": 128,
+      "pal": [
+        0,
+        "E00000",
+        128,
+        "00A020",
+        255,
+        "FFA000"
+      ]
+    }
+  ]
+}

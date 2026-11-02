@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Wavesins",
+  "layers": [
+    {
+      "fx": "aurora",
+      "sx": 96,
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

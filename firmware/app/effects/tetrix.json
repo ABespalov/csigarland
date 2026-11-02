@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Tetrix",
+  "layers": [
+    {
+      "fx": "tetrix",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

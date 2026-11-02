@@ -1,0 +1,19 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Meteor Smooth",
+  "layers": [
+    {
+      "fx": "meteor",
+      "sx": 96,
+      "ix": 200,
+      "pal": [
+        0,
+        "FFFFFF",
+        64,
+        "FFA040",
+        255,
+        "C01000"
+      ]
+    }
+  ]
+}

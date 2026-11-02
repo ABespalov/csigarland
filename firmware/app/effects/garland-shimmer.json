@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Shimmer",
+  "layers": [
+    {
+      "fx": "shimmer",
+      "sx": 230,
+      "ix": 150,
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "00A020",
+        170,
+        "0030E0",
+        255,
+        "FFA000"
+      ]
+    }
+  ]
+}

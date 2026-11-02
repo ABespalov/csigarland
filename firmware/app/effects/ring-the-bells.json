@@ -1,0 +1,22 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Ring the Bells",
+  "layers": [
+    {
+      "fx": "solid",
+      "col": [
+        "201000"
+      ]
+    },
+    {
+      "fx": "heartbeat",
+      "ix": 12,
+      "col": [
+        "FFC840"
+      ],
+      "zone": [
+        "bell"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fill Noise",
+  "layers": [
+    {
+      "fx": "noise",
+      "ix": 24,
+      "pal": "Rainbow"
+    }
+  ]
+}

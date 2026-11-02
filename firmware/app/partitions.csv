@@ -1,0 +1,12 @@
+# Name,    Type, SubType, Offset,   Size
+# nvs and effects stay where they were, so a board keeps its settings and uploads across this layout.
+# OTA cannot change this table: a board takes a new one only by a flash over USB, so it leaves room.
+nvs,       data, nvs,     0x9000,   0x6000
+otadata,   data, ota,     0xf000,   0x2000
+phy_init,  data, phy,     0x11000,  0x1000
+ota_0,     app,  ota_0,   0x20000,  0x1D0000
+ota_1,     app,  ota_1,   0x1F0000, 0x1D0000
+# Two slots for the effects pack, each enough for 512 effects, and uploaded effects. deploy/flash-device.ps1 reads the slots here.
+pack_a,    data, 0x40,    0x3C0000, 0x18000
+pack_b,    data, 0x40,    0x3D8000, 0x18000
+effects,   data, nvs,     0x3F0000, 0x10000

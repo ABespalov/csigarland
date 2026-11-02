@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Winter Snowfall",
+  "layers": [
+    {
+      "fx": "sparkle",
+      "sx": 64,
+      "ix": 48,
+      "col": [
+        "FFFFFF",
+        "0A2A4A"
+      ]
+    }
+  ]
+}

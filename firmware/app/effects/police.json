@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Police",
+  "layers": [
+    {
+      "fx": "alternate",
+      "ix": 0,
+      "col": [
+        "FF0000",
+        "0020FF"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Random Colors",
+  "layers": [
+    {
+      "fx": "random-colors",
+      "pal": "Rainbow"
+    }
+  ]
+}

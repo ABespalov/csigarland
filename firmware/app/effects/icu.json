@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "ICU",
+  "layers": [
+    {
+      "fx": "icu",
+      "col": [
+        "FF2000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Christmas Wipe",
+  "layers": [
+    {
+      "fx": "wipe",
+      "ix": 64,
+      "col": [
+        "E00000",
+        "00A020",
+        "FFA000"
+      ]
+    }
+  ]
+}

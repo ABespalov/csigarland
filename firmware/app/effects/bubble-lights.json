@@ -1,0 +1,19 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Bubble Lights",
+  "layers": [
+    {
+      "fx": "bubble",
+      "pal": [
+        0,
+        "FF6000",
+        85,
+        "E01020",
+        170,
+        "1050E0",
+        255,
+        "20B040"
+      ]
+    }
+  ]
+}

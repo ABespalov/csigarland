@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Living Candle",
+  "layers": [
+    {
+      "fx": "candle",
+      "sx": 96,
+      "ix": 200,
+      "col": [
+        "FF8C28"
+      ]
+    }
+  ]
+}

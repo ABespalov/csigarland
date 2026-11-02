@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Halloween Run",
+  "layers": [
+    {
+      "fx": "bands",
+      "ix": 64,
+      "col": [
+        "FF6000",
+        "7000C0"
+      ]
+    }
+  ]
+}

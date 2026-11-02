@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Comet Collision",
+  "layers": [
+    {
+      "fx": "comet-collision",
+      "ix": 64,
+      "col": [
+        "FF4010",
+        "2080FF"
+      ]
+    }
+  ]
+}

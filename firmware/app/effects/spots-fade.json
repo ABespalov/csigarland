@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Spots Fade",
+  "layers": [
+    {
+      "fx": "spots-fade",
+      "ix": 96,
+      "col": [
+        "40A0FF"
+      ]
+    }
+  ]
+}

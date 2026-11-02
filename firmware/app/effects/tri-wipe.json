@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Tri Wipe",
+  "layers": [
+    {
+      "fx": "wipe",
+      "ix": 32,
+      "col": [
+        "E00000",
+        "00A020",
+        "2040FF"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=6.0"
+  espressif/cjson: "^1.7.0"
+  espressif/led_strip: "^3.0.0"
+  espressif/button: "^4.1.0"
+  espressif/esp_lvgl_port: "^2.6.0"
+  espressif/mdns: "^1.8.0"
+  lvgl/lvgl: "^9.6.0"

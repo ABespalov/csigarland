@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Circus Combustus",
+  "layers": [
+    {
+      "fx": "bands",
+      "ix": 32,
+      "col": [
+        "FFFFFF",
+        "E00000",
+        "000000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Two Dots",
+  "layers": [
+    {
+      "fx": "scanner",
+      "ix": 32,
+      "col": [
+        "E00000"
+      ]
+    },
+    {
+      "fx": "scanner",
+      "sx": 96,
+      "ix": 32,
+      "rev": true,
+      "col": [
+        "00A020"
+      ],
+      "blend": "max"
+    }
+  ]
+}

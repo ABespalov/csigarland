@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Hourglass",
+  "layers": [
+    {
+      "fx": "hourglass",
+      "ix": 128,
+      "pal": [
+        0,
+        "FFD080",
+        255,
+        "E08030"
+      ]
+    }
+  ]
+}

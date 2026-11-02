@@ -1,0 +1,90 @@
+# Project Roadmap: csiGarland
+
+Milestones leading to Christmas & New Year deployment. A ticked firmware item is implemented and passes the host tests or builds; what has actually been seen working on the board is listed separately in Milestone 3. Agreed work that is not done, the applications and what is left to measure among it, is in the [to-do list](../stubs/TODO.md).
+
+```mermaid
+flowchart LR
+    M1["M1: Proof of Concept"] --> M2["M2: 3D Prototypes"]
+    M2 --> M3["M3: Firmware on the Board"]
+    M3 --> M4["M4: 32-Unit Build"]
+    M4 --> M5["M5: Holiday Deployment"]
+```
+
+---
+
+### Milestone 1: Electrical Proof-of-Concept & Power Baseline
+- [ ] Verify Hi-Link 5V 2A output under test load.
+- [ ] Verify the MOSFET gate on the LED rail and measure standby draw.
+- [ ] Check a garland on the gated rail against the LED count estimate, and calibrate it.
+
+### Milestone 2: 3D Modeling & Print Optimization
+- [ ] Print test pieces of the figurines in translucent PETG; evaluate light dispersion and snap-fit.
+- [x] Design and print an enclosure for the Hi-Link 220V converter and ESP32 controller.
+
+### Milestone 3: Firmware
+Implemented:
+- [x] RMT output, MOSFET sequencing, blanking at every boot, 1400 mA limiter.
+- [x] Effect format, grouped catalog, favourites and 154 effects, with room for 256, in an effects pack of their own (format 2) beside the firmware.
+- [x] Effects uploaded and previewed from files, up to 32.
+- [x] HTTPS with each garland's own certificates, and browsers paired at the buttons.
+- [x] Three buttons with click and long-press gestures, and the off countdown.
+- [x] Screen in the csiPass design, with screensavers.
+- [x] Web portal, home Wi-Fi, setup access point, captive portal, mDNS.
+- [x] NTP time, an optional DS3231 clock module, and a schedule of up to 32 actions.
+- [x] OTA package staged under `assets/` by `deploy/stage-assets.ps1`.
+- [x] Encrypted settings and a per-board setup network password.
+- [x] Signed OTA under a private root certificate, with automatic return to the previous firmware.
+
+Still to see working on the board:
+- [ ] Screen, gestures and screensavers, with no LED flicker from drawing or Wi-Fi.
+- [ ] Portal, captive portal and mDNS from a phone.
+- [ ] NTP sync, scheduled actions and daylight saving.
+- [ ] The clock module: found, kept through a power cut, set from each source.
+- [ ] How all 154 effects look on real figurines.
+- [ ] An OTA update, a refused bad signature, and a return to the previous firmware.
+
+Not implemented: see **Planned** below.
+
+### Milestone 4: Full Garland Assembly (32 Figurines)
+- [ ] Solder a continuous 32-node cable harness.
+- [ ] Fix the physical order of the figurines along the cable, and match the layout in the [Effects Guide](../guides/effects.md) to it.
+- [ ] Batch print 32 base mounts and 32 holiday diffuser caps.
+- [ ] Snap LEDs into bases, secure strain-relief channels, and attach diffuser caps.
+
+### Milestone 5: Acceptance Testing & Tree Installation
+- [ ] 24-hour thermal and stability burn-in test.
+- [ ] Final current consumption verification across all animation modes.
+- [ ] Installation on the Christmas tree.
+
+## Released
+
+* **1.0.0** (firmware 1.0.0.102, utility 1.0.0.27): everything ticked in Milestone 3, the portal, the public API and the Windows utility, built again to the byte from its sources.
+
+## Planned
+
+Not implemented, and not to be read as what the firmware or the utility does:
+
+* **Playlists and transitions:** Auto-Carousel cycling through a list of effects, and cross-fades between effects.
+* **Fades on turning on and off,** among them a scheduled turn on that rises from dark over a minute.
+* **A check after an update:** the utility walks every route of `/api/v1/` and holds each answer to its types.
+* **Backup and restore:** the schedule, favourites and uploaded effects to a file and back, for a unit that may have to be erased.
+* **The schedule on a timeline:** what plays in the next 24 hours, where actions meet.
+* **Current in Tune:** where an effect reaches the 1400 mA limit and is held back, by the firmware's own model.
+* Push updates to the browser instead of polling.
+* Go + Gio applications beyond Windows, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
+
+## Open Hardware Questions
+
+Neither confirmed nor refuted by the running prototype:
+
+* Mains inlet: a connector made for mains, or an external 5 V supply. See [Power Inlet](../hardware/control-unit.md#1-power-inlet-amass-xt60h-f-female-with-sheath-left-wall).
+* The exact WS2812B variant, and its guaranteed input logic level from a 3.3 V GPIO on a 5 V rail. A one-way level shifter would break the probe on that pin.
+* YZ_CTL_V1's active polarity, reset and boot behaviour, and real off current.
+* Where a 470-1000 uF capacitor goes relative to the gate: the count estimate assumes mostly the LED boards' capacitors on the switched rail.
+* Longest wire run, its gauge, drop at the last LED and temperature of a full 32-LED harness. The figures in [Garland cable](../guides/hardware.md#garland-cable) are calculated.
+* The 1400 mA limit is a model from colours and the LED count in use, not a measurement.
+
+## Validation Still to Do
+
+Host tests cover logic, not these: an OTA through trial to confirmation and through rollback, power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 32 and 256 LEDs, DST changes, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark.
+

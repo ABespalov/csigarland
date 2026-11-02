@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Traffic Light",
+  "layers": [
+    {
+      "fx": "traffic-light",
+      "ix": 0,
+      "col": [
+        "FF0000",
+        "FFA000",
+        "00C000"
+      ]
+    }
+  ]
+}

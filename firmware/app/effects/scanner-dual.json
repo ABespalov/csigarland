@@ -1,0 +1,17 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Scanner Dual",
+  "layers": [
+    {
+      "fx": "scanner",
+      "ix": 48,
+      "mi": true,
+      "pal": [
+        0,
+        "FFFFFF",
+        255,
+        "0040E0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Rainbow Runner",
+  "layers": [
+    {
+      "fx": "running",
+      "ix": 48,
+      "pal": "Rainbow"
+    }
+  ]
+}

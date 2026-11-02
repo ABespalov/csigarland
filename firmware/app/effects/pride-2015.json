@@ -1,0 +1,10 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Pride 2015",
+  "layers": [
+    {
+      "fx": "pride",
+      "pal": "Rainbow"
+    }
+  ]
+}

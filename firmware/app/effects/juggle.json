@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Juggle",
+  "layers": [
+    {
+      "fx": "juggle",
+      "ix": 128,
+      "pal": "Rainbow"
+    }
+  ]
+}

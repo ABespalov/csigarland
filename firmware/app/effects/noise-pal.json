@@ -1,0 +1,20 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Noise Pal",
+  "layers": [
+    {
+      "fx": "noise",
+      "ix": 64,
+      "pal": [
+        0,
+        "001080",
+        85,
+        "00A0A0",
+        170,
+        "C000A0",
+        255,
+        "001080"
+      ]
+    }
+  ]
+}

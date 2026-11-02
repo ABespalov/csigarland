@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase 3",
+  "layers": [
+    {
+      "fx": "bands",
+      "ix": 32,
+      "col": [
+        "E00000",
+        "FFFFFF",
+        "00A020"
+      ]
+    }
+  ]
+}

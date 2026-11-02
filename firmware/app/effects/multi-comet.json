@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Multi Comet",
+  "layers": [
+    {
+      "fx": "saw",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

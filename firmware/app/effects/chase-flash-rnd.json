@@ -1,0 +1,10 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase Flash Rnd",
+  "layers": [
+    {
+      "fx": "chase-flash-random",
+      "pal": "Rainbow"
+    }
+  ]
+}

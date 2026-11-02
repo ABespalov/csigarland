@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Heartbeat",
+  "layers": [
+    {
+      "fx": "heartbeat",
+      "ix": 12,
+      "col": [
+        "E00020"
+      ]
+    }
+  ]
+}

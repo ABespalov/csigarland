@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Dissolve",
+  "layers": [
+    {
+      "fx": "dissolve",
+      "col": [
+        "FFC080"
+      ]
+    }
+  ]
+}

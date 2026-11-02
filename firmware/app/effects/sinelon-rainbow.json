@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sinelon Rainbow",
+  "layers": [
+    {
+      "fx": "sinelon",
+      "ix": 160,
+      "pal": "Rainbow"
+    }
+  ]
+}

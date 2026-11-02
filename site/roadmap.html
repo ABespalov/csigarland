@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The roadmap: what is released, what is left to see on the board, and what is planned
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roadmap — csiGarland</title>
+  <meta name="description" content="Where csiGarland stands: the 1.0.0 release, the milestones to the first garland on a tree, and what is planned next.">
+  <link rel="canonical" href="https://garland.csilab.am/roadmap.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Product</a>
+        <a href="roadmap.html" aria-current="page">Roadmap</a>
+        <a href="documents.html">Documents</a>
+        <a href="downloads.html">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow">Roadmap</p>
+      <h1>From the first release to the tree</h1>
+      <p class="lead">The firmware and the utility are released. What is left is the hardware: printing the figurines, building the garland, and seeing on a real board what the tests could not show. The <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer">roadmap in the repository</a> is the one kept up to date.</p>
+    </section>
+
+    <section class="section">
+      <h2>Released</h2>
+      <div class="grid">
+        <div class="card"><h3>1.0.0</h3><p>Firmware 1.0.0.102 and utility 1.0.0.27: 154 effects, the schedule and clock, the portal over HTTPS with its own root, signed updates with a trial and a way back, the public API, and the utility for Windows. Both build again to the byte from their sources.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Milestones</h2>
+      <ul class="docs">
+        <li><strong>1. Electrical proof of concept</strong><span>The Hi-Link supply under load, the MOSFET gate and the standby draw, and the LED count estimate on the gated rail.</span></li>
+        <li><strong>2. 3D models and prints</strong><span>The enclosure is printed. Next: test prints of the figurines in translucent PETG, for light and fit.</span></li>
+        <li><strong>3. Firmware on the board</strong><span>Implemented and tested on the host. Left to see on the board: the screen, gestures and screensavers with no flicker; the portal from a phone; NTP, the schedule and daylight saving; the clock module; every effect on real figurines; an update, a refused signature and a return to the previous firmware.</span></li>
+        <li><strong>4. The 32-figurine garland</strong><span>The cable harness, the order of the figurines along it, and the bases and caps put together.</span></li>
+        <li><strong>5. On the tree</strong><span>A 24-hour run, the current in every mode, and the garland on the Christmas tree.</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Planned</h2>
+      <div class="grid">
+        <div class="card"><h3>Playlists and transitions</h3><p>A carousel of effects that changes by itself, with cross-fades from one to the next.</p></div>
+        <div class="card"><h3>Gentle on and off</h3><p>Fades on turning on and off, among them a scheduled evening turn on that rises from dark over a minute.</p></div>
+        <div class="card"><h3>A check after an update</h3><p>The utility walks every route of the public API and holds each answer to its types.</p></div>
+        <div class="card"><h3>Backup and restore</h3><p>The schedule, favourites and your own effects to a file and back, for a sealed unit that may have to be erased.</p></div>
+        <div class="card"><h3>The schedule on a timeline</h3><p>What plays in the next 24 hours, and where actions meet.</p></div>
+        <div class="card"><h3>Current in Tune</h3><p>Where an effect reaches the 1400 mA limit and is held back, by the firmware's own model.</p></div>
+        <div class="card"><h3>More platforms</h3><p>The utility on Ubuntu and macOS, then Android and iOS, on the same Go code and the same public API.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md" rel="noopener noreferrer">What is left to measure</a>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sinelon",
+  "layers": [
+    {
+      "fx": "sinelon",
+      "ix": 128,
+      "col": [
+        "00A0FF"
+      ]
+    }
+  ]
+}

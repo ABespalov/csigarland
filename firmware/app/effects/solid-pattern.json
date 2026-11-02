@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Solid Pattern",
+  "layers": [
+    {
+      "fx": "bands",
+      "sx": 0,
+      "ix": 0,
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "E00000",
+        170,
+        "000000",
+        255,
+        "000000"
+      ]
+    }
+  ]
+}

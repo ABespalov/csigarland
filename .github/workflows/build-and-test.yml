@@ -1,0 +1,143 @@
+# Copyright (c) 2026 Anton Bespalov. All rights reserved.
+# Licensed under the terms specified by the MIT License
+# Part of the csiGarland project https://github.com/ABespalov/csigarland
+#
+# Purpose: Builds the firmware and the Go utility, and runs the tests and source rules.
+# Contributors: None
+
+# The firmware job runs on Windows as a developer's machine does, so a green run says
+# something about the same toolchain. Its image is signed with a throwaway chain, as the
+# real keys never leave the owner's machine: nothing built here can be installed by OTA on
+# a real garland.
+
+name: Build and test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go utility
+    # Windows, the utility's first system. Its window needs development headers on Linux, which
+    # come with the Ubuntu build. Its effect engine needs cgo, and this image has the compiler.
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l cmd internal firmware/app/effects)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would change these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # Has Go compile the firmware's engine anew when it changed: see BuildVersion.psm1.
+      - name: Key the cache on the engine's sources
+        shell: pwsh
+        run: |
+          Import-Module ./deploy/BuildVersion.psm1
+          Set-csiGarlandEngineSources -RepoRoot (Get-Location).Path
+          "CGO_CPPFLAGS=$env:CGO_CPPFLAGS" >> $env:GITHUB_ENV
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+  firmware:
+    name: Firmware image and host tests
+    runs-on: windows-latest
+    env:
+      CSIGARLAND_THROWAWAY_SIGNING: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      # The PlatformIO package tree is large and unchanging between runs; the key is
+      # the manifest that decides what is in it.
+      - name: Cache PlatformIO
+        uses: actions/cache@640a1c2554105b57832a23eea0b4672fc7a790d5 # v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/app/platformio.ini', 'firmware/app/dependencies.lock') }}
+
+      # Pinned: an upgrade is a change to the toolchain, made on purpose.
+      - name: Install PlatformIO
+        run: pip install platformio==6.1.19
+
+      # First, as the host tests use the cJSON it brings into managed_components. The build puts
+      # the signing tool's pinned cryptography into PlatformIO's Python where none has it.
+      - name: Firmware image
+        run: pio run -e esp32c6
+        working-directory: firmware/app
+
+      - name: Host tests
+        run: pio test -e native
+        working-directory: firmware/app
+
+      # Under the Python the build signs with, chosen as deploy/SigningPython.psm1 chooses it.
+      - name: Signing tool
+        shell: pwsh
+        run: |
+          Import-Module ./deploy/SigningPython.psm1
+          $python = Get-csiGarlandSigningPython
+          & $python firmware/app/scripts/test_ota_sign_tool.py
+          exit $LASTEXITCODE
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # From the link maps of the image built above.
+      - name: Third-party notices
+        shell: pwsh
+        run: |
+          go mod download
+          pwsh -File deploy/new-third-party-notices.ps1 -Check
+          exit $LASTEXITCODE
+
+  repository-rules:
+    name: Source rules
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      # File length, licence headers, PowerShell version guards and syntax, ASCII firmware sources.
+      - name: Source rules
+        shell: pwsh
+        run: pwsh -File deploy/tests/source-rules.tests.ps1
+
+      - name: Partition entry check
+        shell: pwsh
+        run: pwsh -File deploy/tests/partition-entry.tests.ps1

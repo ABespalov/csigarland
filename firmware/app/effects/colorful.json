@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Colorful",
+  "layers": [
+    {
+      "fx": "bands",
+      "sx": 96,
+      "ix": 64,
+      "pal": [
+        0,
+        "FF0000",
+        85,
+        "FFA000",
+        170,
+        "00A0FF",
+        255,
+        "A000FF"
+      ]
+    }
+  ]
+}

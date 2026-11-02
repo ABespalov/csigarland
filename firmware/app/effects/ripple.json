@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Ripple",
+  "layers": [
+    {
+      "fx": "ripple",
+      "ix": 128,
+      "pal": "Rainbow"
+    }
+  ]
+}

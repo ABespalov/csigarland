@@ -1,0 +1,10 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Dissolve Rnd",
+  "layers": [
+    {
+      "fx": "dissolve",
+      "pal": "Rainbow"
+    }
+  ]
+}

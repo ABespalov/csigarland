@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Twinkle",
+  "layers": [
+    {
+      "fx": "twinkle",
+      "ix": 128,
+      "pal": [
+        0,
+        "FF9040",
+        128,
+        "FFC070",
+        255,
+        "FFE0B0"
+      ]
+    }
+  ]
+}

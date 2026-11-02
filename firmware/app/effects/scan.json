@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Scan",
+  "layers": [
+    {
+      "fx": "scan",
+      "ix": 0,
+      "col": [
+        "FFFFFF"
+      ]
+    }
+  ]
+}

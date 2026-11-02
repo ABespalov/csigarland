@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Color Clouds",
+  "layers": [
+    {
+      "fx": "noise",
+      "sx": 60,
+      "ix": 40,
+      "pal": [
+        0,
+        "4060E0",
+        85,
+        "A050D0",
+        170,
+        "F07090",
+        255,
+        "F0C060"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sinelon Dual",
+  "layers": [
+    {
+      "fx": "sinelon",
+      "ix": 128,
+      "mi": true,
+      "col": [
+        "FF3000"
+      ]
+    }
+  ]
+}

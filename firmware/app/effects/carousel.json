@@ -1,0 +1,17 @@
+{
+  "format": "csigarland.playlist/1",
+  "name": "Carousel",
+  "items": [
+    "fireplace",
+    "winter-snowfall",
+    "candy-cane",
+    "aurora",
+    "classic-christmas",
+    "living-candle",
+    "rainbow-radiance",
+    "ice-crystal"
+  ],
+  "dur": 1800,
+  "transition": 20,
+  "repeat": 0
+}

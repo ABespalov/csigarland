@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Running Dual",
+  "layers": [
+    {
+      "fx": "running",
+      "ix": 64,
+      "col": [
+        "E00000",
+        "0040E0"
+      ]
+    }
+  ]
+}

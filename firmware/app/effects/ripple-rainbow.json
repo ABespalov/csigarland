@@ -1,0 +1,20 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Ripple Rainbow",
+  "layers": [
+    {
+      "fx": "rainbow",
+      "sx": 96,
+      "ix": 32,
+      "bri": 40
+    },
+    {
+      "fx": "ripple",
+      "ix": 128,
+      "col": [
+        "FFFFFF"
+      ],
+      "blend": "add"
+    }
+  ]
+}

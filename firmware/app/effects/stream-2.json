@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Stream 2",
+  "layers": [
+    {
+      "fx": "stream-smooth",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Hyper Sparkle",
+  "layers": [
+    {
+      "fx": "sparkle",
+      "sx": 200,
+      "ix": 200,
+      "col": [
+        "FFFFFF",
+        "0030C0"
+      ]
+    }
+  ]
+}

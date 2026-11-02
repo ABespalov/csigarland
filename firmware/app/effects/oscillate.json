@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Oscillate",
+  "layers": [
+    {
+      "fx": "oscillate",
+      "col": [
+        "FF0000",
+        "00FF00",
+        "0000FF"
+      ]
+    }
+  ]
+}

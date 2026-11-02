@@ -1,0 +1,10 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Flow Stripe",
+  "layers": [
+    {
+      "fx": "flow-stripe",
+      "pal": "Rainbow"
+    }
+  ]
+}

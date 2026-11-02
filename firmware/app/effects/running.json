@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Running",
+  "layers": [
+    {
+      "fx": "running",
+      "ix": 64,
+      "col": [
+        "00A0FF"
+      ]
+    }
+  ]
+}

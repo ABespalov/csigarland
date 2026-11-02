@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Rain",
+  "layers": [
+    {
+      "fx": "rain",
+      "ix": 128,
+      "pal": [
+        0,
+        "C0E0FF",
+        255,
+        "0030A0"
+      ]
+    }
+  ]
+}

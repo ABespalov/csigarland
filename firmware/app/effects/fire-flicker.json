@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fire Flicker",
+  "layers": [
+    {
+      "fx": "candle",
+      "sx": 200,
+      "ix": 64,
+      "col": [
+        "FF6000"
+      ]
+    }
+  ]
+}

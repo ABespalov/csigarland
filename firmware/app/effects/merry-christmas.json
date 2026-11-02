@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Merry Christmas",
+  "layers": [
+    {
+      "fx": "bands",
+      "ix": 64,
+      "col": [
+        "E00000",
+        "00A020"
+      ]
+    }
+  ]
+}

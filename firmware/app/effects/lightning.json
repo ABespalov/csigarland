@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Lightning",
+  "layers": [
+    {
+      "fx": "lightning",
+      "ix": 64,
+      "col": [
+        "D0D8FF"
+      ]
+    }
+  ]
+}

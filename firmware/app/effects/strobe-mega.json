@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Strobe Mega",
+  "layers": [
+    {
+      "fx": "strobe-burst",
+      "ix": 128,
+      "col": [
+        "FFFFFF"
+      ]
+    }
+  ]
+}

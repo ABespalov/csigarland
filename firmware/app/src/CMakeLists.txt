@@ -1,0 +1,58 @@
+idf_component_register(
+    SRCS
+        "main.cpp"
+        "buttons.cpp"
+        "display.cpp"
+        "display_view.cpp"
+        "effect_algorithms.cpp"
+        "effect_burst.cpp"
+        "effect_color.cpp"
+        "effect_motion.cpp"
+        "effect_catalog.cpp"
+        "effect_pack_store.cpp"
+        "effect_parser.cpp"
+        "effect_renderer.cpp"
+        "effect_store.cpp"
+        "effects.cpp"
+        "garland_output.cpp"
+        "garland_probe.cpp"
+        "lighting_task.cpp"
+        "network.cpp"
+        "ota.cpp"
+        "portal.cpp"
+        "portal_auth.cpp"
+        "portal_effects.cpp"
+        "portal_info.cpp"
+        "portal_settings.cpp"
+        "portal_tls.cpp"
+        "rtc.cpp"
+        "schedule.cpp"
+        "scheduler.cpp"
+        "screensaver.cpp"
+        "settings.cpp"
+        "trial_log.cpp"
+    INCLUDE_DIRS "." "../generated"
+    PRIV_REQUIRES
+        app_update
+        bootloader_support
+        mbedtls
+        esp_adc
+        esp_driver_gpio
+        esp_driver_i2c
+        esp_driver_ledc
+        esp_driver_spi
+        esp_event
+        esp_http_server
+        esp_https_server
+        esp_lcd
+        esp_netif
+        esp_partition
+        esp_timer
+        esp_wifi
+        lwip
+        nvs_flash
+        spi_flash
+)
+
+# Strict warnings for this project's own code, not for ESP-IDF or dependencies.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)

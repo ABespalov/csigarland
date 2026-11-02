@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Copyright (c) 2026 Anton Bespalov. All rights reserved.
+  Licensed under the terms specified by the MIT License
+  Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+  Purpose: Tells Windows the utility draws for each monitor's own scale, for the whole process.
+  Contributors: None
+
+  Gio sets this for the thread of its window only. With the process left unaware, Windows gave the
+  pointer's moves while a button held it in scaled coordinates, and its press in true ones, so a
+  slider dragged on a scaled screen fell behind the pointer by a share of where the window stood.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+  <assemblyIdentity type="win32" name="csiGarland.Utility" version="1.0.0.0"/>
+  <asmv3:application>
+    <asmv3:windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+    </asmv3:windowsSettings>
+  </asmv3:application>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The documents, for owners and for builders and contributors
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documents — csiGarland</title>
+  <meta name="description" content="Guides for owners of a csiGarland, and the architecture, build, hardware and API documents for builders and contributors.">
+  <link rel="canonical" href="https://garland.csilab.am/documents.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Product</a>
+        <a href="roadmap.html">Roadmap</a>
+        <a href="documents.html" aria-current="page">Documents</a>
+        <a href="downloads.html">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow">Documents</p>
+      <h1>Read before you build, or while you use it</h1>
+      <p class="lead">The documents live with the sources, so they always describe what the code does. Each link opens the current one on GitHub.</p>
+    </section>
+
+    <section class="section">
+      <h2>For owners</h2>
+      <ul class="docs">
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/user-guide.md" rel="noopener noreferrer">User Guide</a><span>The buttons and the screen, getting into the portal, every portal page, the schedule, updates, and what to do when something goes wrong.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/utility.md" rel="noopener noreferrer">The csiGarland Utility</a><span>Finding and pairing a garland, every page, tuning an effect with a preview, updates from a file or the catalog, and the garland's log.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/effects.md" rel="noopener noreferrer">Effects Guide</a><span>Every built-in effect by group, the file format of an effect, and how to tune or add one.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer">Security</a><span>What the garland protects, the limits it accepts, and how to report a problem.</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>For builders and contributors</h2>
+      <ul class="docs">
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/architecture.md" rel="noopener noreferrer">Architecture</a><span>How the firmware works: tasks, startup, power, the portal and its API, updates, failures and the accepted risks.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/build-and-flash.md" rel="noopener noreferrer">Building a Fork and the First Flash</a><span>Tools, your own signing certificates, the first flash and its one irreversible step, and every script.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/rebuild.md" rel="noopener noreferrer">Building a Release Again, to the Byte</a><span>How anyone builds a published firmware and utility again from a clean fork, and shows them the same as the release.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/hardware.md" rel="noopener noreferrer">Building the Hardware</a><span>The schematic, the full bill of materials, wiring, the garland's cable, and the checks before and after power.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/specification.md" rel="noopener noreferrer">Hardware Specification</a><span>The board, supply, LEDs, power gate and limits, and how they fit together.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/control-unit.md" rel="noopener noreferrer">Control Unit</a><span>The enclosure, its inlet, the electrical schematic and pinout, and the portal's routes.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/optical-design.md" rel="noopener noreferrer">Optical Design</a> and <a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/diffusers.md" rel="noopener noreferrer">Diffusers</a><span>How light spreads through translucent PETG, and every figurine's model and print settings.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/3d-model/README.md" rel="noopener noreferrer">3D Models</a><span>The OpenSCAD sources, the STL files and the Bambu Studio projects of the enclosure and the figurines.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/PUBLIC-API.md" rel="noopener noreferrer">Public API</a><span><code>/api/v1/</code>: finding a garland, trusting and pairing with it, every route, and the log.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/CONTRIBUTING.md" rel="noopener noreferrer">Contributing</a><span>Setting up, checking and proposing a change, and the rules a change follows.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer">Roadmap</a> and <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md" rel="noopener noreferrer">To Do</a><span>What is planned, what is left to see working on the board, and what is left to measure.</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Schematic</h2>
+      <figure><img class="shot" src="assets/schematic.svg" alt="The control unit's schematic"></figure>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer">Reporting a security problem</a>
+    </div>
+  </footer>
+</body>
+</html>

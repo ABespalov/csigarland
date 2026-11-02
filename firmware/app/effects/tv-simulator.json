@@ -1,0 +1,20 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "TV Simulator",
+  "layers": [
+    {
+      "fx": "tv",
+      "ix": 128,
+      "pal": [
+        0,
+        "2040A0",
+        100,
+        "A0C0FF",
+        180,
+        "FFE0C0",
+        255,
+        "406040"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fairy Lights",
+  "layers": [
+    {
+      "fx": "twinkle",
+      "sx": 64,
+      "ix": 200,
+      "col": [
+        "FFB060"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Dynamic",
+  "layers": [
+    {
+      "fx": "dynamic",
+      "ix": 128,
+      "pal": "Rainbow"
+    }
+  ]
+}

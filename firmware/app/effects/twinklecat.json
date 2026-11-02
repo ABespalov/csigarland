@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Twinklecat",
+  "layers": [
+    {
+      "fx": "sparkle",
+      "sx": 20,
+      "ix": 40,
+      "pal": "Rainbow"
+    }
+  ]
+}

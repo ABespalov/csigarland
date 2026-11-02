@@ -1,0 +1,36 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase over Glow",
+  "layers": [
+    {
+      "fx": "steady",
+      "ix": 64,
+      "bri": 40,
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "00A020",
+        170,
+        "0030E0",
+        255,
+        "FFA000"
+      ]
+    },
+    {
+      "fx": "chasing",
+      "ix": 64,
+      "blend": "add",
+      "pal": [
+        0,
+        "E00000",
+        85,
+        "00A020",
+        170,
+        "0030E0",
+        255,
+        "FFA000"
+      ]
+    }
+  ]
+}

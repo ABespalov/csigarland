@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chunchun",
+  "layers": [
+    {
+      "fx": "flock",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

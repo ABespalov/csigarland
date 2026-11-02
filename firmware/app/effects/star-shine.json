@@ -1,0 +1,22 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Star Shine",
+  "layers": [
+    {
+      "fx": "solid",
+      "col": [
+        "100804"
+      ]
+    },
+    {
+      "fx": "twinkle",
+      "ix": 255,
+      "col": [
+        "FFE080"
+      ],
+      "zone": [
+        "star"
+      ]
+    }
+  ]
+}

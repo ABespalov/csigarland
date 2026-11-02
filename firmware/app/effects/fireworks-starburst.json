@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fireworks Starburst",
+  "layers": [
+    {
+      "fx": "starburst",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

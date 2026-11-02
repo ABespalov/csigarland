@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase",
+  "layers": [
+    {
+      "fx": "chase",
+      "col": [
+        "FFAA50"
+      ]
+    }
+  ]
+}

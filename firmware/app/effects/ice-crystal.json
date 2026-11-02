@@ -1,0 +1,24 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Ice Crystal",
+  "layers": [
+    {
+      "fx": "solid",
+      "col": [
+        "103850"
+      ]
+    },
+    {
+      "fx": "sparkle",
+      "sx": 128,
+      "ix": 96,
+      "blend": "add",
+      "pal": [
+        0,
+        "60D0FF",
+        255,
+        "FFFFFF"
+      ]
+    }
+  ]
+}

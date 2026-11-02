@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Drip",
+  "layers": [
+    {
+      "fx": "drip",
+      "ix": 128,
+      "pal": [
+        0,
+        "FFFFFF",
+        128,
+        "60C0FF",
+        255,
+        "0030A0"
+      ]
+    }
+  ]
+}

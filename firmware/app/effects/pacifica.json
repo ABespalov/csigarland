@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Pacifica",
+  "layers": [
+    {
+      "fx": "aurora",
+      "sx": 80,
+      "ix": 48,
+      "pal": [
+        0,
+        "001040",
+        100,
+        "0060A0",
+        180,
+        "00B0A0",
+        255,
+        "80F0E0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Solid Pattern Tri",
+  "layers": [
+    {
+      "fx": "bands",
+      "sx": 0,
+      "ix": 32,
+      "col": [
+        "E00000",
+        "00A020",
+        "FFA000"
+      ]
+    }
+  ]
+}

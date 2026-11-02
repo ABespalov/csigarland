@@ -1,0 +1,19 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Lake",
+  "layers": [
+    {
+      "fx": "aurora",
+      "sx": 64,
+      "ix": 40,
+      "pal": [
+        0,
+        "002060",
+        128,
+        "0070B0",
+        255,
+        "20C0C0"
+      ]
+    }
+  ]
+}

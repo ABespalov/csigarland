@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Slow Fade Twinkle",
+  "layers": [
+    {
+      "fx": "shimmer",
+      "sx": 60,
+      "ix": 0,
+      "col": [
+        "FFC080"
+      ]
+    }
+  ]
+}

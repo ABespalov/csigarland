@@ -1,0 +1,12 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Color Waves",
+  "layers": [
+    {
+      "fx": "aurora",
+      "sx": 128,
+      "ix": 80,
+      "pal": "Rainbow"
+    }
+  ]
+}

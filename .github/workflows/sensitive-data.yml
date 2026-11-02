@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Anton Bespalov. All rights reserved.
+# Licensed under the terms specified by the MIT License
+# Part of the csiGarland project https://github.com/ABespalov/csigarland
+#
+# Purpose: Refuses keys and certificates anywhere in the repository's history.
+# Contributors: None
+
+name: Sensitive data
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  history-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject sensitive tracked data
+        shell: pwsh
+        run: pwsh -File deploy/tests/sensitive-data.tests.ps1

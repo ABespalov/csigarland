@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Phased Noise",
+  "layers": [
+    {
+      "fx": "phased-noise",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

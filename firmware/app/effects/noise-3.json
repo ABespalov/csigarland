@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Noise 3",
+  "layers": [
+    {
+      "fx": "noise-glow",
+      "ix": 160,
+      "pal": [
+        0,
+        "FF2000",
+        128,
+        "FFA000",
+        255,
+        "FF2000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Fireplace",
+  "layers": [
+    {
+      "fx": "fire",
+      "sx": 64,
+      "ix": 160,
+      "pal": [
+        0,
+        "000000",
+        90,
+        "A01000",
+        170,
+        "FF5000",
+        255,
+        "FFC060"
+      ]
+    }
+  ]
+}

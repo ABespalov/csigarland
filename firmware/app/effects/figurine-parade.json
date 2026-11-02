@@ -1,0 +1,28 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Figurine Parade",
+  "layers": [
+    {
+      "fx": "figure-parade",
+      "ix": 16,
+      "pal": [
+        0,
+        "FFB000",
+        36,
+        "80D0FF",
+        73,
+        "FF7020",
+        109,
+        "FFFFFF",
+        146,
+        "FFD000",
+        182,
+        "FF4020",
+        219,
+        "10C040",
+        255,
+        "C07030"
+      ]
+    }
+  ]
+}

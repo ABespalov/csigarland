@@ -1,0 +1,17 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Railway",
+  "layers": [
+    {
+      "fx": "slow-fade",
+      "sx": 255,
+      "ix": 0,
+      "pal": [
+        0,
+        "E00000",
+        255,
+        "FFB000"
+      ]
+    }
+  ]
+}

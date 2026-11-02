@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Warm Breath",
+  "layers": [
+    {
+      "fx": "breathe",
+      "ix": 30,
+      "col": [
+        "FFB060"
+      ]
+    }
+  ]
+}

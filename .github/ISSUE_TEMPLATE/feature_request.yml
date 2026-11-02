@@ -1,0 +1,42 @@
+name: Idea or request
+description: A new effect, a feature, or a change to how something works.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agreed work and open questions are in the [to-do list](https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md) and the [roadmap](https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md). Please check that it is not there already.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - A new effect
+        - Buttons and screen
+        - Web portal
+        - Schedule and clock
+        - Desktop and phone applications
+        - Build and deploy
+        - Hardware and 3D models
+        - Documents
+    validations:
+      required: true
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do that you cannot do now?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could it work?
+      description: For an effect, how it should look, on which figurines, and any existing effect it resembles.
+  - type: checkboxes
+    id: limits
+    attributes:
+      label: What the garland has to keep
+      description: A request that goes against one of these will need another way.
+      options:
+        - label: The buttons, screen, effects and schedule work with no network and no browser.
+        - label: Nothing goes around the 1400 mA limit.

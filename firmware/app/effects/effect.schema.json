@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ABespalov/csigarland/firmware/app/effects/effect.schema.json",
+  "title": "csiGarland effect, catalog or playlist",
+  "oneOf": [
+    { "$ref": "#/$defs/effect" },
+    { "$ref": "#/$defs/catalog" },
+    { "$ref": "#/$defs/playlist" }
+  ],
+  "$defs": {
+    "byte": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "tenths": { "type": "integer", "minimum": 0, "maximum": 65535 },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,32}$" },
+    "name": { "type": "string", "pattern": "^[\\x20\\x21\\x23-\\x5B\\x5D-\\x7E]{1,32}$" },
+    "color": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9A-Fa-f]{6}$" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/byte" },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "gradient": {
+      "description": "2 to 16 pairs of position 0-255 and colour. JSON Schema cannot say that positions ascend or that the length is even; the parser checks both, and the build runs every built-in file through it.",
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 32,
+      "prefixItems": [
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }, { "$ref": "#/$defs/byte" }, { "$ref": "#/$defs/color" }
+      ],
+      "items": false
+    },
+    "figurine": {
+      "enum": ["star", "icicle", "gingerbread", "snowman", "bell", "lantern", "tree", "pinecone"]
+    },
+    "zone": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/figurine" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "every": { "type": "integer", "minimum": 1, "maximum": 255 },
+            "offset": { "type": "integer", "minimum": 0, "maximum": 254 }
+          },
+          "required": ["every"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "layer": {
+      "type": "object",
+      "required": ["fx"],
+      "properties": {
+        "fx": {
+          "enum": [
+            "solid", "fade", "chase", "fire", "candle", "twinkle", "sparkle", "stripes", "aurora", "rainbow",
+            "breathe", "wipe", "theater", "meteor", "scanner", "colorloop", "drift", "fireworks", "heartbeat",
+            "steady", "waves", "sequential", "slo-glo", "chasing", "slow-fade", "flash", "combination",
+            "running", "random-colors", "dissolve", "bouncing-balls", "juggle", "ripple", "sunrise", "drip", "rain",
+              "bands", "saw", "sweep", "sweep-random", "wipe-random", "scan", "android", "band", "band-random", "chase-flash",
+              "chase-flash-random", "stream", "stream-smooth", "beam", "gradient", "loading", "sinelon", "perlin-move",
+              "oscillate", "icu", "tetrix", "percent", "flock", "washing", "traffic-light", "eyes", "spots", "spots-fade",
+              "shimmer", "twinkle-up", "dynamic", "pride", "bpm", "noise", "noise-glow", "plasma", "phased", "phased-noise",
+              "sine", "flow", "flow-stripe", "shadows", "tv", "starburst", "rocket", "rolling", "popcorn", "blink",
+              "strobe-burst", "alternate", "lightning", "build-up", "cross-fade", "all-glow", "random-group", "icicle", "bubble",
+              "hourglass", "sparkler", "water-wave", "comet-collision", "figure-parade"
+          ]
+        },
+        "sx": { "$ref": "#/$defs/byte" },
+        "ix": { "$ref": "#/$defs/byte" },
+        "col": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/color" },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "pal": {
+          "oneOf": [
+            { "enum": ["Rainbow"] },
+            { "$ref": "#/$defs/gradient" }
+          ]
+        },
+        "start": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "stop": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "grp": { "type": "integer", "minimum": 1, "maximum": 255 },
+        "spc": { "$ref": "#/$defs/byte" },
+        "of": { "type": "integer", "minimum": -32768, "maximum": 32767 },
+        "rev": { "type": "boolean" },
+        "mi": { "type": "boolean" },
+        "bri": { "$ref": "#/$defs/byte" },
+        "zone": { "$ref": "#/$defs/zone" },
+        "blend": { "enum": ["replace", "add", "max"] }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "required": ["format", "name", "layers"],
+      "properties": {
+        "format": { "const": "csigarland.effect/1" },
+        "name": { "$ref": "#/$defs/name" },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/layer" },
+          "minItems": 1,
+          "maxItems": 4
+        }
+      }
+    },
+    "catalog_entry": {
+      "type": "object",
+      "required": ["id", "group"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/name" },
+        "todo": { "type": "boolean" },
+        "group": { "$ref": "#/$defs/id" },
+        "favorite": { "type": "boolean" },
+        "idea_from": { "type": "string" },
+        "params": { "type": "string" }
+      },
+      "if": { "properties": { "todo": { "const": true } }, "required": ["todo"] },
+      "then": { "required": ["name"] }
+    },
+    "catalog": {
+      "type": "object",
+      "required": ["format", "groups", "effects"],
+      "properties": {
+        "format": { "const": "csigarland.catalog/1" },
+        "source": { "type": "string" },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/name" }
+            }
+          },
+          "minItems": 1
+        },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/catalog_entry" },
+          "minItems": 1
+        }
+      }
+    },
+    "timing": {
+      "oneOf": [
+        { "$ref": "#/$defs/tenths" },
+        { "type": "array", "items": { "$ref": "#/$defs/tenths" }, "minItems": 1 }
+      ]
+    },
+    "playlist": {
+      "type": "object",
+      "required": ["format", "name", "items"],
+      "properties": {
+        "format": { "const": "csigarland.playlist/1" },
+        "name": { "$ref": "#/$defs/name" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" },
+          "minItems": 1
+        },
+        "dur": { "$ref": "#/$defs/timing" },
+        "transition": { "$ref": "#/$defs/timing" },
+        "repeat": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

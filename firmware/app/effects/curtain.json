@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Curtain",
+  "layers": [
+    {
+      "fx": "wipe",
+      "ix": 64,
+      "mi": true,
+      "rev": true,
+      "col": [
+        "E00000",
+        "FFC060"
+      ]
+    }
+  ]
+}

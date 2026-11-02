@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Lighthouse",
+  "layers": [
+    {
+      "fx": "beam",
+      "sx": 64,
+      "ix": 96,
+      "col": [
+        "FFF0C0",
+        "000818"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Wipe Random",
+  "layers": [
+    {
+      "fx": "wipe-random",
+      "ix": 32,
+      "pal": "Rainbow"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Icicle Drip",
+  "layers": [
+    {
+      "fx": "icicle",
+      "sx": 128,
+      "ix": 96,
+      "col": [
+        "C8E8FF",
+        "081828"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+# csiGarland build configuration. Nothing here is set through menuconfig.
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# 1 ms ticks, for the waits of the tasks. The lighting task is woken by its dither timer.
+CONFIG_FREERTOS_HZ=1000
+
+# The same sources make the same image: no build date and time in it, and no path of this machine.
+# The date the image does hold, for its certificates, is CSIGARLAND_SOURCE_DATE in platformio.ini.
+CONFIG_APP_REPRODUCIBLE_BUILD=y
+CONFIG_APP_COMPILE_TIME_DATE=n
+
+# The serial log carries plain ASCII only (AGENTS.md); colours are ESC sequences.
+CONFIG_LOG_COLORS=n
+CONFIG_BOOTLOADER_LOG_COLORS=n
+
+# The web server, captive DNS and mDNS each hold sockets; the default of 10 is
+# exactly what the web server alone reserves.
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# Settings hold the Wi-Fi password, so NVS is encrypted, with a key derived from an
+# eFuse key that a new board generates and burns at its first start. The last key block,
+# so the earlier ones stay free in case flash encryption or Secure Boot come later.
+CONFIG_NVS_ENCRYPTION=y
+CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
+CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=5
+
+# A new image runs on trial and the bootloader goes back if it restarts before
+# confirming itself: see ota.h.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Status screen fonts.
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_28=y
+
+# From the system heap, so the screensaver's objects cannot run out of a fixed pool,
+# and the rest of that pool stays available to Wi-Fi.
+CONFIG_LV_USE_CLIB_MALLOC=y
+
+# Logs go over USB: the UART0 pads carry the optional clock module's I2C.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Startup runs the portal's and network's start on this stack, and it is freed afterwards.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+
+# A flash write holds back every interrupt not in IRAM, and a chain longer than RMT's memory needs
+# its refills on time, or the frame breaks. NVS writes come at any moment, so this one keeps running.
+CONFIG_RMT_TX_ISR_CACHE_SAFE=y
+
+# Below: what keeps the image small. The default optimization is for debugging, and takes
+# about 180 KB more than this.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# The screen uses labels, images and bars in flex rows, under the default theme.
+CONFIG_LV_BUILD_EXAMPLES=n
+CONFIG_LV_BUILD_DEMOS=n
+CONFIG_LV_USE_THEME_SIMPLE=n
+CONFIG_LV_USE_THEME_MONO=n
+CONFIG_LV_USE_OBSERVER=n
+CONFIG_LV_USE_GRID=n
+CONFIG_LV_USE_ANIMIMG=n
+CONFIG_LV_USE_ARC=n
+CONFIG_LV_USE_ARCLABEL=n
+CONFIG_LV_USE_BUTTONMATRIX=n
+CONFIG_LV_USE_CALENDAR=n
+CONFIG_LV_USE_CANVAS=n
+CONFIG_LV_USE_CHART=n
+CONFIG_LV_USE_CHECKBOX=n
+CONFIG_LV_USE_DROPDOWN=n
+CONFIG_LV_USE_IMAGEBUTTON=n
+CONFIG_LV_USE_KEYBOARD=n
+CONFIG_LV_USE_LED=n
+CONFIG_LV_USE_LINE=n
+CONFIG_LV_USE_LIST=n
+CONFIG_LV_USE_MENU=n
+CONFIG_LV_USE_MSGBOX=n
+CONFIG_LV_USE_ROLLER=n
+CONFIG_LV_USE_SCALE=n
+CONFIG_LV_USE_SLIDER=n
+CONFIG_LV_USE_SPAN=n
+CONFIG_LV_USE_SPINBOX=n
+CONFIG_LV_USE_SPINNER=n
+CONFIG_LV_USE_SWITCH=n
+CONFIG_LV_USE_TEXTAREA=n
+CONFIG_LV_USE_TABLE=n
+CONFIG_LV_USE_TABVIEW=n
+CONFIG_LV_USE_TILEVIEW=n
+CONFIG_LV_USE_WIN=n
+
+# The portal is reached over IPv4 and the name over mDNS. No enterprise Wi-Fi, so no RSA, and
+# TLS only as the portal's server, with buffers that exist while they are in use.
+CONFIG_ESP_HTTPS_SERVER_ENABLE=y
+# Each board makes its own certificate.
+CONFIG_MBEDTLS_X509_CREATE_C=y
+CONFIG_MBEDTLS_X509_CRT_WRITE_C=y
+CONFIG_MBEDTLS_X509_CSR_WRITE_C=n
+CONFIG_MBEDTLS_TLS_SERVER_ONLY=y
+# It connects to nothing over TLS, so it needs no public root certificates.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=n
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y
+CONFIG_MBEDTLS_SSL_RENEGOTIATION=n
+CONFIG_MBEDTLS_SSL_ALPN=n
+CONFIG_MBEDTLS_SSL_CACHE_C=n
+# A browser's headers with the access cookie take more than the default.
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
+CONFIG_LWIP_IPV6=n
+CONFIG_MDNS_ENABLE_BROWSE=n
+CONFIG_MDNS_ENABLE_CONSOLE_CLI=n
+CONFIG_MDNS_PREDEF_NETIF_ETH=n
+CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n
+CONFIG_ESP_WIFI_MBEDTLS_TLS_CLIENT=n
+CONFIG_MBEDTLS_KEY_EXCHANGE_RSA=n
+CONFIG_MBEDTLS_KEY_EXCHANGE_ECDHE_RSA=n
+CONFIG_MBEDTLS_RSA_C=n
+
+# Updates are signed on P-256, and WPA3 needs only that curve.
+CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_SECP521R1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_BP384R1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_BP512R1_ENABLED=n
+CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED=n

@@ -1,0 +1,16 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Loading",
+  "layers": [
+    {
+      "fx": "loading",
+      "ix": 64,
+      "pal": [
+        0,
+        "0040FF",
+        255,
+        "00FFC0"
+      ]
+    }
+  ]
+}

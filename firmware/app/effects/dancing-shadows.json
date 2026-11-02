@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Dancing Shadows",
+  "layers": [
+    {
+      "fx": "shadows",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}

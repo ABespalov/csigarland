@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Percent",
+  "layers": [
+    {
+      "fx": "percent",
+      "ix": 128,
+      "col": [
+        "00C040",
+        "100000"
+      ]
+    }
+  ]
+}

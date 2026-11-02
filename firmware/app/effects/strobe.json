@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Strobe",
+  "layers": [
+    {
+      "fx": "blink",
+      "sx": 255,
+      "ix": 24,
+      "col": [
+        "FFFFFF"
+      ]
+    }
+  ]
+}

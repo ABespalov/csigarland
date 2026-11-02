@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Aurora",
+  "layers": [
+    {
+      "fx": "aurora",
+      "sx": 96,
+      "ix": 64,
+      "pal": [
+        0,
+        "004030",
+        85,
+        "00C878",
+        170,
+        "0078A0",
+        255,
+        "8020C0"
+      ]
+    }
+  ]
+}

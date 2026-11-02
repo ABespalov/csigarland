@@ -1,0 +1,15 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Rolling Balls",
+  "layers": [
+    {
+      "fx": "rolling",
+      "ix": 128,
+      "col": [
+        "FF0000",
+        "00C000",
+        "0040FF"
+      ]
+    }
+  ]
+}

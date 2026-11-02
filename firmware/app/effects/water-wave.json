@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Water Wave",
+  "layers": [
+    {
+      "fx": "water-wave",
+      "ix": 64,
+      "pal": [
+        0,
+        "001030",
+        80,
+        "0040A0",
+        255,
+        "C0F0FF"
+      ]
+    }
+  ]
+}

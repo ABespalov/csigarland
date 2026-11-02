@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 930" width="1240" height="930" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#1c2733">
+  <title>csiGarland control unit schematic</title>
+  <desc>The mains inlet, fuse and varistor feed the isolated 5 V module; the 5 V rail feeds the ESP32-C6 board and, through a high-side MOSFET module, the WS2812B garland.</desc>
+  <style>
+    .wire { stroke: #1c2733; stroke-width: 1.6; fill: none; }
+    .power { stroke: #c0392b; stroke-width: 2.4; fill: none; }
+    .ground { stroke: #1c2733; stroke-width: 2.4; fill: none; }
+    .data { stroke: #1f6fd6; stroke-width: 1.8; fill: none; }
+    .mains { stroke: #b03a2e; stroke-width: 2; fill: none; }
+    .box { fill: #f4f6f8; stroke: #1c2733; stroke-width: 1.4; }
+    .part { fill: #ffffff; stroke: #1c2733; stroke-width: 1.4; }
+    .opt { fill: #ffffff; stroke: #5f6b78; stroke-width: 1.4; stroke-dasharray: 6 4; }
+    .ref { font-weight: 700; }
+    .small { font-size: 11px; fill: #4b5763; }
+    .net { font-size: 12px; font-weight: 700; }
+    .dot { fill: #1c2733; }
+  </style>
+  <rect width="1240" height="930" fill="#ffffff"/>
+  <text x="20" y="30" font-size="18" font-weight="700">csiGarland control unit</text>
+  <text x="20" y="48" class="small">Wires crossing without a dot are not connected. Dashed parts are optional.</text>
+
+  <!-- Mains bay -->
+  <rect x="20" y="70" width="312" height="240" fill="#fdf1ef" stroke="#b03a2e" stroke-width="1.4" stroke-dasharray="8 5"/>
+  <text x="30" y="90" class="net" fill="#b03a2e">MAINS BAY: DANGER, 220 V AC</text>
+  <line x1="332" y1="70" x2="332" y2="310" stroke="#b03a2e" stroke-width="1.4" stroke-dasharray="8 5"/>
+  <text x="338" y="296" class="small">isolation, 3000 V AC</text>
+
+  <rect x="36" y="110" width="66" height="130" class="part"/>
+  <text x="44" y="128" class="ref">J1</text>
+  <text x="44" y="144" class="small">mains inlet</text>
+  <text x="80" y="170" class="small" text-anchor="middle">L</text>
+  <text x="80" y="224" class="small" text-anchor="middle">N</text>
+  <path class="mains" d="M102 165 H132 M192 165 H255"/>
+  <rect x="132" y="154" width="60" height="22" class="part"/>
+  <text x="162" y="150" class="ref" text-anchor="middle">F1</text>
+  <text x="162" y="170" class="small" text-anchor="middle">1 A 250 V</text>
+  <path class="mains" d="M102 220 H255"/>
+  <path class="mains" d="M225 165 V175 M225 210 V220"/>
+  <rect x="213" y="175" width="24" height="35" class="part"/>
+  <text x="208" y="190" class="ref" text-anchor="end">RV1</text>
+  <text x="208" y="204" class="small" text-anchor="end">10D471K</text>
+  <circle cx="225" cy="165" r="3.5" class="dot"/><circle cx="225" cy="220" r="3.5" class="dot"/>
+
+  <rect x="255" y="130" width="150" height="120" class="box"/>
+  <text x="330" y="150" class="ref" text-anchor="middle">U2 HLK-10M05B</text>
+  <text x="330" y="165" class="small" text-anchor="middle">5 V, 2 A isolated</text>
+  <text x="262" y="170" class="small">L</text><text x="262" y="224" class="small">N</text>
+  <text x="398" y="170" class="small" text-anchor="end">+5V</text><text x="398" y="224" class="small" text-anchor="end">GND</text>
+
+  <!-- Rails -->
+  <path class="power" d="M405 165 H470 V100 H1180"/>
+  <text x="640" y="92" class="net" fill="#c0392b">+5V, always on</text>
+  <path class="ground" d="M405 220 H440 V760 H1180"/>
+  <text x="620" y="780" class="net">GND, common to everything and never switched</text>
+
+  <!-- Bulk capacitor -->
+  <path class="power" d="M505 100 V140"/>
+  <rect x="487" y="140" width="36" height="44" class="part"/>
+  <text x="505" y="158" text-anchor="middle" class="small">+</text>
+  <text x="505" y="176" text-anchor="middle" class="ref">C1</text>
+  <path class="ground" d="M505 184 V760"/>
+  <text x="512" y="204" class="small">100 to 1000 uF</text>
+  <text x="512" y="218" class="small">at least 10 V</text>
+  <circle cx="505" cy="100" r="3.5" class="dot"/><circle cx="505" cy="760" r="3.5" class="dot"/>
+
+  <!-- ESP32 board -->
+  <rect x="720" y="170" width="210" height="490" class="box"/>
+  <text x="825" y="192" class="ref" text-anchor="middle">U1 Waveshare</text>
+  <text x="825" y="208" class="ref" text-anchor="middle">ESP32-C6-LCD-1.3</text>
+  <text x="922" y="345" class="small" text-anchor="end">Onboard, GPIO:</text>
+  <text x="922" y="360" class="small" text-anchor="end">LCD 6, 7, 14, 15, 21, 22</text>
+  <text x="922" y="375" class="small" text-anchor="end">status LED 8</text>
+  <text x="922" y="390" class="small" text-anchor="end">USB-C 12, 13</text>
+
+  <path class="power" d="M610 100 V235 H720"/><circle cx="610" cy="100" r="3.5" class="dot"/>
+  <text x="728" y="239">5V</text>
+  <path class="ground" d="M575 275 H720 M575 275 V760"/><circle cx="575" cy="760" r="3.5" class="dot"/>
+  <text x="728" y="279">GND</text>
+
+  <!-- Buttons -->
+  <path class="wire" d="M720 325 H688 M648 325 H620"/>
+  <path class="wire" d="M720 385 H688 M648 385 H620"/>
+  <path class="wire" d="M720 445 H688 M648 445 H620"/>
+  <g>
+    <circle cx="652" cy="325" r="3" class="dot"/><circle cx="684" cy="325" r="3" class="dot"/><line x1="652" y1="325" x2="680" y2="312" class="wire"/>
+    <circle cx="652" cy="385" r="3" class="dot"/><circle cx="684" cy="385" r="3" class="dot"/><line x1="652" y1="385" x2="680" y2="372" class="wire"/>
+    <circle cx="652" cy="445" r="3" class="dot"/><circle cx="684" cy="445" r="3" class="dot"/><line x1="652" y1="445" x2="680" y2="432" class="wire"/>
+  </g>
+  <text x="668" y="306" class="ref" text-anchor="middle">S1 POWER</text>
+  <text x="668" y="366" class="ref" text-anchor="middle">S2 EFFECT</text>
+  <text x="668" y="426" class="ref" text-anchor="middle">S3 SPEED</text>
+  <text x="728" y="329">GPIO 3</text>
+  <text x="728" y="389">GPIO 20</text>
+  <text x="728" y="449">GPIO 23</text>
+  <path class="ground" d="M620 325 V760"/><circle cx="620" cy="760" r="3.5" class="dot"/>
+  <circle cx="620" cy="385" r="3.5" class="dot"/><circle cx="620" cy="445" r="3.5" class="dot"/>
+
+  <!-- Clock module -->
+  <rect x="640" y="495" width="52" height="130" class="opt"/>
+  <text x="666" y="488" class="ref" text-anchor="middle">U3 DS3231</text>
+  <text x="646" y="529" class="small">VCC</text>
+  <text x="646" y="549" class="small">GND</text>
+  <text x="646" y="569" class="small">SDA</text>
+  <text x="646" y="609" class="small">SCL</text>
+  <path class="wire" stroke-dasharray="6 4" d="M692 525 H720 M692 565 H720 M692 605 H720"/>
+  <path class="ground" stroke-dasharray="6 4" d="M640 545 H620"/><circle cx="620" cy="545" r="3.5" class="dot"/>
+  <text x="728" y="529">3V3</text>
+  <text x="728" y="569">GPIO 17, pad RX</text>
+  <text x="728" y="609">GPIO 16, pad TX</text>
+  <text x="625" y="640" class="small">Never 5 V on VCC</text>
+
+  <!-- Power switch -->
+  <rect x="990" y="150" width="130" height="165" class="box"/>
+  <text x="1055" y="186" class="ref" text-anchor="middle">Q1 YZ_CTL_V1</text>
+  <text x="1055" y="201" class="small" text-anchor="middle">high-side switch</text>
+  <path class="power" d="M1030 100 V150"/><circle cx="1030" cy="100" r="3.5" class="dot"/>
+  <text x="1036" y="166">IN+</text>
+  <text x="996" y="284">EN</text>
+  <text x="1054" y="308">GND</text>
+  <text x="1114" y="237" text-anchor="end">OUT+</text>
+  <path class="wire" d="M930 280 H990"/>
+  <text x="922" y="284" text-anchor="end">GPIO 1</text>
+  <circle cx="960" cy="280" r="3.5" class="dot"/>
+  <path class="wire" d="M960 280 V375"/>
+  <rect x="948" y="375" width="24" height="50" class="part"/>
+  <text x="978" y="396" class="ref">R2</text>
+  <text x="978" y="412" class="small">10 kOhm</text>
+  <path class="ground" d="M960 425 V760"/><circle cx="960" cy="760" r="3.5" class="dot"/>
+  <path class="ground" d="M1060 315 V760"/><circle cx="1060" cy="760" r="3.5" class="dot"/>
+
+  <!-- Data -->
+  <text x="922" y="514" text-anchor="end">GPIO 2</text>
+  <path class="data" d="M930 510 H985 M1035 510 H1135 V285 H1160"/>
+  <rect x="985" y="498" width="50" height="24" class="part"/>
+  <text x="1010" y="490" class="ref" text-anchor="middle">R1</text>
+  <text x="1010" y="514" class="small" text-anchor="middle">330 Ohm</text>
+
+  <!-- Outlet -->
+  <rect x="1160" y="210" width="62" height="140" class="part"/>
+  <text x="1191" y="202" class="ref" text-anchor="middle">J2 JST-XH</text>
+  <text x="1170" y="238" class="small">1 +5V_SW</text>
+  <text x="1170" y="289" class="small">2 DIN</text>
+  <text x="1170" y="333" class="small">3 GND</text>
+  <path class="power" d="M1120 233 H1160"/>
+  <path class="ground" d="M1160 329 H1148 V760"/><circle cx="1148" cy="760" r="3.5" class="dot"/>
+
+  <!-- Garland -->
+  <rect x="20" y="800" width="1200" height="115" fill="#f7f9fb" stroke="#5f6b78" stroke-width="1.2"/>
+  <text x="32" y="820" class="ref">Garland: 32 WS2812B boards in one chain, plugged into J2</text>
+  <text x="32" y="850" class="net" fill="#c0392b">+5V_SW</text>
+  <text x="32" y="874" class="net" fill="#1f6fd6">DIN</text>
+  <text x="32" y="898" class="net">GND</text>
+  <path class="power" d="M90 846 H1180"/>
+  <path class="data" d="M90 870 H200 M270 870 H350 M420 870 H500 M570 870 H660"/>
+  <path class="ground" d="M90 894 H1180"/>
+  <g>
+    <rect x="200" y="834" width="70" height="72" class="part"/><text x="235" y="875" text-anchor="middle" class="ref">LED 1</text>
+    <rect x="350" y="834" width="70" height="72" class="part"/><text x="385" y="875" text-anchor="middle" class="ref">LED 2</text>
+    <rect x="500" y="834" width="70" height="72" class="part"/><text x="535" y="875" text-anchor="middle" class="ref">LED 3</text>
+    <rect x="860" y="834" width="70" height="72" class="part"/><text x="895" y="875" text-anchor="middle" class="ref">LED 32</text>
+  </g>
+  <text x="280" y="864" class="small">DOUT to DIN</text>
+  <text x="760" y="874" font-size="18" text-anchor="middle">. . .</text>
+  <path class="data" d="M800 870 H860"/>
+  <text x="940" y="874" class="small">DOUT of the last LED stays open</text>
+</svg>

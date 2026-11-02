@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects for https://garland.csilab.am
+/index.html / 301
+/docs https://github.com/ABespalov/csigarland/tree/main/docs 302
+/source https://github.com/ABespalov/csigarland 302

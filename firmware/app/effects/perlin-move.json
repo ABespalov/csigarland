@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Perlin Move",
+  "layers": [
+    {
+      "fx": "perlin-move",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

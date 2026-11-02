@@ -1,0 +1,19 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Glitter",
+  "layers": [
+    {
+      "fx": "rainbow",
+      "sx": 96,
+      "ix": 32
+    },
+    {
+      "fx": "sparkle",
+      "ix": 80,
+      "col": [
+        "FFFFFF"
+      ],
+      "blend": "add"
+    }
+  ]
+}

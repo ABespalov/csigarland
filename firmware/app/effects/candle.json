@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Candle",
+  "layers": [
+    {
+      "fx": "candle",
+      "grp": 255,
+      "ix": 110,
+      "col": [
+        "FF9020"
+      ]
+    }
+  ]
+}

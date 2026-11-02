@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sweep Random",
+  "layers": [
+    {
+      "fx": "sweep-random",
+      "ix": 16,
+      "pal": "Rainbow"
+    }
+  ]
+}

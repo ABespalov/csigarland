@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Twinkleup",
+  "layers": [
+    {
+      "fx": "twinkle-up",
+      "ix": 180,
+      "col": [
+        "FFD0A0"
+      ]
+    }
+  ]
+}

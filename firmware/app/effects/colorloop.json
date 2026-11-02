@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Color Loop",
+  "layers": [
+    {
+      "fx": "colorloop",
+      "ix": 0,
+      "pal": "Rainbow"
+    }
+  ]
+}

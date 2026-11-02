@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Gradient",
+  "layers": [
+    {
+      "fx": "gradient",
+      "ix": 128,
+      "col": [
+        "FF4000",
+        "200800"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="csiGarland">
+  <rect width="32" height="32" rx="7" fill="#0f172a"/>
+  <path d="M5 9 Q16 19 27 9" fill="none" stroke="#475569" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="9" cy="14.5" r="3.4" fill="#3b82f6"/>
+  <circle cx="16" cy="17" r="3.4" fill="#fbbf24"/>
+  <circle cx="23" cy="14.5" r="3.4" fill="#22c55e"/>
+  <circle cx="16" cy="25.5" r="2" fill="#e2e8f0"/>
+</svg>

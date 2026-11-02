@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Ice Meteor",
+  "layers": [
+    {
+      "fx": "meteor",
+      "ix": 128,
+      "pal": [
+        0,
+        "FFFFFF",
+        80,
+        "80D0FF",
+        255,
+        "0020A0"
+      ]
+    }
+  ]
+}

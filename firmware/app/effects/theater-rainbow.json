@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Theater Rainbow",
+  "layers": [
+    {
+      "fx": "theater",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

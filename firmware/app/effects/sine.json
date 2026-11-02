@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sine",
+  "layers": [
+    {
+      "fx": "sine",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

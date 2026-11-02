@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Saw",
+  "layers": [
+    {
+      "fx": "saw",
+      "ix": 64,
+      "col": [
+        "FF6000",
+        "100400"
+      ]
+    }
+  ]
+}

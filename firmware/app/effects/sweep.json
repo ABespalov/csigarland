@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sweep",
+  "layers": [
+    {
+      "fx": "sweep",
+      "ix": 32,
+      "col": [
+        "00A0FF",
+        "FF4000"
+      ]
+    }
+  ]
+}

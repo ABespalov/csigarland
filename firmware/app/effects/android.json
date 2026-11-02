@@ -1,0 +1,14 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Android",
+  "layers": [
+    {
+      "fx": "android",
+      "ix": 96,
+      "col": [
+        "40FF40",
+        "001000"
+      ]
+    }
+  ]
+}

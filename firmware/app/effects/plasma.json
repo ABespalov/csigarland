@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Plasma",
+  "layers": [
+    {
+      "fx": "plasma",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

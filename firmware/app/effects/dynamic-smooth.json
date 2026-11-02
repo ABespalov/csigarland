@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Color Drift",
+  "layers": [
+    {
+      "fx": "drift",
+      "ix": 128,
+      "pal": "Rainbow"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Popcorn",
+  "layers": [
+    {
+      "fx": "popcorn",
+      "ix": 128,
+      "pal": [
+        0,
+        "FFE080",
+        128,
+        "FFFFFF",
+        255,
+        "FFA020"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+name: Bug report
+description: Something does not work as the documents say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem belongs in [a private report](https://github.com/ABespalov/csigarland/security/advisories/new), not here.
+
+        **Before pasting a log or a file, take out Wi-Fi passwords, tokens and keys.**
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Lighting and effects
+        - Buttons and screen
+        - Web portal
+        - Network and HTTPS
+        - Schedule and clock
+        - Updates (OTA)
+        - Build, signing and deploy scripts
+        - Hardware and 3D models
+        - Documents
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: From the portal's Info page, such as 1.0.0.102, or the commit if you built it yourself.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did you see it?
+      options:
+        - On an assembled garland
+        - On a board with no garland
+        - In host tests or a build
+        - In a browser with the server stubbed
+        - Reading the code or documents
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set the LED count to 32 on the Device page
+        2. Play Fireworks
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: LED count, whether a clock module is fitted, the network the garland is on, and the browser and system if it concerns the portal.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: From the serial monitor, or `/trial-log` during an update.
+      render: text

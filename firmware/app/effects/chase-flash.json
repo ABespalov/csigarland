@@ -1,0 +1,13 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Chase Flash",
+  "layers": [
+    {
+      "fx": "chase-flash",
+      "col": [
+        "200010",
+        "FFFFFF"
+      ]
+    }
+  ]
+}

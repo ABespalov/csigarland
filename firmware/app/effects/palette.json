@@ -1,0 +1,19 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Palette",
+  "layers": [
+    {
+      "fx": "rainbow",
+      "sx": 64,
+      "ix": 16,
+      "pal": [
+        0,
+        "FF0080",
+        128,
+        "00C0FF",
+        255,
+        "FF0080"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Sparkle Pulse",
+  "layers": [
+    {
+      "fx": "breathe",
+      "ix": 30,
+      "col": [
+        "E02040"
+      ]
+    },
+    {
+      "fx": "sparkle",
+      "ix": 60,
+      "col": [
+        "FFFFFF"
+      ],
+      "blend": "add"
+    }
+  ]
+}

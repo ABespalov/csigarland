@@ -1,0 +1,57 @@
+# Editors and local agent state
+.vscode/
+.idea/
+.claude/
+.codex*/
+.agents/
+
+# Local agent rules imports
+CLAUDE.md
+GEMINI.md
+.cursorrules
+
+# Scratch data and logs
+temp/**
+logs/**
+
+# Staged release files
+assets/**
+
+# OS generated files
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# 3D Slicer artifacts
+*.gcode
+*.3mf.bak
+
+# PlatformIO & ESP-IDF
+.pio/
+.pioenvs/
+**/.pio/
+**/compile_commands.json
+firmware/**/managed_components/
+firmware/**/sdkconfig.*
+!firmware/**/sdkconfig.defaults
+firmware/**/generated/
+firmware/**/.csigarland_build_counter
+cmd/**/.csigarland_build_*
+deploy/device-profile.local.json
+
+# Signing keys and certificates, anywhere
+deploy/*.local.*
+/cert/*
+!/cert/README.md
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+
+# Go build outputs
+*.exe
+*.dll
+bin/

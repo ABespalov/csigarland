@@ -1,0 +1,21 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Classic Christmas",
+  "layers": [
+    {
+      "fx": "twinkle",
+      "sx": 128,
+      "ix": 180,
+      "pal": [
+        0,
+        "C00010",
+        85,
+        "00A030",
+        170,
+        "FFB030",
+        255,
+        "C00010"
+      ]
+    }
+  ]
+}

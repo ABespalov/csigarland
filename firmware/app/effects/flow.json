@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Flow",
+  "layers": [
+    {
+      "fx": "flow",
+      "ix": 64,
+      "pal": "Rainbow"
+    }
+  ]
+}

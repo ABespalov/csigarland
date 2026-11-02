@@ -1,0 +1,11 @@
+{
+  "format": "csigarland.effect/1",
+  "name": "Bpm",
+  "layers": [
+    {
+      "fx": "bpm",
+      "ix": 96,
+      "pal": "Rainbow"
+    }
+  ]
+}
