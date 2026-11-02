@@ -114,6 +114,11 @@ foreach ($file in $documents) {
     if (-not (Test-Path -LiteralPath $path)) {
         continue
     }
+    # A stub is checked below, and its target here as itself: read through a symlink, the target's
+    # links would be taken from the stubs' folder.
+    if ($file -like 'docs/stubs/*' -and $file -ne 'docs/stubs/README.md') {
+        continue
+    }
     $text = [System.IO.File]::ReadAllText($path)
     if ($text -match 'file:///') {
         $problems.Add("${file}: a file:/// link")

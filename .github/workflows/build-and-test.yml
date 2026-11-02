@@ -89,12 +89,13 @@ jobs:
           path: ~/.platformio
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/app/platformio.ini', 'firmware/app/dependencies.lock') }}
 
-      # Pinned: an upgrade is a change to the toolchain, made on purpose.
+      # Pinned: an upgrade is a change to the toolchain, made on purpose. PlatformIO runs from this
+      # Python here, not from a Python of its own, and the signing tool installs into nothing else,
+      # so its pinned cryptography comes with it, as firmware/app/scripts/ota_signing.py names it.
       - name: Install PlatformIO
-        run: pip install platformio==6.1.19
+        run: pip install platformio==6.1.19 cryptography==44.0.3
 
-      # First, as the host tests use the cJSON it brings into managed_components. The build puts
-      # the signing tool's pinned cryptography into PlatformIO's Python where none has it.
+      # First, as the host tests use the cJSON it brings into managed_components.
       - name: Firmware image
         run: pio run -e esp32c6
         working-directory: firmware/app
