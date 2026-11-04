@@ -47,14 +47,20 @@ inline cJSON* json_parse_shallow(const char* text) {
     return json_depth_is_safe(text) ? cJSON_ParseWithOpts(text, nullptr, 1) : nullptr;
 }
 
-// A request's body of length bytes. One with a NUL in it would be judged by what comes before.
-inline cJSON* json_parse_body(const char* text, size_t length) {
+// Whether a body of length bytes is text all the way: one with a NUL in it would be judged, and
+// kept, by what comes before.
+inline bool body_is_text(const char* text, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         if (text[i] == '\0') {
-            return nullptr;
+            return false;
         }
     }
-    return json_parse_shallow(text);
+    return true;
+}
+
+// A request's body of length bytes, see body_is_text.
+inline cJSON* json_parse_body(const char* text, size_t length) {
+    return body_is_text(text, length) ? json_parse_shallow(text) : nullptr;
 }
 
 }  // namespace garland

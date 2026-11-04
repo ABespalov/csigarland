@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -35,16 +36,25 @@ PAGES = {
     "/pair": ("kPagePair", "portal_page_pair.h"),
 }
 # Reports the height once the page has had its answers, and presses a button if the address asks.
+# With ?rows=N on the Effects page, stops after the first N effects, for a picture that is not a
+# long scroll; the height is then reported under the path with that query.
 MEASURE = """<script>
   addEventListener('load', () => setTimeout(() => {
-    const press = new URLSearchParams(location.search).get('press');
+    const query = new URLSearchParams(location.search);
+    const press = query.get('press');
     if (press) document.getElementById(press).click();
-    setTimeout(() => fetch('/stub/height?path=' + encodeURIComponent(location.pathname), {
-      method: 'POST', body: String(Math.ceil(document.querySelector('main').getBoundingClientRect().bottom) + 24) }), 300);
+    setTimeout(() => {
+      const count = Number(query.get('rows')) || 0;
+      const rows = count > 0 ? document.querySelectorAll('#effects .x') : [];
+      const end = rows.length >= count && count > 0 ? rows[count - 1] : document.querySelector('main');
+      const key = location.pathname + (count > 0 ? '?rows=' + count : '');
+      fetch('/stub/height?path=' + encodeURIComponent(key), {
+        method: 'POST', body: String(Math.ceil(end.getBoundingClientRect().bottom) + 16) });
+    }, 300);
   }, 400));
 </script>
 """
-VERSION = sys.argv[2] if len(sys.argv) > 2 else "1.0.0.27"
+VERSION = sys.argv[2] if len(sys.argv) > 2 else "1.1.0.0"
 PLAYING = "garland-combination"
 SAMPLE_NAME = "csigarland.local"
 SAMPLE_IP = "192.168.1.50"
@@ -88,13 +98,37 @@ if os.environ.get("CSIGARLAND_STUB_UPLOADS"):
 PLAYING_NAME = next(effect["name"] for effect in ALL_EFFECTS if effect["id"] == PLAYING)
 FAVORITES = sum(effect["favorite"] for effect in ALL_EFFECTS)
 LEDS = {"count": 32, "setting": 0, "probe": "present", "estimate": 32, "kept": 0, "max": 256}
-STATE = {"power": True, "brightness": 75, "effect": PLAYING, "effect_name": PLAYING_NAME, "speed": 1, "leds": LEDS}
-NEXT = {"clock": True, "at": "Fri 25 Dec, 23:30", "power": "off"}
+STATE = {"power": True, "brightness": 75, "effect": PLAYING, "effect_name": PLAYING_NAME, "speed": 1, "playlist": True, "playlist_at": 1, "playlist_size": 3, "leds": LEDS}
+# One moment for everything the pages show of time: Friday 25 December 2026, 18:42, as this computer's
+# clock would read it, so that the garland's time, the next action and the next 24 hours agree.
+STUB_NOW = int(time.mktime((2026, 12, 25, 18, 42, 7, 0, 0, -1)))
+# What the sample actions do next from then: the 21:00 step.
+NEXT = {"clock": True, "at": "Fri 25 Dec, 21:00", "brightness": 40, "speed": 0.5}
 ENTRIES = [
     {"enabled": True, "time": "17:00", "days": 127, "power": "on", "brightness": 75, "effect": PLAYING, "effect_name": PLAYING_NAME},
     {"enabled": True, "time": "21:00", "days": 127, "brightness": 40, "speed": 0.5},
     {"enabled": True, "time": "23:30", "days": 127, "power": "off"},
+    {"enabled": True, "time": "07:00", "days": 62, "power": "rise", "brightness": 30},
+    {"enabled": True, "time": "17:00", "days": 65, "playlist": True},
 ]
+PLAYLIST = {"effects": [PLAYING] + [effect["id"] for effect in ALL_EFFECTS if effect["id"] != PLAYING][1:3], "dwell": 120, "cross_fade": 1500, "playing": False, "max": 16, "revision": 1}
+
+
+# The next day as the garland would work it out: the sample actions, from the sample moment.
+def timeline():
+    now = STUB_NOW // 60
+    events = []
+    for minute in range(now + 1, now + 24 * 60 + 1):
+        local = time.localtime(minute * 60)
+        hhmm = f"{local.tm_hour:02d}:{local.tm_min:02d}"
+        day = (local.tm_wday + 1) % 7
+        due = [i for i, entry in enumerate(ENTRIES) if entry["time"] == hhmm and entry["days"] & (1 << day)]
+        if due:
+            event = {"at": minute * 60, "time": hhmm, "day": day, "entries": due}
+            for i in due:
+                event.update({key: value for key, value in ENTRIES[i].items() if key in ("power", "brightness", "speed", "effect", "playlist")})
+            events.append(event)
+    return {"synced": True, "now": STUB_NOW, "power": True, "events": events}
 TIME = {
     "synced": True,
     "now": "2026-12-25 18:42",
@@ -144,13 +178,18 @@ ANSWERS = {
     "/api/auth/devices": {"devices": [{"id": 1, "label": "Chrome Windows", "this": True, "expires": UNTIL}, {"id": 2, "label": "Safari iOS", "this": False, "expires": UNTIL}]},
     "/api/auth/request": {"request": "sample", "code": "4827", "seconds": 60},
     "/api/auth/wait": {"state": "waiting"},
+    "/api/playlist": PLAYLIST,
+    "/api/playlist/play": PLAYLIST,
 }
 
 
 def page(path):
     assets = texts(SRC / "portal_assets.h")
     name, header = PAGES[path]
-    return assets["kPortalPageTop"] + texts(SRC / header)[name] + MEASURE + assets["kPortalPageBottom"]
+    top = assets["kPortalPageTop"]
+    if os.environ.get("CSIGARLAND_STUB_SHOTS"):
+        top += "<script>window.EventSource = null;</script>"
+    return top + texts(SRC / header)[name] + MEASURE + assets["kPortalPageBottom"]
 
 
 class Stub(BaseHTTPRequestHandler):
@@ -165,7 +204,9 @@ class Stub(BaseHTTPRequestHandler):
 
     def answer(self):
         path = self.path.split("?")[0]
-        if path in ANSWERS:
+        if path == "/api/schedule/timeline":
+            self.reply(json.dumps(timeline()), "application/json")
+        elif path in ANSWERS:
             self.reply(json.dumps(ANSWERS[path]), "application/json")
         else:
             self.send_error(404)
@@ -180,8 +221,28 @@ class Stub(BaseHTTPRequestHandler):
             self.reply(page(path), "text/html")
         elif path == "/stub/heights":
             self.reply(json.dumps(heights), "application/json")
+        elif path == "/api/events":
+            self.events()
         else:
             self.answer()
+
+    # Push updates as the garland sends them: the state at once, then a comment now and then.
+    def events(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            self.wfile.write(f"event: state\ndata: {json.dumps(STATE)}\n\n".encode())
+            self.wfile.flush()
+            if os.environ.get("CSIGARLAND_STUB_SHOTS"):
+                return
+            while True:
+                time.sleep(15)
+                self.wfile.write(b"event: alive\ndata: {}\n\n")
+                self.wfile.flush()
+        except OSError:
+            pass
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode()

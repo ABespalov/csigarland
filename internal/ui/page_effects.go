@@ -41,6 +41,7 @@ type effectsPage struct {
 	sending    bool
 	changes    int
 	commands   int // Those on their way, whose outcome a state read meanwhile knows nothing of.
+	playlist   playlistCard
 }
 
 type groupState struct {
@@ -57,7 +58,8 @@ func (p *effectsPage) init() {
 
 // All of the page in one turn, as the others load. Its places for uploads are only a remark on it.
 func (p *effectsPage) load(a *App) {
-	changes := p.changes
+	p.loadPlaylist(a)
+	changes, pushes := p.changes, a.pushes
 	a.work(func(ctx context.Context, client *api.Client) (func(), error) {
 		state, err := client.State(ctx)
 		if err != nil {
@@ -73,7 +75,7 @@ func (p *effectsPage) load(a *App) {
 			if storeErr == nil {
 				p.store = store
 			}
-			if changes == p.changes && p.commands == 0 {
+			if changes == p.changes && p.commands == 0 && pushes == a.pushes {
 				a.takeState(state)
 			} else {
 				p.markActive(a.state.Effect)
@@ -114,6 +116,9 @@ func (p *effectsPage) rows(a *App) []layout.Widget {
 		rows = append(rows, p.nowCard(a))
 	}
 	rows = append(rows, p.toolsCard(a, local))
+	if !local && p.playlist.read {
+		rows = append(rows, p.playlistWidget(a))
+	}
 	groups := GroupEffects(source)
 	for g := range groups {
 		group := groups[g]
@@ -309,7 +314,7 @@ func (p *effectsPage) play(a *App, id string) {
 			case p.commands > 0:
 			case err != nil:
 				// It is playing, and only the reading back failed: the next look tells the rest.
-				a.refreshState()
+				a.rereadState()
 			default:
 				a.takeState(state)
 			}
@@ -409,6 +414,11 @@ func (p *effectsPage) sendWanted(a *App) {
 				a.takeState(state)
 			}
 			p.sendWanted(a)
+			// The slider shows what was asked, which did not take: what holds is asked for once the
+			// changes are through, as the stream sends nothing for what did not change.
+			if err != nil && !p.sending {
+				a.rereadState()
+			}
 		}, err
 	})
 }
@@ -423,7 +433,7 @@ func (p *effectsPage) togglePower(a *App) {
 		if err != nil {
 			return func() {
 				p.commands--
-				a.refreshState()
+				a.rereadState()
 			}, err
 		}
 		return func() {

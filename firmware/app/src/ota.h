@@ -29,6 +29,11 @@ const char* ota_receive(httpd_req_t* req, State& state, OtaInstalled& installed)
 
 // Restarts into the installed update, after the time a reply needs to get out.
 void ota_restart_soon();
+// A restart taken before anything is done for it, unless an update is being received or a restart is
+// under way already: false then, and nothing is taken. One not needed after all is given back with
+// ota_release_restart, and ota_restart_soon goes on with one taken.
+bool ota_reserve_restart();
+void ota_release_restart();
 
 // What tells one image and one start from another, for a client to know that what it sent is what
 // runs: a version may repeat. The image's is the ELF hash its descriptor holds, in hex, which a

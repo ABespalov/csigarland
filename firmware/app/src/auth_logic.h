@@ -47,6 +47,20 @@ constexpr bool auth_device_is_current(const AuthDevice& device, int64_t now_epoc
     return device.in_use && (now_epoch == 0 || device.expires_epoch == 0 || now_epoch < device.expires_epoch);
 }
 
+// What a long request was let in under: a paired client's place and the hash of its token. It holds for
+// as long as that client is still paired with that token and its days have not run out.
+struct AuthGrant {
+    int slot = -1;  // kAuthGrantSetupNetwork for the setup network, which needs no pairing.
+    std::array<uint8_t, kAuthHashBytes> hash{};
+};
+constexpr int kAuthGrantSetupNetwork = -2;
+
+constexpr bool auth_grant_holds(const AuthDevices& devices, const AuthGrant& grant, int64_t now_epoch) {
+    return grant.slot >= 0 && static_cast<size_t>(grant.slot) < devices.size() &&
+           auth_device_is_current(devices[static_cast<size_t>(grant.slot)], now_epoch) &&
+           devices[static_cast<size_t>(grant.slot)].hash == grant.hash;
+}
+
 // Starts the 100 days of those paired before the clock was known. True when any changed.
 inline bool auth_settle_clock(AuthDevices& devices, int64_t now_epoch) {
     if (now_epoch == 0) {
@@ -220,6 +234,17 @@ inline bool auth_is_setup_client(uint32_t local, uint32_t peer, uint32_t portal)
     std::memcpy(peer_bytes, &peer, sizeof(peer_bytes));
     std::memcpy(portal_bytes, &portal, sizeof(portal_bytes));
     return local == portal && std::memcmp(peer_bytes, portal_bytes, 3) == 0;
+}
+
+// Whether the setup network's exception can hold at all: only while the setup network is up, and only
+// while the home network's own address is outside its /24. A home network of 192.168.4.0/24 that gave the
+// garland 192.168.4.1 would else let any computer on it pass for a client of the setup network, unpaired.
+inline bool auth_setup_network_applies(bool access_point_on, uint32_t home_ip, uint32_t portal) {
+    uint8_t home_bytes[4];
+    uint8_t portal_bytes[4];
+    std::memcpy(home_bytes, &home_ip, sizeof(home_bytes));
+    std::memcpy(portal_bytes, &portal, sizeof(portal_bytes));
+    return access_point_on && (home_ip == 0 || std::memcmp(home_bytes, portal_bytes, 3) != 0);
 }
 
 enum class PairPoll : uint8_t { Waiting, Approved, Gone };

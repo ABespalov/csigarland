@@ -1,6 +1,6 @@
 # Project Roadmap: csiGarland
 
-Milestones leading to Christmas & New Year deployment. A ticked firmware item is implemented and passes the host tests or builds; what has actually been seen working on the board is listed separately in Milestone 3. Agreed work that is not done, the applications and what is left to measure among it, is in the [to-do list](../stubs/TODO.md).
+Milestones leading to Christmas & New Year deployment. A ticked firmware item is implemented and passes the host tests or builds; what has been seen working on the owner's garland is listed separately in Milestone 3. Agreed work that is not done, the applications and what is left to measure among it, is in the [to-do list](../stubs/TODO.md).
 
 ```mermaid
 flowchart LR
@@ -35,13 +35,13 @@ Implemented:
 - [x] Encrypted settings and a per-board setup network password.
 - [x] Signed OTA under a private root certificate, with automatic return to the previous firmware.
 
-Still to see working on the board:
-- [ ] Screen, gestures and screensavers, with no LED flicker from drawing or Wi-Fi.
-- [ ] Portal, captive portal and mDNS from a phone.
-- [ ] NTP sync, scheduled actions and daylight saving.
-- [ ] The clock module: found, kept through a power cut, set from each source.
-- [ ] How all 154 effects look on real figurines.
-- [ ] An OTA update, a refused bad signature, and a return to the previous firmware.
+Seen working on the owner's garland:
+- [x] Screen, gestures and screensavers, with no LED flicker from drawing or Wi-Fi.
+- [x] Portal, captive portal and mDNS from a phone.
+- [x] NTP sync and scheduled actions.
+- [x] The clock module: found, kept through a power cut, set from each source.
+- [x] How all 154 effects look on real figurines: eight, one of each kind, on 1.0.0.102 and the builds of 1.1.0.
+- [x] An OTA update, a refused bad signature, and a return to the previous firmware, on the same builds.
 
 Not implemented: see **Planned** below.
 
@@ -58,19 +58,26 @@ Not implemented: see **Planned** below.
 
 ## Released
 
-* **1.0.0** (firmware 1.0.0.102, utility 1.0.0.27): everything ticked in Milestone 3, the portal, the public API and the Windows utility, built again to the byte from its sources.
+* **1.1.0**, released 2026-11-04 (firmware 1.1.0.113, utility 1.1.0.37): what is listed below, tested on the host and in a browser against the stubbed portal, and seen working on the owner's garland. A garland updated from 1.0.0 keeps all it saved. The [changelog](../../CHANGELOG.md) has each:
+
+* **Playlists and transitions:** up to 16 effects played in turn, and a cross-fade at every change of effect.
+* **Fades on turning on and off,** and a scheduled turn on that rises from dark over a minute.
+* **A check after an update:** the utility reads every route of `/api/v1/` and holds each answer to its types.
+* **Backup and restore:** the schedule, favourites, playlist, screen and uploaded effects to a file and back, for a unit that may have to be erased.
+* **The schedule on a timeline:** the next 24 hours, and where actions meet, on the portal and in the utility.
+* **Current in Tune:** what an effect draws by the firmware's own model, and where the 1400 mA limit holds it back.
+* **Push updates:** the garland sends its state as it changes, to the portal and the utility.
+* **1.0.0**, released 2026-11-03 (firmware 1.0.0.102, utility 1.0.0.27): everything ticked in Milestone 3, the portal, the public API and the Windows utility, built again to the byte from its sources.
+
+## In the Next Release
+
+Nothing yet beyond what is planned below.
+
 
 ## Planned
 
 Not implemented, and not to be read as what the firmware or the utility does:
 
-* **Playlists and transitions:** Auto-Carousel cycling through a list of effects, and cross-fades between effects.
-* **Fades on turning on and off,** among them a scheduled turn on that rises from dark over a minute.
-* **A check after an update:** the utility walks every route of `/api/v1/` and holds each answer to its types.
-* **Backup and restore:** the schedule, favourites and uploaded effects to a file and back, for a unit that may have to be erased.
-* **The schedule on a timeline:** what plays in the next 24 hours, where actions meet.
-* **Current in Tune:** where an effect reaches the 1400 mA limit and is held back, by the firmware's own model.
-* Push updates to the browser instead of polling.
 * Go + Gio applications beyond Windows, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
 
 ## Open Hardware Questions
@@ -86,5 +93,5 @@ Neither confirmed nor refuted by the running prototype:
 
 ## Validation Still to Do
 
-Host tests cover logic, not these: an OTA through trial to confirmation and through rollback, power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 32 and 256 LEDs, DST changes, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark.
+Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark.
 

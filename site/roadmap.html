@@ -11,70 +11,85 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Roadmap — csiGarland</title>
-  <meta name="description" content="Where csiGarland stands: the 1.0.0 release, the milestones to the first garland on a tree, and what is planned next.">
+  <title data-i18n="roadmap.meta.title">Roadmap — csiGarland</title>
+  <meta name="description" data-i18n-content="roadmap.meta.desc" content="Where csiGarland stands: the 1.1.0 release, the milestones to the first garland on a tree, and what is planned next.">
   <link rel="canonical" href="https://garland.csilab.am/roadmap.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/roadmap.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/roadmap.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/roadmap.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script src="lang.js"></script>
+  <script src="site.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Skip to content</a>
   <header class="site-header">
     <div class="site-header-inner">
-      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
-      <nav class="nav" aria-label="Primary">
-        <a href="index.html">Product</a>
-        <a href="roadmap.html" aria-current="page">Roadmap</a>
-        <a href="documents.html">Documents</a>
-        <a href="downloads.html">Downloads</a>
-        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      <a class="brand" href="index.html" aria-label="csiGarland home" data-i18n-aria="nav.home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Product</a>
+        <a href="roadmap.html" aria-current="page" data-i18n="nav.roadmap">Roadmap</a>
+        <a href="documents.html" data-i18n="nav.documents">Documents</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Source</a>
       </nav>
+      <a class="lang-switch" id="lang-switch" href="ru/roadmap.html" hreflang="ru" lang="ru" aria-label="Русская версия" title="Русская версия">RU</a>
     </div>
   </header>
 
   <main id="main">
     <section class="section">
-      <p class="eyebrow">Roadmap</p>
-      <h1>From the first release to the tree</h1>
-      <p class="lead">The firmware and the utility are released. What is left is the hardware: printing the figurines, building the garland, and seeing on a real board what the tests could not show. The <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer">roadmap in the repository</a> is the one kept up to date.</p>
+      <p class="eyebrow" data-i18n="roadmap.eyebrow">Roadmap</p>
+      <h1 data-i18n="roadmap.title">From the first release to the tree</h1>
+      <p class="lead"><span data-i18n="roadmap.lead.a">The firmware and the utility are released, 1.1.0 the latest, and seen working on the owner's garland. What is left is the hardware: printing the figurines, building the full garland, and measuring it. The </span><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer" data-i18n="roadmap.lead.link">roadmap in the repository</a><span data-i18n="roadmap.lead.b"> is the one kept up to date.</span></p>
     </section>
 
     <section class="section">
-      <h2>Released</h2>
+      <h2 data-i18n="roadmap.released.title">Released</h2>
       <div class="grid">
-        <div class="card"><h3>1.0.0</h3><p>Firmware 1.0.0.102 and utility 1.0.0.27: 154 effects, the schedule and clock, the portal over HTTPS with its own root, signed updates with a trial and a way back, the public API, and the utility for Windows. Both build again to the byte from their sources.</p></div>
+        <div class="card"><h3>1.1.0</h3><p data-i18n="roadmap.released.110">Released 4 November 2026. Firmware 1.1.0.113 and utility 1.1.0.37: playlists with cross-fades, fades on turning on and off and a morning rise, backup and restore, the schedule on a 24-hour timeline, push updates, current in Tune, and a check of the API after an update. A garland updated from 1.0.0 keeps all it saved.</p></div>
+        <div class="card"><h3>1.0.0</h3><p data-i18n="roadmap.released.100">Released 3 November 2026. Firmware 1.0.0.102 and utility 1.0.0.27: 154 effects, the schedule and clock, the portal over HTTPS with its own root, signed updates with a trial and a way back, the public API, and the utility for Windows. Both build again to the byte from their sources.</p></div>
       </div>
     </section>
 
     <section class="section">
-      <h2>Milestones</h2>
+      <h2 data-i18n="roadmap.milestones.title">Milestones</h2>
       <ul class="docs">
-        <li><strong>1. Electrical proof of concept</strong><span>The Hi-Link supply under load, the MOSFET gate and the standby draw, and the LED count estimate on the gated rail.</span></li>
-        <li><strong>2. 3D models and prints</strong><span>The enclosure is printed. Next: test prints of the figurines in translucent PETG, for light and fit.</span></li>
-        <li><strong>3. Firmware on the board</strong><span>Implemented and tested on the host. Left to see on the board: the screen, gestures and screensavers with no flicker; the portal from a phone; NTP, the schedule and daylight saving; the clock module; every effect on real figurines; an update, a refused signature and a return to the previous firmware.</span></li>
-        <li><strong>4. The 32-figurine garland</strong><span>The cable harness, the order of the figurines along it, and the bases and caps put together.</span></li>
-        <li><strong>5. On the tree</strong><span>A 24-hour run, the current in every mode, and the garland on the Christmas tree.</span></li>
+        <li><strong data-i18n="roadmap.m1.title">1. Electrical proof of concept</strong><span data-i18n="roadmap.m1.body">The Hi-Link supply under load, the MOSFET gate and the standby draw, and the LED count estimate on the gated rail.</span></li>
+        <li><strong data-i18n="roadmap.m2.title">2. 3D models and prints</strong><span data-i18n="roadmap.m2.body">The enclosure is printed. Next: test prints of the figurines in translucent PETG, for light and fit.</span></li>
+        <li><strong data-i18n="roadmap.m3.title">3. Firmware on the board</strong><span data-i18n="roadmap.m3.body">Done: implemented, tested on the host, and seen on the owner's garland: the screen, gestures and screensavers with no flicker; the portal from a phone; NTP and the schedule; the clock module; every effect on eight figurines, one of each kind; an update, a refused signature and a return to the previous firmware.</span></li>
+        <li><strong data-i18n="roadmap.m4.title">4. The 32-figurine garland</strong><span data-i18n="roadmap.m4.body">The cable harness, the order of the figurines along it, and the bases and caps put together.</span></li>
+        <li><strong data-i18n="roadmap.m5.title">5. On the tree</strong><span data-i18n="roadmap.m5.body">A 24-hour run, the current in every mode, and the garland on the Christmas tree.</span></li>
       </ul>
     </section>
 
     <section class="section">
-      <h2>Planned</h2>
+      <h2 data-i18n="roadmap.next.title">What 1.1.0 brought</h2>
+      <p data-i18n="roadmap.next.lead">Tested, and seen working on the owner's garland before its release.</p>
       <div class="grid">
-        <div class="card"><h3>Playlists and transitions</h3><p>A carousel of effects that changes by itself, with cross-fades from one to the next.</p></div>
-        <div class="card"><h3>Gentle on and off</h3><p>Fades on turning on and off, among them a scheduled evening turn on that rises from dark over a minute.</p></div>
-        <div class="card"><h3>A check after an update</h3><p>The utility walks every route of the public API and holds each answer to its types.</p></div>
-        <div class="card"><h3>Backup and restore</h3><p>The schedule, favourites and your own effects to a file and back, for a sealed unit that may have to be erased.</p></div>
-        <div class="card"><h3>The schedule on a timeline</h3><p>What plays in the next 24 hours, and where actions meet.</p></div>
-        <div class="card"><h3>Current in Tune</h3><p>Where an effect reaches the 1400 mA limit and is held back, by the firmware's own model.</p></div>
-        <div class="card"><h3>More platforms</h3><p>The utility on Ubuntu and macOS, then Android and iOS, on the same Go code and the same public API.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n1.title">Playlists and transitions</h3><p data-i18n="roadmap.n1.body">Up to 16 effects played in turn, with a cross-fade from one to the next.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n2.title">Gentle on and off</h3><p data-i18n="roadmap.n2.body">Fades on turning on and off, and a scheduled morning turn on that rises from dark over a minute.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n3.title">A check after an update</h3><p data-i18n="roadmap.n3.body">The utility reads every route of the public API and holds each answer to its types.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n4.title">Backup and restore</h3><p data-i18n="roadmap.n4.body">The schedule, favourites, playlist, screen and your own effects to a file and back, for a sealed unit that may have to be erased.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n5.title">The schedule on a timeline</h3><p data-i18n="roadmap.n5.body">The next 24 hours, and where actions meet, on the portal and in the utility.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n6.title">Push updates</h3><p data-i18n="roadmap.n6.body">The portal and the utility follow the garland as it changes, rather than asking every few seconds.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n7.title">Current in Tune</h3><p data-i18n="roadmap.n7.body">What an effect draws, by the firmware's own model, and where the 1400 mA limit holds it back.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="roadmap.planned.title">Planned</h2>
+      <div class="grid">
+        <div class="card"><h3 data-i18n="roadmap.p1.title">More platforms</h3><p data-i18n="roadmap.p1.body">The utility on Ubuntu and macOS, then Android and iOS, on the same Go code and the same public API.</p></div>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="section">
-      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
-      <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md" rel="noopener noreferrer">What is left to measure</a>
+      <span data-i18n="footer.copy">csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md" rel="noopener noreferrer" data-i18n="roadmap.footer.todo">What is left to measure</a>
     </div>
   </footer>
 </body>

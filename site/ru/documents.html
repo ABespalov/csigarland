@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!-- Made by deploy/site-pages.ps1 from site/documents.html and deploy/site-ru.json: edit those, not this. -->
+<html lang="ru">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The documents, for owners and for builders and contributors
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="docs.meta.title">Документация — csiGarland</title>
+  <meta name="description" data-i18n-content="docs.meta.desc" content="Руководства пользователя csiGarland, а также документация по архитектуре, сборке, схемотехнике, 3D-моделям и API для разработчиков.">
+  <link rel="canonical" href="https://garland.csilab.am/ru/documents.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/documents.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/documents.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/documents.html">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../lang.js"></script>
+  <script src="../site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Перейти к содержимому</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="На главную csiGarland" data-i18n-aria="nav.home"><img src="../assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Основная навигация" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Устройство</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">План работ</a>
+        <a href="documents.html" aria-current="page" data-i18n="nav.documents">Документация</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Загрузки</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Исходный код</a>
+      </nav>
+      <a class="lang-switch" id="lang-switch" href="../documents.html" hreflang="en" lang="en" aria-label="English version" title="English version">EN</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow" data-i18n="docs.eyebrow">Документация</p>
+      <h1 data-i18n="docs.title">Прочтите перед сборкой или во время использования</h1>
+      <p class="lead" data-i18n="docs.lead">Документация хранится в репозитории вместе с исходным кодом и всегда соответствует текущей реализации. Ссылки ведут на актуальные документы на GitHub (на английском языке).</p>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="docs.owners.title">Для пользователей</h2>
+      <ul class="docs">
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/user-guide.md" rel="noopener noreferrer" data-i18n="docs.o1.link">Руководство пользователя (User Guide)</a><span data-i18n="docs.o1.body">Кнопки и экран, подключение к порталу, описание всех страниц портала, расписание, обновления и решение возможных проблем.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/utility.md" rel="noopener noreferrer" data-i18n="docs.o2.link">Утилита csiGarland (Utility Guide)</a><span data-i18n="docs.o2.body">Поиск и привязка гирлянды, управление со всех вкладок, настройка эффектов с живым предпросмотром, обновление из файла или каталога и чтение логов.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/effects.md" rel="noopener noreferrer" data-i18n="docs.o3.link">Справочник эффектов (Effects Guide)</a><span data-i18n="docs.o3.body">Каталог всех 154 встроенных эффектов по группам, описание 98 алгоритмов, JSON-формат эффекта и создание собственных пресетов.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="docs.o4.link">Безопасность (Security)</a><span data-i18n="docs.o4.body">Модель защиты устройства, принятые архитектурные ограничения и порядок сообщения об уязвимостях.</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="docs.builders.title">Для сборщиков и разработчиков</h2>
+      <ul class="docs">
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/architecture.md" rel="noopener noreferrer" data-i18n="docs.b1.link">Архитектура прошивки (Architecture)</a><span data-i18n="docs.b1.body">Устройство прошивки: задачи FreeRTOS, порядок старта, управление питанием, API портала, безопасные OTA-обновления, обработка сбоев и принятые риски.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/build-and-flash.md" rel="noopener noreferrer" data-i18n="docs.b2.link">Сборка форка и первая прошивка (Build and Flash)</a><span data-i18n="docs.b2.body">Инструменты, выпуск собственных ключей подписи, первая прошивка по USB с записью ключа в eFuse и назначение всех скриптов.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/rebuild.md" rel="noopener noreferrer" data-i18n="docs.b3.link">Воспроизводимая сборка релиза (Rebuild to the Byte)</a><span data-i18n="docs.b3.body">Как самостоятельно пересобрать опубликованную прошивку и утилиту из чистого форка и убедиться в совпадении файлов до байта.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/hardware.md" rel="noopener noreferrer" data-i18n="docs.b4.link">Сборка аппаратной части (Building the Hardware)</a><span data-i18n="docs.b4.body">Принципиальная схема, перечень компонентов (BOM), монтаж жгута гирлянды и обязательные проверки перед подачей питания.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/specification.md" rel="noopener noreferrer" data-i18n="docs.b5.link">Аппаратная спецификация (Hardware Specification)</a><span data-i18n="docs.b5.body">Характеристики контроллера, блока питания, светодиодов, силового ключа и энергетический баланс.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/control-unit.md" rel="noopener noreferrer" data-i18n="docs.b6.link">Блок управления (Control Unit)</a><span data-i18n="docs.b6.body">Конструкция корпуса, ввод питания, схема распиновки GPIO и маршруты встроенного веб-сервера.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/optical-design.md" rel="noopener noreferrer" data-i18n="docs.b7.link1">Оптическая конструкция (Optical Design)</a> <span data-i18n="docs.b7.and">и</span> <a href="https://github.com/ABespalov/csigarland/blob/main/docs/hardware/diffusers.md" rel="noopener noreferrer" data-i18n="docs.b7.link2">Рассеиватели (Diffusers)</a><span data-i18n="docs.b7.body">Как полупрозрачный PETG рассеивает свет точечного светодиода, устройство замков и параметры 3D-печати каждой из восьми фигурок.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/3d-model/README.md" rel="noopener noreferrer" data-i18n="docs.b8.link">3D-модели (3D Models)</a><span data-i18n="docs.b8.body">Исходники OpenSCAD, готовые файлы STL и проекты Bambu Studio (3MF) для печати корпуса и фигурок.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/PUBLIC-API.md" rel="noopener noreferrer" data-i18n="docs.b9.link">Публичный API (Public API)</a><span data-i18n="docs.b9.body">Описание маршрутов /api/v1/: обнаружение гирлянды, проверка сертификата, привязка кнопками, управление и чтение лога.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/CONTRIBUTING.md" rel="noopener noreferrer" data-i18n="docs.b10.link">Участие в разработке (Contributing)</a><span data-i18n="docs.b10.body">Настройка окружения, порядок запуска проверок и правила оформления кода и документации.</span></li>
+        <li><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer" data-i18n="docs.b11.link1">План работ (Roadmap)</a> <span data-i18n="docs.b7.and">и</span> <a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/TODO.md" rel="noopener noreferrer" data-i18n="docs.b11.link2">Список задач (To Do)</a><span data-i18n="docs.b11.body">Что запланировано дальше, что уже проверено на плате и какие измерения предстоит выполнить.</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="docs.schematic.title">Принципиальная схема и ключевые решения</h2>
+      <p class="lead" data-i18n="docs.schematic.lead">Блок управления разделяет сетевой ввод 220 В с изолированным источником питания и низковольтную цифровую часть, а питание светодиодной ленты коммутируется по верхнему плечу (+5 В). Благодаря этому в режиме ожидания лента полностью обесточена, а во время работы потребление удерживается в безопасных границах блока питания.</p>
+      <p class="note danger" data-i18n="docs.schematic.danger">Сетевое напряжение опасно, а за напечатанный корпус отвечаете вы сами. Не покупайте XT60H для сетевого ввода: у него нет допуска для сети, хотя корпус рассчитан под него. Прочитайте Building the Hardware, прежде чем собирать.</p>
+      <div class="grid">
+        <div class="card">
+          <h3 data-i18n="docs.s1.title">Изолированное питание 5 В 2 А</h3>
+          <p data-i18n="docs.s1.body">Сетевое напряжение 220 В подаётся через плавкий предохранитель F1 (1 А, 250 В) и варистор защиты от импульсных помех RV1 (10D471K) на изолированный модуль Hi-Link HLK-10M05B (5 В, 2 А, изоляция 3000 В AC) с буферным Low-ESR конденсатором C1 (100–1000 мкФ) на шине +5 В.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="docs.s2.title">Отключение ленты по верхнему плечу</h3>
+          <p data-i18n="docs.s2.body">Общий провод GND никогда не разрывается. Модуль ключа верхнего плеча YZ_CTL_V1 (Q1), управляемый с GPIO 1 с подтяжкой 10 кОм к земле (R2), держит линию +5V_SW выключенной при старте и в простое. Во время свечения прошивка ограничивает расчётный ток каждого кадра на уровне 1400 мА.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="docs.s3.title">Защита линии данных и гирлянда</h3>
+          <p data-i18n="docs.s3.body">Вывод GPIO 2 формирует сигнал для 32 светодиодов WS2812B через аппаратный блок RMT и последовательный резистор R1 (330 Ом), который гасит звон на фронте импульсов и защищает первый светодиод. При снятии питания с ленты линия данных принудительно удерживается в нуле.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="docs.s4.title">Кнопки, экран и модуль часов</h3>
+          <p data-i18n="docs.s4.body">Плата Waveshare ESP32-C6-LCD-1.3 несёт на борту IPS-экран 240×240 (SPI). Три кнопки — POWER (GPIO 3), EFFECT (GPIO 20) и SPEED (GPIO 23) — замыкают выводы на GND со внутренней подтяжкой. Опциональные часы реального времени DS3231 (U3) подключаются по шине I²C 3,3 В (GPIO 17 SDA, GPIO 16 SCL).</p>
+        </div>
+      </div>
+      <figure class="schematic-box">
+        <img class="shot" src="../assets/schematic.svg" alt="Принципиальная электрическая схема блока управления csiGarland" data-i18n-alt="docs.schematic.alt">
+        <figcaption data-hint="true" data-i18n="docs.schematic.caption">Нажмите на схему, чтобы открыть её на весь экран, увеличить и рассмотреть соединения.</figcaption>
+      </figure>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span data-i18n="footer.copy">csiGarland, проект csi Research Lab. Лицензия MIT.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security">Сообщить об уязвимости</a>
+    </div>
+  </footer>
+</body>
+</html>

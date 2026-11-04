@@ -107,6 +107,20 @@ inline constexpr char kPortalScript[] = R"js(
     $(id).className = 's ' + (isError ? 'e' : 'm');
   }
 
+  /* A command's limit: one the garland has not answered by then is given up, and what it does is read
+     again, as it may have done it or not. */
+  function deadline(ms) {
+    if (AbortSignal.timeout) return AbortSignal.timeout(ms);
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  }
+
+  /* What a failed request says: one given up on says that, not the browser's words for it. */
+  function failureText(error) {
+    return error.name === 'TimeoutError' || error.name === 'AbortError' ? 'The garland did not answer in time: what it does is read again.' : error.message;
+  }
+
   async function request(path, body, signal) {
     const options = body === undefined ? {} : {
       method: 'POST',
@@ -188,14 +202,17 @@ inline constexpr char kPortalScript[] = R"js(
     if (action.power === 'off') return 'Turn off';
     const steps = [];
     if (action.power === 'on') steps.push('Turn on');
+    if (action.power === 'rise') steps.push('Turn on, rising over a minute');
     if (action.brightness) steps.push(`brightness ${action.brightness}%`);
     if (action.speed) steps.push(`speed ${action.speed}x`);
     const effect = action.effect_name || effectNames[action.effect] || action.effect;
     if (effect) steps.push(`effect ${effect}`);
+    if (action.playlist) steps.push('start the playlist');
     return steps.join(', ');
   }
 
   function describeNext(next) {
+    if (next.unread) return 'The schedule could not be read yet: the garland tries again every minute.';
     if (!next.clock) return 'Waiting for the clock to be set.';
     return next.at ? `${next.at}: ${describeSteps(next)}.` : 'Nothing in the coming week.';
   }

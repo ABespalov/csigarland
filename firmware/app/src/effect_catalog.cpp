@@ -358,11 +358,12 @@ EffectMask favorites_from_text(const char* text) {
     return mask;
 }
 
-void favorites_to_text(const EffectMask& mask, char* out, size_t out_size) {
+bool favorites_to_text(const EffectMask& mask, char* out, size_t out_size) {
     size_t used = 0;
-    if (out_size > 0) {
-        out[0] = '\0';
+    if (out_size == 0) {
+        return false;
     }
+    out[0] = '\0';
     for (size_t i = 0; i < preview_position(); ++i) {
         if (!mask.test(i)) {
             continue;
@@ -371,7 +372,8 @@ void favorites_to_text(const EffectMask& mask, char* out, size_t out_size) {
         const size_t length = std::strlen(id.c_str());
         const size_t separator = used > 0 ? 1 : 0;
         if (used + separator + length + 1 > out_size) {
-            return;
+            out[0] = '\0';
+            return false;
         }
         if (separator != 0) {
             out[used++] = ',';
@@ -379,6 +381,7 @@ void favorites_to_text(const EffectMask& mask, char* out, size_t out_size) {
         std::memcpy(out + used, id.c_str(), length + 1);
         used += length;
     }
+    return true;
 }
 
 }  // namespace garland

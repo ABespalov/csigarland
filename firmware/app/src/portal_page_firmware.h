@@ -25,13 +25,13 @@ inline constexpr char kPageFirmware[] = R"html(
 </section>
 <script>
   /* Firmware */
-  let runningBoot = null;
+  /* Set at the first send: the page's own first look, answered after it, says nothing of that send. */
+  let sending = false;
 
   // The seconds of its trial left, as the garland counts them.
   const trialLeft = (info) => (info.trial_left ? `within ${info.trial_left} s` : 'any moment now');
 
   function showFirmware(info) {
-    runningBoot = info.boot;
     $('firmware-current').textContent = `Running version ${info.version} with ${info.effects} built-in effects.`
       + (info.on_trial ? ` It confirms itself ${trialLeft(info)}, or goes back to the previous version.` : '');
   }
@@ -138,9 +138,13 @@ inline constexpr char kPageFirmware[] = R"html(
 
   /* One question at a time, each with its own limit, so no late answer can follow the last word
      and a question never answered cannot outlast the wait. */
-  async function waitForRestart(expected) {
+  /* unknown: the upload ended with no answer, so the garland may have taken the whole file or not.
+     One that took it restarts in moments, so the same boot 15 s on says it did not. bootBefore is the
+     boot this send's own look found, never one a slower answer to another look left, and packBefore and
+     imageBefore the effects and firmware it found running. */
+  async function waitForRestart(expected, unknown, bootBefore, packBefore, imageBefore) {
     const deadline = Date.now() + 150000;
-    const bootBefore = runningBoot;
+    const settled = Date.now() + 15000;
     const finish = (text, isError) => {
       report('firmware-status', text, isError);
       holdFirmwareForm(false);
@@ -154,10 +158,25 @@ inline constexpr char kPageFirmware[] = R"html(
         continue;
       }
       if (info.boot === bootBefore) {
+        if (unknown && Date.now() > settled) return finish('Not installed: the connection was lost, and the garland runs as before.', true);
         if (late) return finish('The garland did not restart. Check its screen.', true);
         continue;
       }
       showFirmware(info);
+      /* With the send's answer lost, a restart alone says nothing: the garland may have restarted for
+         another reason, or another update put the same bytes there. Only a trial of this file's image says
+         it took it, and for effects alone, effects other than those before now running as the file's, with
+         the firmware as it was: another firmware with them may be another update's;
+         anything else is told as seen. */
+      if (unknown) {
+        const tookImage = expected.image !== null && info.on_trial && info.image === expected.image;
+        const tookEffects = expected.image === null && expected.digest !== null && packBefore !== expected.digest && info.pack_digest === expected.digest && info.image === imageBefore;
+        if (tookImage || tookEffects) {
+          unknown = false;
+        } else {
+          return finish(`The garland restarted and runs ${info.version}${info.on_trial ? ', on trial' : ''}. The send got no answer, so whether it took this file cannot be told from here: check its Info page, and send it again if need be.`, true);
+        }
+      }
       if (expected.image !== null && info.image !== expected.image) {
         return finish(`Not installed: running ${info.version}, not the firmware in this file. It went back to the previous firmware.`, true);
       }
@@ -175,41 +194,60 @@ inline constexpr char kPageFirmware[] = R"html(
     if (pendingUpdate === null || $('firmware-install').disabled) return;
     const { file, contents } = pendingUpdate;
     holdFirmwareForm(true);
+    sending = true;
     report('firmware-status', 'Sending...', false);
     /* The restart to wait for is the one after this send, so the boot to compare is today's: the
        garland may have restarted since this page opened. */
-    try {
-      showFirmware(await request('/api/ota'));
-    } catch (error) {
-      report('firmware-status', `Not sent: ${error.message}`, true);
+    const before = await askForUpdateState();
+    if (before === null) {
+      report('firmware-status', 'Not sent: the garland did not answer. Try again.', true);
       holdFirmwareForm(false);
       return;
     }
+    showFirmware(before);
     const upload = new XMLHttpRequest();
     upload.open('POST', '/api/ota');
     upload.setRequestHeader('Content-Type', 'application/octet-stream');
+    /* A send that moves nothing for 30 s, or a garland that takes it all and then says nothing for a
+       minute, is given up on, and what the garland then runs says whether it took the file. */
+    const STALL_MS = 30000;
+    const ANSWER_MS = 60000;
+    let movedAt = Date.now();
+    let sentAll = false;
+    const watch = setInterval(() => {
+      if (Date.now() - movedAt > (sentAll ? ANSWER_MS : STALL_MS)) upload.abort();
+    }, 2000);
+    upload.addEventListener('loadend', () => clearInterval(watch));
     upload.upload.addEventListener('progress', (progress) => {
+      movedAt = Date.now();
       if (progress.lengthComputable) {
+        sentAll = progress.loaded >= progress.total;
         report('firmware-status', `Sending ${Math.floor(progress.loaded * 100 / progress.total)}%...`, false);
       }
+    });
+    upload.addEventListener('abort', () => {
+      report('firmware-status', 'The garland stopped answering. Watching whether it took the file...', false);
+      waitForRestart(contents, true, before.boot, before.pack_digest, before.image);
     });
     upload.addEventListener('load', () => {
       if (upload.status === 200) {
         report('firmware-status', 'Installed. The garland is restarting...', false);
-        waitForRestart(contents);
+        waitForRestart(contents, false, before.boot, before.pack_digest, before.image);
       } else {
         report('firmware-status', `Not installed: ${upload.responseText || upload.statusText}`, true);
         holdFirmwareForm(false);
       }
     });
+    /* No answer is not a refusal: the garland may have taken all of it and be restarting. Only
+       what it then runs can say. */
     upload.addEventListener('error', () => {
-      report('firmware-status', 'Not installed: the connection was lost.', true);
-      holdFirmwareForm(false);
+      report('firmware-status', 'The connection was lost. Watching whether the garland took the file...', false);
+      waitForRestart(contents, true, before.boot, before.pack_digest, before.image);
     });
     upload.send(file);
   });
 
-  request('/api/ota').then(showFirmware).catch((error) => report('firmware-status', error.message, true));
+  request('/api/ota').then((info) => { if (!sending) showFirmware(info); }).catch((error) => { if (!sending) report('firmware-status', error.message, true); });
 </script>
 )html";
 

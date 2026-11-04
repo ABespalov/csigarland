@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<!-- Made by deploy/site-pages.ps1 from site/index.html and deploy/site-ru.json: edit those, not this. -->
+<html lang="ru">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The product's home at garland.csilab.am
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="index.meta.title">csiGarland — раскрасьте свои будни</title>
+  <meta name="description" data-i18n-content="index.meta.desc" content="csiGarland — открытая гирлянда из 32 светодиодов в 3D-печатных фигурках под управлением ESP32-C6 с собственным экраном, кнопками, расписанием, веб-порталом и настольной утилитой.">
+  <link rel="canonical" href="https://garland.csilab.am/ru/">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <meta property="og:title" data-i18n-content="index.meta.title" content="csiGarland — раскрасьте свои будни">
+  <meta property="og:description" data-i18n-content="index.og.desc" content="Гирлянда из 3D-печатных фигурок: 154 эффекта, расписание и никакого облака.">
+  <meta property="og:url" content="https://garland.csilab.am/ru/">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../lang.js"></script>
+  <script src="../site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Перейти к содержимому</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="На главную csiGarland" data-i18n-aria="nav.home"><img src="../assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Основная навигация" data-i18n-aria="nav.primary">
+        <a href="index.html" aria-current="page" data-i18n="nav.product">Устройство</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">План работ</a>
+        <a href="documents.html" data-i18n="nav.documents">Документация</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Загрузки</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Исходный код</a>
+      </nav>
+      <a class="lang-switch" id="lang-switch" href="../" hreflang="en" lang="en" aria-label="English version" title="English version">EN</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="hero">
+        <div>
+          <p class="eyebrow" data-i18n="index.hero.eyebrow">Открытая праздничная гирлянда</p>
+          <h1 data-i18n="index.hero.title">Праздником может стать любой день.</h1>
+          <p class="lead" data-i18n="index.hero.lead">csiGarland — гирлянда из 32 адресных светодиодов внутри полупрозрачных 3D-печатных фигурок и небольшого блока управления с экраном и тремя кнопками. Она воспроизводит 154 эффекта, работает по недельному расписанию, оснащена встроенным веб-порталом и настольной утилитой. Никаких облаков и аккаунтов: всё работает прямо на устройстве, с сетью или без неё.</p>
+          <div class="cta-row">
+            <a class="button button-primary" href="downloads.html" data-i18n="index.hero.cta.download">Скачать</a>
+            <a class="button" href="documents.html" data-i18n="index.hero.cta.docs">Документация</a>
+            <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="index.hero.cta.source">Исходный код</a>
+          </div>
+        </div>
+        <figure>
+          <img class="shot" src="../assets/garland-hanging.png" alt="Рендер восьми фигурок гирлянды на проводе" data-i18n-alt="index.hero.img.alt">
+        </figure>
+      </div>
+      <p class="note" data-i18n="index.hero.note">Изображения на странице — рендеры 3D-моделей и скриншоты, построенные реальным кодом прошивки и утилиты. Нажмите на любую картинку, чтобы открыть её и приблизить. Фотографии появятся после финальной сборки первой гирлянды.</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.features.eyebrow">Возможности</p>
+      <h2 data-i18n="index.features.title">Полностью самостоятельная гирлянда</h2>
+      <div class="grid">
+        <div class="card"><h3 data-i18n="index.f1.title">154 эффекта</h3><p data-i18n="index.f1.body">От свечей и снегопада до бегущих огней и северного сияния — по тематическим группам, на базе 98 алгоритмов и до четырёх слоёв в каждом эффекте. Избранное переключается кнопкой EFFECT, а свои эффекты можно загружать из JSON-файлов.</p></div>
+        <div class="card"><h3 data-i18n="index.f2.title">Свой экран и три кнопки</h3><p data-i18n="index.f2.body">Кнопки POWER, EFFECT и SPEED на корпусе и 1,3-дюймовый экран, который показывает текущий эффект, яркость, скорость и число обнаруженных светодиодов.</p></div>
+        <div class="card"><h3 data-i18n="index.f3.title">Недельное расписание</h3><p data-i18n="index.f3.body">До 32 действий в неделю: включение, выбор яркости, скорости или эффекта, выключение. Опциональный модуль часов DS3231 сохраняет ход времени при отключении питания.</p></div>
+        <div class="card"><h3 data-i18n="index.f4.title">Веб-портал и утилита</h3><p data-i18n="index.f4.body">Встроенный HTTPS-портал со своим корневым сертификатом и настольная утилита с живым предпросмотром эффектов на том же C++-движке, что работает в прошивке.</p></div>
+        <div class="card"><h3 data-i18n="index.f5.title">Безопасное питание</h3><p data-i18n="index.f5.body">В режиме ожидания питание светодиодной линии полностью отключается MOSFET-ключом, а во время работы каждый кадр программно ограничен током 1400 мА при блоке питания на 2 А.</p></div>
+        <div class="card"><h3 data-i18n="index.f6.title">Проверяемые обновления</h3><p data-i18n="index.f6.body">Прошивка и пакет эффектов обновляются по Wi-Fi из подписанных файлов релиза, проходят минутный пробный запуск и автоматически откатываются при сбое. Каждый релиз воспроизводимо собирается из исходников до байта.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.why.eyebrow">Зачем ещё одна гирлянда</p>
+      <h2 data-i18n="index.why.title">Не коробка из магазина и не лента на телефоне</h2>
+      <div class="grid">
+        <div class="card"><h3 data-i18n="index.w1.title">Магазинные гирлянды</h3><p data-i18n="index.w1.body">Одинаковые штампованные плафоны на каждой полке, восемь режимов мигания и контроллер, который забывает ваш выбор после отключения. Здесь фигурки напечатаны и сменяются, а гирлянда помнит, что вы выбрали.</p></div>
+        <div class="card"><h3 data-i18n="index.w2.title">WLED</h3><p data-i18n="index.w2.body">Отличный выбор для ленты, которой управляют с телефона. csiGarland устроена наоборот: вокруг платы со своим цветным экраном и тремя кнопками, так что телефон доставать не нужно, а сеть — лишь дополнение.</p></div>
+        <div class="card"><h3 data-i18n="index.w3.title">Закрытая коробка</h3><p data-i18n="index.w3.body">Собранный блок управления не даёт доступа к USB. Все обновления приходят по Wi-Fi, подписанными, а гирлянда сама возвращается к прежней версии, если новая не подтвердила, что работает.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.figurines.eyebrow">Фигурки</p>
+      <h2 data-i18n="index.figurines.title">Восемь форм по четыре экземпляра</h2>
+      <p class="lead" data-i18n="index.figurines.lead">Полые плафоны высотой около 48 мм из полупрозрачного PETG защёлкиваются на базовых креплениях, удерживающих плату светодиода и провод. Свет мягко рассеивается по всему объёму фигурки.</p>
+      <div class="gallery">
+        <figure><img src="../assets/figurine-tree.png" alt="Рендер фигурки ёлочки" data-i18n-alt="index.fig.tree.alt"><figcaption data-i18n="index.fig.tree">Витая ёлочка</figcaption></figure>
+        <figure><img src="../assets/figurine-star.png" alt="Рендер фигурки звезды" data-i18n-alt="index.fig.star.alt"><figcaption data-i18n="index.fig.star">Звезда</figcaption></figure>
+        <figure><img src="../assets/figurine-icicle.png" alt="Рендер фигурки сосульки" data-i18n-alt="index.fig.icicle.alt"><figcaption data-i18n="index.fig.icicle">Сосулька</figcaption></figure>
+        <figure><img src="../assets/figurine-pinecone.png" alt="Рендер фигурки шишки" data-i18n-alt="index.fig.pinecone.alt"><figcaption data-i18n="index.fig.pinecone">Шишка</figcaption></figure>
+        <figure><img src="../assets/figurine-bell.png" alt="Рендер фигурки колокольчика" data-i18n-alt="index.fig.bell.alt"><figcaption data-i18n="index.fig.bell">Колокольчик</figcaption></figure>
+        <figure><img src="../assets/figurine-snowman.png" alt="Рендер фигурки снеговика" data-i18n-alt="index.fig.snowman.alt"><figcaption data-i18n="index.fig.snowman">Снеговик</figcaption></figure>
+        <figure><img src="../assets/figurine-gingerbread.png" alt="Рендер фигурки пряничного человечка" data-i18n-alt="index.fig.gingerbread.alt"><figcaption data-i18n="index.fig.gingerbread">Пряничный человечек</figcaption></figure>
+        <figure><img src="../assets/figurine-lantern.png" alt="Рендер фигурки фонарика" data-i18n-alt="index.fig.lantern.alt"><figcaption data-i18n="index.fig.lantern">Фонарик</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.control.eyebrow">Блок управления</p>
+      <h2 data-i18n="index.control.title">Один корпус: питание, контроллер и силовой ключ</h2>
+      <div class="hero">
+        <div>
+          <p data-i18n="index.control.body">Плата Waveshare ESP32-C6 с экраном, изолированный блок питания Hi-Link 5 В 2 А, MOSFET-модуль отключения питания ленты и три кнопки в печатном корпусе. Оформление экрана унаследовано от проекта csiPass.</p>
+          <p class="note danger" data-i18n="index.control.danger">Блок работает от сети 220 В. Прочитайте Building the Hardware, прежде чем собирать, и не используйте XT60H как сетевой ввод: у него нет допуска для сети.</p>
+          <div class="screens">
+            <img src="../assets/screen-playing.png" alt="Экран во время воспроизведения эффекта" data-i18n-alt="index.screen.playing">
+            <img src="../assets/screen-standby.png" alt="Экран в режиме ожидания" data-i18n-alt="index.screen.standby">
+            <img src="../assets/screen-access.png" alt="Экран подтверждения доступа для браузера" data-i18n-alt="index.screen.access">
+            <img src="../assets/screen-update.png" alt="Экран во время приёма обновления" data-i18n-alt="index.screen.update">
+          </div>
+        </div>
+        <figure><img class="shot" src="../assets/enclosure.png" alt="Рендер корпуса блока управления" data-i18n-alt="index.control.enclosure"></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.portal.eyebrow">Портал и утилита</p>
+      <h2 data-i18n="index.portal.title">Управление из браузера или с компьютера</h2>
+      <div class="gallery gallery-shots">
+        <figure><img class="shot" src="../assets/portal-effects.png" alt="Страница эффектов веб-портала" data-i18n-alt="index.shot.portal.alt"><figcaption data-i18n="index.shot.portal">Веб-портал на самой гирлянде</figcaption></figure>
+        <figure><img class="shot" src="../assets/utility-effects.png" alt="Страница эффектов в утилите" data-i18n-alt="index.shot.utility.alt"><figcaption data-i18n="index.shot.utility">Настольная утилита csiGarland</figcaption></figure>
+        <figure><img class="shot" src="../assets/utility-tune.png" alt="Настройка эффекта в утилите" data-i18n-alt="index.shot.tune.alt"><figcaption data-i18n="index.shot.tune">Редактор Tune с предпросмотром на движке прошивки</figcaption></figure>
+        <figure><img class="shot" src="../assets/utility-firmware.png" alt="Страница обновления прошивки в утилите" data-i18n-alt="index.shot.firmware.alt"><figcaption data-i18n="index.shot.firmware">Обновление прошивки из каталога релизов</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.oss.eyebrow">Открытый проект</p>
+      <h2 data-i18n="index.oss.title">Собирайте, проверяйте и дорабатывайте под себя</h2>
+      <p class="lead" data-i18n="index.oss.lead">Прошивка, утилита, 3D-модели и документация опубликованы под лицензией MIT. Любой релиз пересобирается из исходного кода бит-в-бит: вы устанавливаете именно то, что собрано из открытых исходников.</p>
+      <div class="cta-row">
+        <a class="button button-primary" href="documents.html" data-i18n="index.oss.cta.docs">Читать документацию</a>
+        <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span data-i18n="footer.copy">csiGarland, проект csi Research Lab. Лицензия MIT.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security">Сообщить об уязвимости</a>
+    </div>
+  </footer>
+</body>
+</html>

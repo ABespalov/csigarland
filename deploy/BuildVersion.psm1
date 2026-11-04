@@ -22,6 +22,80 @@ function Get-csiGarlandBuildNumber {
     return $parsed
 }
 
+# The lock of one kind of build in this checkout, firmware or utility, as a file under temp\ held open
+# for no one else: a build takes its number, builds, checks, and gives the number back if it failed, all
+# under it, so two never take one number, and one never gives back another's. Held until disposed, or
+# until the process ends. One held by another waits up to WaitSeconds, then fails.
+function Lock-csiGarlandBuild {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][ValidateSet('firmware', 'utility', 'publish')][string]$Kind,
+        [int]$WaitSeconds = 0
+    )
+
+    $path = Join-Path $RepoRoot "temp\build-$Kind.lock"
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $path)) | Out-Null
+    $deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
+    while ($true) {
+        try {
+            return [System.IO.File]::Open($path, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        } catch [System.IO.IOException] {
+            if ([DateTime]::UtcNow -ge $deadline) {
+                throw "Another $(if ($Kind -eq 'publish') { 'publish-release.ps1' } else { "$Kind build" }) of this checkout runs, as $path is held: wait for it to end, then run this again."
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+
+# Where PlatformIO keeps its packages and Pythons: PLATFORMIO_CORE_DIR if it is set, as PlatformIO takes it,
+# else .platformio in the home folder.
+function Get-csiGarlandPlatformIOCore {
+    if ($env:PLATFORMIO_CORE_DIR) {
+        return $env:PLATFORMIO_CORE_DIR
+    }
+    return Join-Path $HOME '.platformio'
+}
+
+# Where PlatformIO keeps its packages: in its core, unless PLATFORMIO_PACKAGES_DIR names another folder.
+function Get-csiGarlandPlatformIOPackages {
+    if ($env:PLATFORMIO_PACKAGES_DIR) {
+        return $env:PLATFORMIO_PACKAGES_DIR
+    }
+    return Join-Path (Get-csiGarlandPlatformIOCore) 'packages'
+}
+
+# A build that failed spends no number: the counter goes back to Before, but only while it holds the
+# one number that build took, so a counter another build moved meanwhile is left as it is. Written as
+# firmware_build_version.py and build-utility.ps1 write it. Under the build's lock: the caller's, when it
+# holds it, else taken here for the look and the write. $true when it went back.
+function Undo-csiGarlandBuildNumber {
+    param(
+        [Parameter(Mandatory = $true)][string]$CounterPath,
+        [Parameter(Mandatory = $true)][int]$Before,
+        [string]$RepoRoot = '',
+        [ValidateSet('', 'firmware', 'utility')][string]$Kind = ''
+    )
+
+    $lock = if ($RepoRoot -and $Kind) { Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind $Kind -WaitSeconds 120 } else { $null }
+    try {
+        try {
+            $now = Get-csiGarlandBuildNumber -CounterPath $CounterPath
+        } catch {
+            return $false
+        }
+        if ($now -ne $Before + 1) {
+            return $false
+        }
+        [System.IO.File]::WriteAllText($CounterPath, "$Before`n", [System.Text.UTF8Encoding]::new($false))
+        return $true
+    } finally {
+        if ($lock) {
+            $lock.Dispose()
+        }
+    }
+}
+
 # Spelled the way firmware/app/scripts/firmware_build_version.py spells it.
 function Get-csiGarlandFirmwareIdentity {
     param(
@@ -111,28 +185,180 @@ function Get-csiGarlandSourceIdentity {
     if ($LASTEXITCODE -ne 0) {
         throw "git status failed with exit code $LASTEXITCODE in $RepoRoot."
     }
-    $paths = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- firmware/app | Sort-Object -Culture '' -CaseSensitive)
-    if ($LASTEXITCODE -ne 0 -or $paths.Count -eq 0) {
-        throw "git ls-files listed no firmware files in $RepoRoot (exit code $LASTEXITCODE)."
-    }
-    $sha = [System.Security.Cryptography.IncrementalHash]::CreateHash('SHA256')
-    try {
-        foreach ($path in $paths) {
-            $file = Join-Path $RepoRoot $path
-            if (Test-Path -LiteralPath $file -PathType Leaf) {
-                $line = "$path $((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash)`n"
-                $sha.AppendData([System.Text.Encoding]::UTF8.GetBytes($line))
-            }
-        }
-        $digest = [System.Convert]::ToHexString($sha.GetHashAndReset()).ToLowerInvariant()
-    } finally {
-        $sha.Dispose()
-    }
     return [pscustomobject]@{
         commit        = if ($commitKnown) { $commit } else { $null }
         dirty         = $changes.Count -gt 0
-        source_sha256 = $digest
+        source_sha256 = Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Paths @('firmware/app')
+        source_format = $SourceFormat
     }
+}
+
+# How source_sha256 is worked out, which a manifest records beside it. 1.0.0's manifests have none,
+# and their digest is of the files' bytes as they lay, which the build itself changes.
+$SourceFormat = 'raw-blobs/1'
+
+# What the firmware's build writes out again, with the line endings of the machine it runs on: taken as
+# git would store it, as nothing is built from it.
+$RewrittenByBuild = @('firmware/app/dependencies.lock')
+
+# The files git would keep under Paths, each by the blob of its bytes as they lie: what a build
+# compiles or embeds, as go:embed takes an effect's file, is those bytes, so a file saved with other
+# line endings is another source. A checkout of a tag lies as git stores it (.gitattributes asks for LF),
+# so it gives the digest of a build made from what the tag holds. Only RewrittenByBuild is taken as git
+# would store it.
+function Get-csiGarlandTreeDigest {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string[]]$Paths,
+        # A commit or tag, whose tree is read as git holds it, with no checkout: the digest a checkout of it
+        # gives, as it lies as git stores it. Empty for the files as they lie here.
+        [string]$Revision = ''
+    )
+
+    if ($Revision) {
+        $listed = (& git -C $RepoRoot ls-tree -r -z --full-tree $Revision -- @Paths) -join ''
+        if ($LASTEXITCODE -ne 0) {
+            throw "git ls-tree failed with exit code $LASTEXITCODE for $Revision in $RepoRoot."
+        }
+        $held = @($listed -split "`0" | Where-Object { $_ } | ForEach-Object {
+                $meta, $path = $_ -split "`t", 2
+                $mode, $type, $blob = $meta -split ' '
+                if ($type -eq 'blob') { [pscustomobject]@{ Path = $path; Blob = $blob } }
+            } | Sort-Object -Property Path -Culture '' -CaseSensitive)
+        if ($held.Count -eq 0) {
+            throw "$Revision holds no files of $($Paths -join ', ')."
+        }
+        $tree = [System.Security.Cryptography.IncrementalHash]::CreateHash('SHA256')
+        try {
+            foreach ($file in $held) {
+                $tree.AppendData([System.Text.Encoding]::UTF8.GetBytes("$($file.Path) $($file.Blob)`n"))
+            }
+            return [System.Convert]::ToHexString($tree.GetHashAndReset()).ToLowerInvariant()
+        } finally {
+            $tree.Dispose()
+        }
+    }
+    $files = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- @Paths | Sort-Object -Culture '' -CaseSensitive |
+            Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) -PathType Leaf })
+    if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) {
+        throw "git ls-files listed no files of $($Paths -join ', ') in $RepoRoot (exit code $LASTEXITCODE)."
+    }
+    $blobs = @($files | & git -C $RepoRoot hash-object --no-filters --stdin-paths)
+    if ($LASTEXITCODE -ne 0 -or $blobs.Count -ne $files.Count) {
+        throw "git hash-object failed with exit code $LASTEXITCODE in $RepoRoot."
+    }
+    for ($i = 0; $i -lt $files.Count; $i++) {
+        if ($files[$i] -cin $RewrittenByBuild) {
+            $blobs[$i] = & git -C $RepoRoot hash-object -- $files[$i]
+            if ($LASTEXITCODE -ne 0) {
+                throw "git hash-object failed with exit code $LASTEXITCODE for $($files[$i])."
+            }
+        }
+    }
+    $sha = [System.Security.Cryptography.IncrementalHash]::CreateHash('SHA256')
+    try {
+        for ($i = 0; $i -lt $files.Count; $i++) {
+            $sha.AppendData([System.Text.Encoding]::UTF8.GetBytes("$($files[$i]) $($blobs[$i])`n"))
+        }
+        return [System.Convert]::ToHexString($sha.GetHashAndReset()).ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-csiGarlandSourceFormat { return $SourceFormat }
+
+# The C++ compiler the utility of a release is built with, for each platform it is released for, as
+# docs/guides/rebuild.md names it: another builds, but not the same file, and a release says its file
+# builds again to the byte. A platform with none named here has no release yet: $null.
+$ReleaseCompilers = @{
+    'windows-amd64' = 'gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0'
+}
+function Get-csiGarlandReleaseCompiler {
+    param([string]$Platform = 'windows-amd64')
+    return $ReleaseCompilers[$Platform]
+}
+
+# The platforms a release's utility may be built for, as Go names them and the file is named, and as
+# the site lists them: each a family, the site's heading, and its processor.
+$UtilityPlatforms = [ordered]@{
+    'windows-amd64' = 'Windows x64'
+    'linux-amd64'   = 'Linux x64'
+    'linux-arm64'   = 'Linux ARM64'
+    'darwin-amd64'  = 'macOS Intel'
+    'darwin-arm64'  = 'macOS Apple silicon'
+}
+function Get-csiGarlandUtilityPlatforms { return $UtilityPlatforms }
+
+# A compiler's first line of --version, less the name it was called by, gcc.exe or g++.exe: both of one
+# toolchain then say the same.
+function Get-csiGarlandCompilerBuild {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Line)
+    return ($Line.Trim() -replace '^\S+\s+', '')
+}
+
+# The cgo flags Go itself gives when none are set, which a release is built with, beside the ones
+# deploy/build-utility.ps1 adds of its own: any other changes the file.
+$ReleaseCgoFlags = [ordered]@{ CGO_CFLAGS = '-O2 -g'; CGO_CPPFLAGS = ''; CGO_CXXFLAGS = '-O2 -g'; CGO_LDFLAGS = '-O2 -g' }
+function Get-csiGarlandReleaseCgoFlags { return $ReleaseCgoFlags }
+
+# The x86-64 level a release's utility is built for: v1 runs on any 64-bit PC, where a higher one stops
+# at start on a processor without its instructions, under the same file name.
+$ReleaseAmd64 = 'v1'
+function Get-csiGarlandReleaseAmd64 { return $ReleaseAmd64 }
+
+# A command as Go reads CC and CXX: a program and its arguments, split at spaces, quotes keeping theirs.
+function Split-csiGarlandCommand {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command)
+    return @([regex]::Matches($Command, '"[^"]*"|''[^'']*''|\S+') | ForEach-Object { $_.Value.Trim('"', "'") })
+}
+
+# The PlatformIO environment of a profile, which is also its folder under firmware/app/.pio/build.
+function Get-csiGarlandFirmwareEnvironment {
+    param([Parameter(Mandatory = $true)][ValidateSet('Release', 'Dev')][string]$BuildProfile)
+    return ($BuildProfile -eq 'Release') ? 'esp32c6-release' : 'esp32c6'
+}
+
+# Everything that goes into the utility, the firmware's engine and effects among it: the paths git would
+# keep and their bytes. deploy/build-utility.ps1 records it, and deploy/publish-release.ps1 holds a
+# release's tag to it.
+function Get-csiGarlandUtilitySourceDigest {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [string]$Revision = ''
+    )
+
+    # This module with the script, as it sets the engine's flags and what the script checks the build by; and
+    # what checks its notices, the script and the licence texts it reads, as its manifest says they held.
+    return Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Revision $Revision -Paths @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1', 'deploy/BuildVersion.psm1', 'deploy/new-third-party-notices.ps1', 'deploy/licences')
+}
+
+# The utility for Windows links these of the compiler's libraries statically, each under one of three
+# notices: GCC's runtime, mingw-w64's winpthreads, and the rest of mingw-w64's runtime, its import
+# libraries for Windows' own DLLs among them. deploy/build-utility.ps1 refuses a file that links any
+# other, and deploy/new-third-party-notices.ps1 writes the three.
+$UtilityLibraryGroups = @{
+    'libstdc++.a'     = 'gcc'
+    'libgcc.a'        = 'gcc'
+    'libgcc_eh.a'     = 'gcc'
+    'libpthread.a'    = 'winpthreads'
+    'libwinpthread.a' = 'winpthreads'
+    'libmingw32.a'    = 'mingw-w64'
+    'libmingwex.a'    = 'mingw-w64'
+    'libmoldname.a'   = 'mingw-w64'
+    'libmsvcrt.a'     = 'mingw-w64'
+    'libucrt.a'       = 'mingw-w64'
+    'libucrtbase.a'   = 'mingw-w64'
+    'libkernel32.a'   = 'mingw-w64'
+    'libuser32.a'     = 'mingw-w64'
+    'libadvapi32.a'   = 'mingw-w64'
+    'libshell32.a'    = 'mingw-w64'
+    'libws2_32.a'     = 'mingw-w64'
+}
+
+function Get-csiGarlandUtilityLibraryGroup {
+    param([Parameter(Mandatory = $true)][string]$Library)
+    return $UtilityLibraryGroups[$Library]
 }
 
 # Go keeps a cgo package compiled until something in its own folder changes, and the engine's sources
@@ -167,7 +393,7 @@ function Copy-csiGarlandSources {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    $sources = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- firmware/app cmd internal deploy go.mod go.sum)
+    $sources = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- firmware/app cmd internal deploy go.mod go.sum LICENSE THIRD_PARTY_NOTICES.md)
     if ($LASTEXITCODE -ne 0 -or $sources.Count -eq 0) {
         throw "git ls-files listed no sources (exit code $LASTEXITCODE)."
     }
@@ -178,6 +404,28 @@ function Copy-csiGarlandSources {
             New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
             Copy-Item -LiteralPath $from -Destination $to
         }
+    }
+    # A tree of git's own, with this one's attributes, so that the digests of its sources are worked out
+    # as they are here and from a checkout of a tag: Get-csiGarlandTreeDigest asks git.
+    foreach ($name in '.gitattributes', '.gitignore') {
+        $from = Join-Path $RepoRoot $name
+        if (Test-Path -LiteralPath $from) {
+            Copy-Item -LiteralPath $from -Destination (Join-Path $Destination $name)
+        }
+    }
+    # Had init failed, git would look further up for a repository, this one's own under temp\ among them,
+    # and add the copy to that: so the copy has to be the root of its own before anything is added.
+    & git -C $Destination init --quiet
+    if ($LASTEXITCODE -ne 0) {
+        throw "git could not make a repository of the copy in $Destination (exit code $LASTEXITCODE)."
+    }
+    $top = & git -C $Destination rev-parse --show-toplevel
+    if ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath("$top".Trim()).TrimEnd('\', '/') -ne [System.IO.Path]::GetFullPath($Destination).TrimEnd('\', '/')) {
+        throw "The copy in $Destination is not a repository of its own (git says $top): nothing was added."
+    }
+    & git -C $Destination add --all
+    if ($LASTEXITCODE -ne 0) {
+        throw "git could not take the copy in $Destination (exit code $LASTEXITCODE)."
     }
     $app = Join-Path $Destination 'firmware\app'
     $components = Join-Path $RepoRoot 'firmware\app\managed_components'
@@ -191,8 +439,23 @@ Export-ModuleMember -Function `
     Copy-csiGarlandSources, `
     Set-csiGarlandEngineSources, `
     Get-csiGarlandBuildNumber, `
+    Undo-csiGarlandBuildNumber, `
+    Get-csiGarlandPlatformIOCore, `
+    Get-csiGarlandPlatformIOPackages, `
+    Lock-csiGarlandBuild, `
+    Get-csiGarlandFirmwareEnvironment, `
     Get-csiGarlandFirmwareIdentity, `
+    Get-csiGarlandReleaseCompiler, `
+    Get-csiGarlandUtilityPlatforms, `
+    Get-csiGarlandCompilerBuild, `
+    Get-csiGarlandReleaseCgoFlags, `
+    Get-csiGarlandReleaseAmd64, `
+    Split-csiGarlandCommand, `
     Get-csiGarlandAppDescVersion, `
     Get-csiGarlandBinIdentityProblem, `
     Get-csiGarlandImageId, `
-    Get-csiGarlandSourceIdentity
+    Get-csiGarlandSourceIdentity, `
+    Get-csiGarlandSourceFormat, `
+    Get-csiGarlandTreeDigest, `
+    Get-csiGarlandUtilityLibraryGroup, `
+    Get-csiGarlandUtilitySourceDigest

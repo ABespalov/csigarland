@@ -17,7 +17,10 @@
 #include "garland_output.h"
 #include "garland_state.h"
 #include "lighting_task.h"
+#include "nvs.h"
 #include "ota.h"
+#include "playlist_logic.h"
+#include "playlist_resolver.h"
 #include "portal.h"
 #include "portal_auth.h"
 #include "rtc.h"
@@ -28,6 +31,9 @@
 static const char* TAG = "csiGarland";
 
 static garland::State s_state(CSIGARLAND_LED_COUNT);
+// When the remembered choice was made, as read at the start, for the scheduler: see start_scheduler.
+static int64_t s_choice_epoch_at_start = garland::kNoChoiceYet;
+static bool s_remembered_unread = false;
 
 extern "C" void app_main(void) {
     garland::trial_log_start();
@@ -62,6 +68,9 @@ extern "C" void app_main(void) {
             const garland::EffectMask saved = garland::favorites_from_text(s_favorites_text);
             favorites = saved.any() ? saved : favorites;
         }
+        // A reading that fails is tried again, here and later: a list left out is no empty list, and the
+        // schedule and Play would find it empty.
+        garland::playlist_resolve(s_state);
         garland::DisplaySettings display;
         garland::settings_load_display(display);
         s_state.set_saver(display.saver, display.saver_delay_seconds);
@@ -71,22 +80,27 @@ extern "C" void app_main(void) {
     }
     s_state.set_favorites(favorites);
     s_state.select_first_favorite();
+    // Read once, for the state and the scheduler alike, and tried again if the reading fails: the owner's
+    // choice outranks the schedule's steps from before it, and the scheduler must know when it was made.
     garland::StoredSettings remembered;
-    if (err == ESP_OK && garland::settings_load_remembered(remembered)) {
-        // Whatever this firmware no longer accepts keeps its default, such as an effect
-        // gone from a newer catalog.
-        const int index = garland::catalog_find(remembered.effect_id);
-        if (index >= 0) {
-            s_state.set_effect(static_cast<uint16_t>(index));
+    esp_err_t remembered_read = ESP_ERR_NVS_NOT_FOUND;
+    for (int attempt = 0; err == ESP_OK && attempt < 3; ++attempt) {
+        remembered_read = garland::settings_read_remembered(remembered);
+        if (remembered_read == ESP_OK || remembered_read == ESP_ERR_NVS_NOT_FOUND) {
+            break;
         }
-        if (garland::remembered_brightness_is_valid(remembered.brightness_percent)) {
-            s_state.set_brightness(remembered.brightness_percent);
-        }
-        if (garland::manual_speed_x4_is_valid(remembered.speed_x4)) {
-            s_state.set_speed(remembered.speed_x4);
-        }
-        s_state.set_power(remembered.playing != 0);
+        ESP_LOGW(TAG, "reading the remembered choice failed: %s", esp_err_to_name(remembered_read));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
+    s_choice_epoch_at_start = remembered_read == ESP_OK            ? remembered.choice_epoch
+                              : remembered_read == ESP_ERR_NVS_NOT_FOUND ? garland::kNoChoiceYet
+                                                                        : 0;
+    if (err == ESP_OK && remembered_read == ESP_OK) {
+        garland::remembered_apply(s_state, remembered);
+        garland::playlist_restore_playing(s_state);
+    }
+    // Not read, and there: nothing is saved over it until it is, as the scheduler tries again.
+    s_remembered_unread = err == ESP_OK && remembered_read != ESP_OK && remembered_read != ESP_ERR_NVS_NOT_FOUND;
 
     // The lighting task comes first: it probes the garland before the first button or the
     // remembered state can turn it on.
@@ -104,7 +118,7 @@ extern "C" void app_main(void) {
         garland::time_load_zone();
         garland::time_load_from_rtc();
         s_state.set_clock_module(garland::rtc_present());
-        scheduler_running = garland::start_scheduler(s_state);
+        scheduler_running = garland::start_scheduler(s_state, s_choice_epoch_at_start, s_remembered_unread);
         if (!scheduler_running) {
             ESP_LOGE(TAG, "no scheduler task");
         }

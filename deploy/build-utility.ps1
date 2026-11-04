@@ -50,28 +50,7 @@ $Target = Join-Path $RepoRoot 'assets\utility'
 $VersionFile = Join-Path $RepoRoot 'cmd\csigarland\version.go'
 $CounterPath = Join-Path $RepoRoot 'cmd\csigarland\.csigarland_build_counter'
 $FingerprintPath = Join-Path $RepoRoot 'cmd\csigarland\.csigarland_build_fingerprint'
-# Everything that goes into the file, the firmware's engine and effects among it.
-$SourceFolders = @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1')
-
-function Get-SourceFingerprint {
-    $paths = @(git -C $RepoRoot ls-files --cached --others --exclude-standard -- @SourceFolders | Sort-Object -CaseSensitive)
-    if ($LASTEXITCODE -ne 0) {
-        throw "git ls-files failed with exit code $LASTEXITCODE."
-    }
-    $hash = [System.Security.Cryptography.IncrementalHash]::CreateHash([System.Security.Cryptography.HashAlgorithmName]::SHA256)
-    try {
-        foreach ($path in $paths) {
-            $full = Join-Path $RepoRoot $path
-            if (Test-Path -LiteralPath $full -PathType Leaf) {
-                $hash.AppendData([System.Text.Encoding]::UTF8.GetBytes("$path`n"))
-                $hash.AppendData([System.IO.File]::ReadAllBytes($full))
-            }
-        }
-        return [System.Convert]::ToHexString($hash.GetHashAndReset())
-    } finally {
-        $hash.Dispose()
-    }
-}
+Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
 
 function Get-StoredText {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -82,8 +61,6 @@ function Get-StoredText {
     return ''
 }
 
-# The compiler the releases are made with. Another one builds as well, and makes another file.
-$ReleaseCompiler = 'gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0'
 
 $toolchain = [regex]::Match((Get-Content -Raw -LiteralPath (Join-Path $RepoRoot 'go.mod')), '(?m)^toolchain (go[0-9.]+)\s*$')
 if (-not $toolchain.Success) {
@@ -95,11 +72,17 @@ $base = [regex]::Match((Get-Content -Raw -LiteralPath $VersionFile), 'Version = 
 if (-not $base.Success) {
     throw "No base version in $VersionFile."
 }
+# One utility build of this checkout at a time, from reading the counter to writing it: two would take
+# one number, and share the link map's folder. Held until this process ends.
+$BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind utility
 $stored = Get-StoredText -Path $CounterPath
 $number = if ($stored -match '^\d+$') { [int]$stored } else { 0 }
 $system = (& go env GOOS)
 $machine = (& go env GOARCH)
 $extension = if ($system -eq 'windows') { '.exe' } else { '' }
+# The compiler the releases for this platform are made with. Another one builds as well, and makes
+# another file; a platform with none named has no release yet, and this build is no release's.
+$ReleaseCompiler = Get-csiGarlandReleaseCompiler -Platform "$system-$machine"
 
 function Get-OutputPath {
     param([Parameter(Mandatory = $true)][int]$Build)
@@ -108,21 +91,107 @@ function Get-OutputPath {
     return @($version, (Join-Path $Target "csigarland-$version-$system-$machine$extension"))
 }
 
-$fingerprint = Get-SourceFingerprint
+$compiler = "$((& gcc --version 2>$null) | Select-Object -First 1)".Trim()
+# What cgo really compiles with, which CC and CXX may set apart from the gcc first in PATH, and the flags
+# it is given before this script adds its own: the manifest records them, and a release is held to them.
+# On x86-64, the level any 64-bit PC runs, whatever GOAMD64 says in this shell. No workspace of a folder
+# above, and no GOFLAGS of the shell's: either would change what is built from the sources here.
+if ($machine -eq 'amd64') {
+    $env:GOAMD64 = Get-csiGarlandReleaseAmd64
+}
+$env:GOWORK = 'off'
+$env:GOFLAGS = ''
+$env:GOEXPERIMENT = ''
+$env:GOFIPS140 = ''
+# An empty variable gives way to what go env -w wrote, so what Go will really use is asked, and recorded:
+# GOFLAGS, GOEXPERIMENT or a GOFIPS140 other than off from there would build another file, which no
+# release takes.
+$goEnv = & go env -json CC CXX CGO_CFLAGS CGO_CPPFLAGS CGO_CXXFLAGS CGO_LDFLAGS GOAMD64 GOFLAGS GOWORK GOEXPERIMENT GOFIPS140 | ConvertFrom-Json
+foreach ($name in 'GOFLAGS', 'GOEXPERIMENT') {
+    if ("$($goEnv.$name)" -ne '') {
+        Write-Warning "Go takes $name '$($goEnv.$name)' from its own settings, go env -w: this builds, but not the same file as a release. Unset it: go env -u $name"
+    }
+}
+if ("$($goEnv.GOFIPS140)" -ne 'off') {
+    Write-Warning "Go takes GOFIPS140 '$($goEnv.GOFIPS140)' from its own settings, go env -w: this builds, but not the same file as a release. Unset it: go env -u GOFIPS140"
+}
+# As Go runs them, a program and its arguments: one it cannot be asked its version builds all the same,
+# and is recorded as unknown, which no release takes.
+$versionOf = {
+    param([string]$Command)
+    # An array, one token or more: a lone gcc would come back a string, and its first "part" a letter.
+    $parts = @(Split-csiGarlandCommand -Command $Command)
+    try {
+        $first = if ($parts.Count -gt 1) { & $parts[0] @($parts[1..($parts.Count - 1)]) --version 2>$null } else { & $parts[0] --version 2>$null }
+        return "$($first | Select-Object -First 1)".Trim()
+    } catch {
+        Write-Warning "$Command could not be asked its version: $($_.Exception.Message)"
+        return 'unknown'
+    }
+}
+$cc = & $versionOf $goEnv.CC
+$cxx = & $versionOf $goEnv.CXX
+$goVersion = "$(& go version)".Trim()
+# Arguments in CC or CXX go to the compiler past any flag Go is given, as -march would: a release takes
+# the bare commands.
+foreach ($command in $goEnv.CC, $goEnv.CXX) {
+    if (@(Split-csiGarlandCommand -Command $command).Count -gt 1) {
+        Write-Warning "cgo runs '$command', with arguments of its own: this builds, but not the same file as a release."
+    }
+}
+$cgoFlags = [ordered]@{}
+foreach ($name in (Get-csiGarlandReleaseCgoFlags).Keys) {
+    $cgoFlags[$name] = "$($goEnv.$name)"
+}
+$flagsDiffer = @((Get-csiGarlandReleaseCgoFlags).Keys | Where-Object { $cgoFlags[$_] -ne (Get-csiGarlandReleaseCgoFlags)[$_] })
+if (-not $ReleaseCompiler) {
+    Write-Warning "No release compiler is named for $system-$machine in deploy\BuildVersion.psm1: this builds, but no release takes it yet."
+} elseif ((Get-csiGarlandCompilerBuild -Line $cc) -ne (Get-csiGarlandCompilerBuild -Line $ReleaseCompiler) -or (Get-csiGarlandCompilerBuild -Line $cxx) -ne (Get-csiGarlandCompilerBuild -Line $ReleaseCompiler) -or $flagsDiffer.Count -gt 0) {
+    Write-Warning "cgo compiles with $cc and $cxx$(if ($flagsDiffer.Count -gt 0) { ", and $($flagsDiffer -join ', ') set" }), not ${ReleaseCompiler} as Go sets it: this builds, but not the same file as a release."
+}
+
+# A module go.mod replaces is built from other bytes than the notices read the licence of, by go.mod's
+# requirements, and one replaced with a folder from bytes no digest, tag or copy for building again holds:
+# a Release refuses either, and a Dev build says so.
+$replaces = @((& go -C $RepoRoot mod edit -json | ConvertFrom-Json).Replace | Where-Object { $_ } | ForEach-Object { "$($_.Old.Path) => $($_.New.Path)$(if ($_.New.Version) { " $($_.New.Version)" })" })
+if ($replaces.Count -gt 0) {
+    $said = "go.mod replaces a module ($($replaces -join '; ')), which the notices and a tag do not follow"
+    if ($BuildProfile -eq 'Release') {
+        throw "${said}: a Release takes modules as go.sum holds them. Nothing was built."
+    }
+    Write-Warning "${said}: this builds, but no release takes it."
+}
+# The manifest names the notices and the licence the file is passed on with, so a tree without them,
+# as a copy that left them out, builds nothing.
+foreach ($name in 'LICENSE', 'THIRD_PARTY_NOTICES.md') {
+    if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot $name) -PathType Leaf)) {
+        throw "$name is not in $RepoRoot, and the manifest names it: nothing was built."
+    }
+}
+# The sources and every tool and flag the file is made with, and the notices it is passed on with: a build
+# kept is taken again only if all of them are the same, so one fixed only in its tools is built again.
+$sourceDigest = Get-csiGarlandUtilitySourceDigest -RepoRoot $RepoRoot
+$noticesDigests = @('THIRD_PARTY_NOTICES.md', 'LICENSE' | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $RepoRoot $_) -Algorithm SHA256).Hash })
+$fingerprint = $sourceDigest + '|' + [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData(
+        [System.Text.Encoding]::UTF8.GetBytes((@($BuildProfile, $goVersion, $compiler, $cc, $cxx, $goEnv.CC, $goEnv.CXX, $goEnv.GOAMD64, $goEnv.GOFLAGS, $goEnv.GOWORK, $goEnv.GOEXPERIMENT, $goEnv.GOFIPS140) +
+                @($cgoFlags.Values) + $noticesDigests) -join "`n"))).ToLowerInvariant()
 $named = $BuildNumber -ge 0
 $kept = (Get-OutputPath -Build $number)[1]
-if (-not $named -and -not $Force -and $number -gt 0 -and $fingerprint -eq (Get-StoredText -Path $FingerprintPath) -and (Test-Path -LiteralPath $kept)) {
-    Write-Host "Sources unchanged, so $kept stands."
+# A build whose notices were not found to hold is not one to keep: the check runs again.
+$keptChecked = $false
+if (Test-Path -LiteralPath "$kept.manifest.json") {
+    $keptManifest = Get-Content -Raw -LiteralPath "$kept.manifest.json" | ConvertFrom-Json
+    $keptChecked = $keptManifest.PSObject.Properties['notices_checked'] -and $keptManifest.notices_checked -eq $true
+}
+if (-not $named -and -not $Force -and $number -gt 0 -and $keptChecked -and $fingerprint -eq (Get-StoredText -Path $FingerprintPath) -and (Test-Path -LiteralPath $kept)) {
+    Write-Host "Sources and tools unchanged, so $kept stands."
     Write-Output $kept
     return
 }
 
 $number = if ($named) { $BuildNumber } else { $number + 1 }
 $version, $output = Get-OutputPath -Build $number
-$compiler = "$((& gcc --version 2>$null) | Select-Object -First 1)".Trim()
-if ($compiler -ne $ReleaseCompiler) {
-    Write-Warning "The C++ compiler is $compiler, not ${ReleaseCompiler}: this builds, but not the same file as a release."
-}
+
 # On Windows, with no console behind the window. The linker writes no time into the PE header.
 $linkFlags = @("-X main.Version=$version")
 if ($BuildProfile -eq 'Release') {
@@ -132,32 +201,156 @@ if ($system -eq 'windows') {
     $linkFlags += @('-H=windowsgui', '-extldflags=-Wl,--no-insert-timestamp')
 }
 New-Item -ItemType Directory -Path $Target -Force | Out-Null
-$env:CGO_ENABLED = '1'
-Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
-Set-csiGarlandEngineSources -RepoRoot $RepoRoot
-# The engine's C++ names its files by where this clone is; mapped to the repository's root, it does not.
-# Quoted, as Go reads these flags: a path may hold a space.
-$env:CGO_CPPFLAGS = "$env:CGO_CPPFLAGS `"-ffile-prefix-map=$($RepoRoot.TrimEnd('\'))=.`""
-& go -C $RepoRoot build -trimpath -buildvcs=false "-ldflags=$($linkFlags -join ' ')" -o $output ./cmd/csigarland
-if ($LASTEXITCODE -ne 0) {
-    throw "Building the utility failed with exit code $LASTEXITCODE."
+# Made and checked in a folder of this run's own, and only then put in place: a build of a number named
+# again, whose file is there already, leaves that file as it was if it fails. The counter is written
+# once the pair is in place: a build that fails, or is stopped, spends no number, and leaves nothing.
+$final = $output
+$work = Join-Path $RepoRoot "temp\utility-build-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+[System.IO.Directory]::CreateDirectory($work) | Out-Null
+$output = Join-Path $work (Split-Path -Leaf $final)
+$placed = $false
+$built = $false
+try {
+    $env:CGO_ENABLED = '1'
+    # -mod=readonly, in both links: a vendor folder Go would otherwise take is no source the digest or a copy
+    # for building again holds, and the notices are checked against the modules go.mod names.
+    Set-csiGarlandEngineSources -RepoRoot $RepoRoot
+    # The engine's C++ names its files by where this clone is; mapped to the repository's root, it does not.
+    # Quoted, as Go reads these flags: a path may hold a space.
+    $env:CGO_CPPFLAGS = "$env:CGO_CPPFLAGS `"-ffile-prefix-map=$($RepoRoot.TrimEnd('\'))=.`""
+    & go -C $RepoRoot build -mod=readonly -trimpath -buildvcs=false "-ldflags=$($linkFlags -join ' ')" -o $output ./cmd/csigarland
+    if ($LASTEXITCODE -ne 0) {
+        throw "Building the utility failed with exit code $LASTEXITCODE."
+    }
+    # The digest the manifest records is of the sources Go compiled: a file saved while it built, which
+    # the file may hold and the digest not, is found here, and the build spends no number.
+    if ((Get-csiGarlandUtilitySourceDigest -RepoRoot $RepoRoot) -ne $sourceDigest) {
+        throw 'The sources changed while the utility was built: build it again, once they are left alone.'
+    }
+    # Every library of the compiler's the file holds is one THIRD_PARTY_NOTICES.md names, by the groups
+    # deploy/new-third-party-notices.ps1 lists: anything else has no notice yet, and the file is not passed on.
+    # The link map comes from a link of its own into temp\, as its path in the flags would change the file
+    # itself, by the build ID Go keys on them. The path is relative, as the linker runs where go -C puts it:
+    # one with this clone's place in it could hold a space, which the linker's flags would split.
+    if ($system -eq 'windows') {
+        $check = Join-Path $RepoRoot 'temp\utility-link'
+        New-Item -ItemType Directory -Path $check -Force | Out-Null
+        $linkMap = Join-Path $check 'csigarland.map'
+        # Both, as Go takes an output already there with the same build ID for done, and links nothing:
+        # the map would then not be written at all.
+        foreach ($left in $linkMap, (Join-Path $check 'csigarland.exe')) {
+            if (Test-Path -LiteralPath $left) {
+                Remove-Item -LiteralPath $left
+            }
+        }
+        $mapFlags = @($linkFlags | Where-Object { $_ -notlike '-extldflags=*' }) + '-extldflags=-Wl,--no-insert-timestamp,-Map=temp/utility-link/csigarland.map'
+        & go -C $RepoRoot build -mod=readonly -trimpath -buildvcs=false "-ldflags=$($mapFlags -join ' ')" -o (Join-Path $check 'csigarland.exe') ./cmd/csigarland
+        if ($LASTEXITCODE -ne 0) {
+            throw "Linking the utility for its map failed with exit code $LASTEXITCODE."
+        }
+        if (-not (Test-Path -LiteralPath $linkMap)) {
+            throw "The linker wrote no map to $linkMap, so what the utility links cannot be checked."
+        }
+        $linked = @([regex]::Matches([System.IO.File]::ReadAllText($linkMap), '(?m)^(\S[^\r\n(]*?\.a)\(') | ForEach-Object { Split-Path -Leaf $_.Groups[1].Value } | Sort-Object -Unique)
+        $unknown = @($linked | Where-Object { -not (Get-csiGarlandUtilityLibraryGroup -Library $_) })
+        if ($unknown.Count -gt 0) {
+            throw "The utility links $($unknown -join ', '), which THIRD_PARTY_NOTICES.md has no notice for: name it in deploy\BuildVersion.psm1."
+        }
+    }
+    # Whether THIRD_PARTY_NOTICES.md names what this build holds, its Go modules among them, which a release
+    # of the utility alone asks, as one with the firmware asks its staging. The utility's part alone, by its
+    # own inputs, with no firmware build: notices out of date leave the build standing, and say so.
+    $noticesSaid = & pwsh -File (Join-Path $PSScriptRoot 'new-third-party-notices.ps1') -UtilityOnly 2>&1
+    $noticesChecked = $LASTEXITCODE -eq 0
+    if (-not $noticesChecked) {
+        Write-Warning "THIRD_PARTY_NOTICES.md was not found to name what this build holds, so no release takes it: $(@($noticesSaid)[-1])"
+    }
+    $hash = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
+    # What made it, for whoever makes it again.
+    $manifest = [ordered]@{
+        version       = $version
+        platform      = "$system-$machine"
+        profile       = $BuildProfile
+        sha256        = $hash
+        go            = $goVersion
+        compiler      = $compiler
+        cc            = $cc
+        cxx           = $cxx
+        cc_command    = "$($goEnv.CC)"
+        cxx_command   = "$($goEnv.CXX)"
+        cgo_flags     = $cgoFlags
+        goamd64       = "$($goEnv.GOAMD64)"
+        goflags       = "$($goEnv.GOFLAGS)"
+        gowork        = "$($goEnv.GOWORK)"
+        goexperiment  = "$($goEnv.GOEXPERIMENT)"
+        gofips140     = "$($goEnv.GOFIPS140)"
+        source_sha256 = $sourceDigest
+        source_format = Get-csiGarlandSourceFormat
+        notices_checked = $noticesChecked
+        notices_sha256 = (Get-FileHash -LiteralPath (Join-Path $RepoRoot 'THIRD_PARTY_NOTICES.md') -Algorithm SHA256).Hash.ToLowerInvariant()
+        license_sha256 = (Get-FileHash -LiteralPath (Join-Path $RepoRoot 'LICENSE') -Algorithm SHA256).Hash.ToLowerInvariant()
+        commit        = $(try { $c = & git -C $RepoRoot rev-parse HEAD 2>$null; if ($LASTEXITCODE -eq 0) { "$c".Trim() } else { $null } } catch { $null })
+    }
+    [System.IO.File]::WriteAllText("$output.manifest.json", (($manifest | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    # The file first, then its manifest, each replacing any of that name: a manifest never names a file
+    # that is not in place.
+    # A pair there already, of a number named again, is moved aside first and put back if either move
+    # fails, so the file and its manifest are always of one build.
+    $previous = @()
+    try {
+        foreach ($there in $final, "$final.manifest.json") {
+            if (Test-Path -LiteralPath $there) {
+                $aside = Join-Path $work ('previous-' + (Split-Path -Leaf $there))
+                [System.IO.File]::Move($there, $aside)
+                $previous += , @($there, $aside)
+            }
+        }
+        $placed = $true
+        [System.IO.File]::Move($output, $final)
+        [System.IO.File]::Move("$output.manifest.json", "$final.manifest.json")
+    } catch {
+        foreach ($left in $final, "$final.manifest.json") {
+            if ($placed -and (Test-Path -LiteralPath $left)) {
+                Remove-Item -LiteralPath $left -Force
+            }
+        }
+        foreach ($pair in $previous) {
+            [System.IO.File]::Move($pair[1], $pair[0], $true)
+        }
+        $placed = $false
+        throw
+    }
+    $output = $final
+    # The counter is what spends the number. Once it is written the build stands, and the fingerprint
+    # only lets a later build keep it: one that fails to be written means only that the next builds again.
+    if (-not $named) {
+        [System.IO.File]::WriteAllText($CounterPath, "$number`n")
+    }
+    $built = $true
+    if (-not $named) {
+        try {
+            [System.IO.File]::WriteAllText($FingerprintPath, "$fingerprint`n")
+        } catch {
+            Write-Warning "The fingerprint could not be written, so the next build builds again: $($_.Exception.Message)"
+            Remove-Item -LiteralPath $FingerprintPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+} finally {
+    if (-not $built) {
+        # A file put in place under a number not spent is no build of it: it goes, and its manifest.
+        if ($placed -and -not $named) {
+            foreach ($left in $final, "$final.manifest.json") {
+                if (Test-Path -LiteralPath $left) {
+                    Remove-Item -LiteralPath $left -Force
+                }
+            }
+        }
+        if (-not $named) {
+            Write-Warning "The build failed, so build number $number is not spent: the next build takes it."
+        }
+    }
+    [System.IO.Directory]::Delete($work, $true)
 }
-if (-not $named) {
-    [System.IO.File]::WriteAllText($CounterPath, "$number`n")
-    [System.IO.File]::WriteAllText($FingerprintPath, "$fingerprint`n")
-}
-$hash = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
-# What made it, for whoever makes it again.
-$manifest = [ordered]@{
-    version       = $version
-    profile       = $BuildProfile
-    sha256        = $hash
-    go            = "$(& go version)".Trim()
-    compiler      = $compiler
-    source_sha256 = $fingerprint.ToLowerInvariant()
-    commit        = $(try { $c = & git -C $RepoRoot rev-parse HEAD 2>$null; if ($LASTEXITCODE -eq 0) { "$c".Trim() } else { $null } } catch { $null })
-}
-[System.IO.File]::WriteAllText("$output.manifest.json", (($manifest | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
 Write-Host "$output, $([int]((Get-Item -LiteralPath $output).Length / 1KB)) KB, SHA-256 $hash"
 # For deploy/run.ps1.
 Write-Output $output

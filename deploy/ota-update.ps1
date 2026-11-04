@@ -11,7 +11,11 @@
 #       The garland, as its certificate has it: csigarland.local, or your domain or fixed address.
 #
 #   -NoBuild
-#       Send the update file from the last build instead of spending a build number.
+#       Send the update file from the last build instead of spending a build number: the last of
+#       the profile -BuildProfile names. Without -BuildProfile, the one profile built here; with both
+#       built, it asks for -BuildProfile rather than guess which was meant. A build whose firmware is
+#       not of that profile and of this checkout's base version, as one left from 1.0.0 in the folder
+#       Dev now has, is refused: -File sends it if it is meant.
 #
 #   -FirmwareOnly
 #       Build and send only the firmware. The effects on the garland stay.
@@ -77,7 +81,8 @@ $AppElfHashBytes = 32
 
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $FirmwareDir = Join-Path $RepoRoot 'firmware\app'
-$BuildDir = Join-Path $FirmwareDir '.pio\build\esp32c6'
+Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
+$BuildDir = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $BuildProfile)"
 
 Import-Module (Join-Path $PSScriptRoot 'SigningPython.psm1') -Force
 # A garland is sent only what its own root signed: never a test build's throwaway chain.
@@ -92,10 +97,12 @@ if (([int][bool]$FirmwareOnly + [int][bool]$EffectsOnly + [int][bool]$File) -gt 
 }
 
 # The effects as they are in the repository now, signed. Needs ESP-IDF's Python, for its
-# cryptography package, but no build.
+# cryptography package, but no build. Made in a folder of its own under temp\, never in the build's
+# generated\, whose pack the last build is checked against.
 function New-EffectsUpdate {
     $python = Get-csiGarlandSigningPython
-    $generated = Join-Path $FirmwareDir 'generated'
+    $generated = Join-Path $RepoRoot "temp\effects-update-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    [System.IO.Directory]::CreateDirectory($generated) | Out-Null
     $path = Join-Path $generated 'effects.ota'
     & $python (Join-Path $FirmwareDir 'scripts\effect_pack_tool.py') (Join-Path $FirmwareDir 'effects') $generated | Write-Host
     if ($LASTEXITCODE -ne 0) {
@@ -128,12 +135,14 @@ function Get-UpdateContents {
     $packStart = $HeaderBytes + $certificate
     $parts = @()
     $imageId = $null
+    $imageVersion = $null
     if ($image -gt 0) {
         $imageStart = $packStart + $pack
         $version = 'of unknown version'
         if ($image -ge $AppElfHashOffset + $AppElfHashBytes -and
             [System.BitConverter]::ToUInt32($bytes, $imageStart + $AppDescOffset) -eq $AppDescMagic) {
             $version = [System.Text.Encoding]::ASCII.GetString($bytes, $imageStart + $AppVersionOffset, $AppVersionBytes).Split([char]0)[0]
+            $imageVersion = $version
             $imageId = [System.Convert]::ToHexString($bytes, $imageStart + $AppElfHashOffset, $AppElfHashBytes).ToLowerInvariant()
         }
         $parts += "firmware $version"
@@ -157,21 +166,66 @@ function Get-UpdateContents {
         $parts += "$effects effects"
     }
     $digest = if ($pack -gt 0) { [System.Convert]::ToHexString($bytes, 20, 32).ToLowerInvariant() } else { $null }
-    return [pscustomobject]@{ Text = $parts -join ' and '; Image = $imageId; PackDigest = $digest }
+    return [pscustomobject]@{ Text = $parts -join ' and '; Image = $imageId; PackDigest = $digest; Version = $imageVersion }
 }
 
+# What is wrong with a firmware of version for a build of BuildProfile from this checkout, or $null: the
+# folder may hold a build from before each profile had its own, such as a Release of 1.0.0 left in
+# esp32c6, which is now Dev's.
+# By the grammar the build spells versions with, see Get-csiGarlandFirmwareIdentity: the build number
+# comes before the base's own suffix, as 1.1.0.123-rc.1, and -dev after it for Dev.
+function Get-BuildVersionProblem {
+    param([string]$Version, [Parameter(Mandatory = $true)][string]$BuildProfile)
+    $ini = Join-Path $FirmwareDir 'platformio.ini'
+    $number = [regex]::Match("$Version", '^\d+\.\d+\.\d+\.(\d+)(?:-|$)')
+    if ($number.Success -and $Version -ceq (Get-csiGarlandFirmwareIdentity -IniPath $ini -BuildNumber ([int]$number.Groups[1].Value) -BuildProfile $BuildProfile)) {
+        return $null
+    }
+    $wanted = Get-csiGarlandFirmwareIdentity -IniPath $ini -BuildNumber 0 -BuildProfile $BuildProfile
+    return "firmware $(if ($Version) { $Version } else { 'of unknown version' }), not a $BuildProfile build of this checkout, such as $($wanted -replace '\.0(?=-|$)', '.N')"
+}
+
+$UpdateName = if ($FirmwareOnly) { 'firmware-only.ota' } else { 'firmware.ota' }
 if ($File) {
     $UpdatePath = $File
 } elseif ($EffectsOnly) {
     $UpdatePath = New-EffectsUpdate
 } else {
+    # The firmware build lock of this checkout, from the build, or the look at the last one, to the bytes
+    # read: another build would replace the file in between, with one this run did not make or check.
+    $BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware
     if (-not $NoBuild) {
-        & pwsh -File (Join-Path $PSScriptRoot 'flash-device.ps1') -BuildOnly -BuildProfile $BuildProfile
+        & pwsh -File (Join-Path $PSScriptRoot 'flash-device.ps1') -BuildOnly -BuildProfile $BuildProfile -LockHeld
         if ($LASTEXITCODE -ne 0) {
             throw "Build failed with exit code $LASTEXITCODE. Nothing was sent."
         }
+    } elseif (-not $PSBoundParameters.ContainsKey('BuildProfile')) {
+        # Each profile builds in its own folder, so "the last build" may be either: a Release left from
+        # long ago is no answer for a Dev built since. Only a file of the kind asked for, whose firmware is
+        # of its folder's profile and this checkout's base, counts.
+        $built = @('Release', 'Dev' | Where-Object {
+                $candidate = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $_)\$UpdateName"
+                if (-not (Test-Path -LiteralPath $candidate)) {
+                    return $false
+                }
+                try {
+                    $held = Get-UpdateContents -Bytes ([System.IO.File]::ReadAllBytes($candidate)) -Path $candidate
+                } catch {
+                    return $false
+                }
+                # And signed under this repository's root: a test build's throwaway chain is no candidate.
+                $null -eq (Get-BuildVersionProblem -Version $held.Version -BuildProfile $_) -and
+                (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $candidate)
+            })
+        if ($built.Count -gt 1) {
+            throw 'Both a Release and a Dev build of this version are here: name the one to send with -BuildProfile Release or -BuildProfile Dev. Nothing was sent.'
+        }
+        if ($built.Count -eq 1) {
+            $BuildDir = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $built[0])"
+            Write-Host "Sending the last $($built[0]) build, the only one of this version here."
+        }
     }
-    $UpdatePath = Join-Path $BuildDir $(if ($FirmwareOnly) { 'firmware-only.ota' } else { 'firmware.ota' })
+    $UpdatePath = Join-Path $BuildDir $UpdateName
 }
 if (-not (Test-Path -LiteralPath $UpdatePath)) {
     throw "No update file at $UpdatePath. Build first."
@@ -179,7 +233,19 @@ if (-not (Test-Path -LiteralPath $UpdatePath)) {
 # Read once, here: a build may replace the file while this waits for the owner, and what goes out
 # has to be what was shown, and what the garland is then held to.
 $UpdateBytes = [System.IO.File]::ReadAllBytes($UpdatePath)
+if (Get-Variable -Name BuildLock -Scope Script -ErrorAction SilentlyContinue) {
+    $BuildLock.Dispose()
+}
 $contents = Get-UpdateContents -Bytes $UpdateBytes -Path $UpdatePath
+# A file from a build folder is held to its folder's profile and to this checkout's base, by the version
+# the image itself holds. A file meant all the same goes by -File.
+if (-not $File -and -not $EffectsOnly) {
+    $folderProfile = if ((Split-Path -Leaf $BuildDir) -eq (Get-csiGarlandFirmwareEnvironment -BuildProfile 'Release')) { 'Release' } else { 'Dev' }
+    $problem = Get-BuildVersionProblem -Version $contents.Version -BuildProfile $folderProfile
+    if ($problem) {
+        throw "$UpdatePath holds $($problem): a build left from before, it seems. Build again, or send it with -File if it is meant. Nothing was sent."
+    }
+}
 # The bytes to be sent, judged as the garland will judge them, so a refusal costs no restart.
 $checkedPath = Join-Path ([System.IO.Path]::GetTempPath()) "csigarland-$([guid]::NewGuid().ToString('N')).ota"
 try {
@@ -270,8 +336,21 @@ try {
 }
 $beforeBoot = Get-Field $before 'boot'
 Write-Host "Running now: $($before.version) with $($before.effects) built-in effects. Sending the update..."
-$reply = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders -Method Post -Body $UpdateBytes -ContentType 'application/octet-stream' -TimeoutSec 600
-Write-Host "Installed: firmware $($reply.firmware), effects $($reply.effects). The garland is restarting."
+# A refusal comes with a status, and is the answer. A connection lost with none may have taken the update
+# whole, the garland restarting before its answer reached here: what it runs next says which, so the
+# watch below goes on, and sending again before it ends could install the same file twice.
+$sentUnknown = $null
+try {
+    $reply = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders -Method Post -Body $UpdateBytes -ContentType 'application/octet-stream' -TimeoutSec 600
+    Write-Host "Installed: firmware $($reply.firmware), effects $($reply.effects). The garland is restarting."
+} catch {
+    $answered = $_.Exception.PSObject.Properties['Response'] -and $_.Exception.Response
+    if ($answered) {
+        throw
+    }
+    $sentUnknown = $_.Exception.Message
+    Write-Warning "No answer to the update: $sentUnknown. It may have been installed: watching what the garland runs..."
+}
 
 # Over only when the garland has restarted, runs what was sent and has confirmed it: a first
 # answer may come from before the restart, from a firmware still on trial, or from the old one
@@ -285,6 +364,10 @@ $httpsFailed = $false
 $lastConfirmCheck = [DateTime]::MinValue
 $said = ''
 $unproved = $null
+# Whether what runs is shown to be this send's own, where its answer was lost.
+$proved = $false
+$imageBefore = Get-Field $before 'image'
+$packBefore = Get-Field $before 'pack_digest'
 $deadline = [DateTime]::UtcNow.AddSeconds(180)
 while ([DateTime]::UtcNow -lt $deadline) {
     Start-Sleep -Milliseconds 500
@@ -344,6 +427,18 @@ while ([DateTime]::UtcNow -lt $deadline) {
         $unproved = $after.version
         continue
     }
+    # With the answer lost, the bytes running say nothing of this send: the garland may have restarted for
+    # another reason, already running them, or another program sent an update meanwhile. A trial of the
+    # file's image says it took it, and so do effects alone that were not running, with the firmware as it
+    # was. Anything else is told as seen, neither installed nor gone back.
+    if ($sentUnknown -and -not $proved) {
+        $tookImage = $contents.Image -and $after.on_trial -and $runningImage -eq $contents.Image
+        $tookEffects = -not $contents.Image -and $contents.PackDigest -and $packBefore -ne $contents.PackDigest -and $runningPack -eq $contents.PackDigest -and $runningImage -eq $imageBefore
+        if (-not ($tookImage -or $tookEffects)) {
+            throw "Not confirmed: the garland restarted and runs $($after.version)$(if ($after.on_trial) { ', on trial' }), but the update got no answer ($sentUnknown), so whether it took this file cannot be told. Check its Info page before sending it again."
+        }
+        $proved = $true
+    }
     if ($contents.Image -and $runningImage -ne $contents.Image) {
         throw "Not installed: running $($after.version), not the firmware in this file. It went back to the previous firmware. What it logged is in $logPath"
     }
@@ -364,5 +459,8 @@ if ($httpsFailed -and -not $Insecure) {
 }
 if ($unproved) {
     throw "Not confirmed: the garland answers with version $unproved but cannot say which firmware or effects it runs. It may have gone back to the previous firmware. What it logged is in $logPath"
+}
+if ($sentUnknown -and -not $wentDown) {
+    throw "Not installed, as far as can be seen: the update got no answer ($sentUnknown), and in 180 s the garland did not restart. Check its Info page before sending it again."
 }
 throw "The garland did not confirm the update within 180 s. If it restarted more than once it went back to the previous firmware. What it logged is in $logPath"

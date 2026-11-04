@@ -11,7 +11,8 @@
 package engine
 
 /*
-#cgo CPPFLAGS: -I${SRCDIR}/../../firmware/app/src -I${SRCDIR}
+// The limit is platformio.ini's, which a test holds this to.
+#cgo CPPFLAGS: -I${SRCDIR}/../../firmware/app/src -I${SRCDIR} -DCSIGARLAND_POWER_LIMIT_MA=1400
 #cgo CXXFLAGS: -std=c++20 -DCSIGARLAND_MAX_LEDS=256
 // The only C here is cJSON, a third party's, left as it came.
 #cgo CFLAGS: -w
@@ -31,6 +32,9 @@ import (
 
 // MaxLeds is the longest chain the engine draws, as in the firmware.
 const MaxLeds = int(C.CSG_MAX_LEDS)
+
+// LimitMilliamps is the current the firmware holds every frame to, by scaling it down.
+const LimitMilliamps = int(C.CSG_POWER_LIMIT_MA)
 
 const (
 	bytesPerLed = 3
@@ -120,8 +124,9 @@ func Run(file []byte, times []uint32, leds int) ([]Color, error) {
 
 // Preview plays one effect from its start.
 type Preview struct {
-	file  []byte
-	valid bool
+	file      []byte
+	valid     bool
+	milliamps int
 }
 
 // NewPreview takes an effect's file, and says if the firmware would refuse it.
@@ -156,9 +161,48 @@ func (p *Preview) Frame(timeMs uint32, brightness int, out []Color) int {
 		active = p
 	}
 	raw := make([]byte, count*bytesPerLed)
-	C.csg_render(C.uint32_t(timeMs), C.int(brightness), (*C.uint8_t)(unsafe.Pointer(&raw[0])), C.int(count))
+	p.milliamps = int(C.csg_render(C.uint32_t(timeMs), C.int(brightness), (*C.uint8_t)(unsafe.Pointer(&raw[0])), C.int(count)))
 	for i := 0; i < count; i++ {
 		out[i] = Color{raw[i*bytesPerLed], raw[i*bytesPerLed+1], raw[i*bytesPerLed+2]}
 	}
 	return count
+}
+
+// Milliamps is what the last frame drew, by the firmware's own model, before its limit held it back:
+// more than LimitMilliamps is a frame the garland sends dimmer.
+func (p *Preview) Milliamps() int { return p.milliamps }
+
+// Currents is what an effect draws at each of times, by the firmware's own model, on a chain of leds
+// at a brightness in percent, before the limit. A run of its own, as Run's.
+func Currents(file []byte, times []uint32, brightness, leds int) ([]int, error) {
+	count := min(leds, MaxLeds)
+	if count <= 0 {
+		return nil, errors.New("no LEDs to draw")
+	}
+	engineLock.Lock()
+	defer engineLock.Unlock()
+	active = nil
+	if err := load(file); err != nil {
+		return nil, err
+	}
+	C.csg_run_start()
+	out := make([]int, len(times))
+	for i, at := range times {
+		out[i] = int(C.csg_run_current(C.uint32_t(at), C.int(brightness), C.int(count)))
+	}
+	return out, nil
+}
+
+// BrightnessShare is how much of its full current a frame draws at a brightness in percent: the
+// firmware's gain, which every channel is scaled by. The current is linear in it.
+func BrightnessShare(percent int) float64 {
+	return float64(C.csg_brightness_gain(C.int(percent))) / 65536
+}
+
+// IdleMilliamps is what a chain of leds draws all dark, by the firmware's model: the part of the
+// current no brightness scales.
+func IdleMilliamps(leds int) int {
+	engineLock.Lock()
+	defer engineLock.Unlock()
+	return int(C.csg_idle_current(C.int(min(max(leds, 0), MaxLeds))))
 }

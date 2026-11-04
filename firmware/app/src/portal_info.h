@@ -14,6 +14,7 @@
 #include <cstdint>
 
 #include "esp_http_server.h"
+#include "garland_state.h"
 #include "network_logic.h"
 
 namespace garland {
@@ -21,8 +22,9 @@ namespace garland {
 void portal_format_ip(uint32_t ip, char (&out)[16]);
 void portal_format_hostname(char (&out)[kMaxHostnameLength + 7]);
 
-// What the schedule does next, in the fields of an action, for the pages to describe.
-void portal_add_next_action(cJSON* root);
+// What the schedule does next, in the fields of an action, for the pages to describe, as it comes out
+// with the playlist as it stands: a start of an empty one is no start.
+void portal_add_next_action(cJSON* root, const State& state);
 
 esp_err_t portal_handle_info(httpd_req_t* req);
 esp_err_t portal_handle_hostname_set(httpd_req_t* req);

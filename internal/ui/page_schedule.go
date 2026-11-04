@@ -2,7 +2,7 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: The Schedule page: the actions, the time zone and the clock module.
+// Purpose: The Schedule page: the next 24 hours, the actions, the time zone and the clock module.
 // Contributors: None
 
 package ui
@@ -36,26 +36,33 @@ type actionRow struct {
 }
 
 type schedulePage struct {
-	schedule  api.Schedule
-	loaded    bool
-	clock     api.Clock
-	names     map[string]string
-	effects   []api.Effect
-	saving    bool
-	rowsOf    []*actionRow
-	add       widget.Clickable
-	editing   int
-	form      actionForm
-	zoneOpen  widget.Clickable
-	showZones bool
-	zones     [len(Zones)]widget.Clickable
-	rtcHere   widget.Clickable
-	rtcNet    widget.Clickable
-	rtcHand   widget.Clickable
-	rtcText   widget.Editor
-	rtcPick   widget.Clickable
-	clockPick clockPopup
-	popup     schedulePopup
+	schedule       api.Schedule
+	loaded         bool
+	clock          api.Clock
+	names          map[string]string
+	effects        []api.Effect
+	saving         bool
+	rowsOf         []*actionRow
+	add            widget.Clickable
+	editing        int
+	form           actionForm
+	zoneOpen       widget.Clickable
+	showZones      bool
+	zones          [len(Zones)]widget.Clickable
+	rtcHere        widget.Clickable
+	rtcNet         widget.Clickable
+	rtcHand        widget.Clickable
+	rtcText        widget.Editor
+	rtcPick        widget.Clickable
+	clockPick      clockPopup
+	popup          schedulePopup
+	timeline       *api.Timeline // The next 24 hours, nil until read or from a garland with no such route.
+	timelineAt     time.Time     // When the day shown was read, so its time can be carried on.
+	timelineTried  time.Time     // When it was last asked for, read or not: see keepTimeline.
+	timelineAsked  bool          // One reading at a time.
+	timelineGen    int           // Moves with a change that moves the day: see loadTimeline.
+	timelineNone   bool          // The garland has no such route, as 1.0.0 has not.
+	timelineFailed bool          // The last reading failed, and is tried again soon.
 }
 
 func (p *schedulePage) init() {
@@ -66,6 +73,7 @@ func (p *schedulePage) init() {
 }
 
 func (p *schedulePage) load(a *App) {
+	p.loadTimeline(a)
 	a.work(func(ctx context.Context, client *api.Client) (func(), error) {
 		schedule, err := client.Schedule(ctx)
 		if err != nil {
@@ -108,7 +116,13 @@ func (p *schedulePage) take(schedule api.Schedule) {
 }
 
 func (p *schedulePage) rows(a *App) []layout.Widget {
-	rows := []layout.Widget{p.summaryCard(a), p.actionsCard(a)}
+	p.keepTimeline(a)
+	// The next 24 hours say what is due next and more; a garland of 1.0.0 has only the next action.
+	rows := []layout.Widget{p.summaryCard(a)}
+	if p.timeline != nil {
+		rows = []layout.Widget{p.timelineCard(a)}
+	}
+	rows = append(rows, p.actionsCard(a))
 	if p.editing != noAction {
 		rows = append(rows, p.formCard(a))
 	}
@@ -121,12 +135,18 @@ func (p *schedulePage) rows(a *App) []layout.Widget {
 
 func (p *schedulePage) summaryCard(a *App) layout.Widget {
 	return func(gtx C) D {
-		clock := "The clock is not set: it syncs over the internet once the garland joins your home Wi-Fi. Actions wait until then."
-		if p.clock.Synced {
-			clock = "Garland time: " + p.clock.Now + "."
-		}
-		return a.card(gtx, "", a.body("Next: "+NextText(p.schedule.Next)), a.hint(clock))
+		return a.card(gtx, "", a.body("Next: "+NextText(p.schedule.Next)), a.hint(p.clockText()))
 	}
+}
+
+func (p *schedulePage) clockText() string {
+	if p.clock.Synced && p.clock.Now == "" {
+		return "The garland's clock is set."
+	}
+	if p.clock.Synced {
+		return "Garland time: " + p.clock.Now + "."
+	}
+	return "The clock is not set: it syncs over the internet once the garland joins your home Wi-Fi. Actions wait until then."
 }
 
 func (p *schedulePage) effectName(action api.Action) string {
@@ -196,7 +216,7 @@ func (p *schedulePage) actionWidget(a *App, index int) layout.Widget {
 			layout.Flexed(1, func(gtx C) D {
 				return a.column(gtx,
 					a.body(fmt.Sprintf("%s, %s", action.Time, DaysText(action.Days))),
-					a.hint(StepsText(action.Power, action.Brightness, action.Speed, p.effectName(action))),
+					a.hint(StepsText(action.Power, action.Brightness, action.Speed, p.effectName(action), action.Playlist)),
 				)
 			}),
 			layout.Rigid(func(gtx C) D { return a.iconButton(gtx, &widgets.edit, buttonOther, "edit", "Edit", enabled) }),
@@ -222,6 +242,7 @@ func (p *schedulePage) save(a *App, entries []api.Action) {
 				p.take(answer)
 				p.editing = noAction
 				a.report("Saved.")
+				p.loadTimeline(a)
 			}, nil
 		}
 		var reread *api.Schedule
@@ -282,6 +303,7 @@ func (p *schedulePage) setZone(a *App, zone string) {
 			p.clock = clock
 			p.take(schedule)
 			a.report("Time zone saved.")
+			p.loadTimeline(a)
 		}, nil
 	})
 }
@@ -368,6 +390,7 @@ func (p *schedulePage) setModule(a *App, set func(context.Context, *api.Client) 
 			p.clock = clock
 			p.take(schedule)
 			a.report("Clock module set.")
+			p.loadTimeline(a)
 		}, nil
 	})
 }
@@ -415,6 +438,7 @@ func (p *schedulePage) watchInternetClock(a *App, asked api.Clock) {
 				p.schedule.Next = schedule.Next
 			}
 			a.report(InternetClockText(asked, clock))
+			p.loadTimeline(a)
 		}, nil
 	})
 }

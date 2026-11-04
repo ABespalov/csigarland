@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <mutex>
 
 namespace garland {
 
@@ -249,11 +250,45 @@ struct Snapshot {
     bool output_failed;         // Frames are not reaching the LEDs, see OutputHealth.
     uint16_t led_kept;          // The length in use after led_count was refused, or 0.
     bool action_soon;           // A scheduled action comes within a day.
+    bool rise;                  // The turn on asked for rises over a minute, from the schedule.
+    bool playlist;              // The playlist is playing: the lighting task moves it on.
+    uint8_t playlist_at;        // Where what plays stands in the playlist, from 1, or 0 when not in it.
+    uint8_t playlist_size;      // How many effects the playlist holds.
+    uint8_t playlist_mark;      // Counts the starts of the playlist, modulo 4.
 
     bool operator==(const Snapshot&) const = default;
 };
 
-// All of it in the 28 bits of one word: an effect in 10, brightness in 7, speed in 5.
+// The playlist's effects, by catalog position, and how long each plays.
+constexpr size_t kMaxPlaylistEffects = 16;
+constexpr uint16_t kPlaylistDwellMinSeconds = 10;
+constexpr uint16_t kPlaylistDwellMaxSeconds = 3600;
+constexpr uint16_t kPlaylistDwellDefaultSeconds = 60;
+
+constexpr bool playlist_dwell_is_valid(int seconds) {
+    return seconds >= kPlaylistDwellMinSeconds && seconds <= kPlaylistDwellMaxSeconds;
+}
+
+// The effect after current in the list, or the first when current is not in it. -1 for an empty list.
+constexpr int playlist_next(const uint16_t* effects, size_t count, uint16_t current) {
+    if (count == 0) {
+        return -1;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        if (effects[i] == current) {
+            return effects[(i + 1) % count];
+        }
+    }
+    return effects[0];
+}
+
+// What a power step asks for: as it is, off, on, or on rising slowly from dark.
+constexpr int kPowerKeep = -1;
+constexpr int kPowerOff = 0;
+constexpr int kPowerOn = 1;
+constexpr int kPowerRise = 2;
+
+// All of it in the 31 bits of one word: an effect in 10, brightness in 7, speed in 5.
 static_assert(kManualSpeedMax < 32, "the speed shares a word with what plays, in five bits");
 
 // Written by the button callbacks, the portal, the schedule and the lighting task, read by the
@@ -284,18 +319,145 @@ public:
         }
     }
 
-    // From the portal: any effect, and it turns the garland on to show it.
+    // From the portal: any effect, and it turns the garland on to show it. A choice of one effect
+    // ends the playlist.
     void activate_effect(uint16_t index) {
-        note_owner_choice();
-        change_play([index](Play& play) {
-            play.off_seconds = 0;
-            play.effect = index;
-            order_on(play, true);
-        });
+        {
+            // A choice of what plays goes under the lock a late resume holds, so that one never comes between
+            // the resume's look at it and its change: see resume_playlist_unless_chosen.
+            const std::lock_guard<std::mutex> guard(playlist_lock_);
+            note_owner_play();
+            change_play([index](Play& play) {
+                play.off_seconds = 0;
+                play.effect = index;
+                play.playlist = false;
+                order_on(play, true);
+            });
+        }
         notify_power_listener();
     }
 
-    // Only what it names, all at once. Zero, or a negative effect or power, leaves that part as it is.
+    // The list the playlist plays, which the lighting task reads as it moves on. Word by word, like
+    // the favourites: a change arriving mid-read mixes old and new for one step at most. Under
+    // playlist_lock_, as are the starts, so a start never reads a list that is then emptied before it
+    // takes: see apply_scheduled.
+    void set_playlist(const uint16_t* effects, size_t count, uint16_t dwell_seconds) {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
+        count = count > kMaxPlaylistEffects ? kMaxPlaylistEffects : count;
+        for (size_t i = 0; i < count; ++i) {
+            playlist_effects_[i].store(effects[i]);
+        }
+        playlist_dwell_seconds_.store(dwell_seconds);
+        playlist_count_.store(static_cast<uint8_t>(count));
+        if (count == 0) {
+            change_play([](Play& play) { play.playlist = false; });
+        }
+    }
+    // Copies the list into out, which holds kMaxPlaylistEffects, and returns how many.
+    size_t playlist(uint16_t* out) const {
+        const size_t count = playlist_count_.load();
+        for (size_t i = 0; i < count; ++i) {
+            out[i] = playlist_effects_[i].load();
+        }
+        return count;
+    }
+    uint16_t playlist_dwell_seconds() const { return playlist_dwell_seconds_.load(); }
+
+    // The owner starts the playlist, or stops it and keeps what plays. Starting turns the garland
+    // on at the list's first effect. False for an empty list.
+    bool play_playlist(bool on) {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
+        uint16_t effects[kMaxPlaylistEffects] = {};
+        const size_t count = playlist(effects);
+        if (on && count == 0) {
+            return false;
+        }
+        note_owner_play();
+        const uint16_t first = effects[0];
+        change_play([on, first](Play& play) {
+            play.playlist = on;
+            if (on) {
+                play.off_seconds = 0;
+                play.effect = first;
+                count_start(play);
+                order_on(play, true);
+            }
+        });
+        if (on) {
+            notify_power_listener();
+        }
+        return true;
+    }
+
+    // Where an effect stands in the playlist, from 1, or 0 when it is not in it.
+    uint8_t playlist_place(uint16_t effect) const {
+        const size_t count = playlist_count_.load();
+        for (size_t i = 0; i < count; ++i) {
+            if (playlist_effects_[i].load() == effect) {
+                return static_cast<uint8_t>(i + 1);
+            }
+        }
+        return 0;
+    }
+
+    // At a start, read late, as it was left: unless the owner has chosen what plays since the start, an
+    // effect or the playlist, by a button, a page or a program, or a scheduled step has, either of which
+    // outranks what was left. A change of only the power, brightness or speed says nothing of what plays,
+    // and leaves it to come back. Under the lock every choice of what plays takes, so none comes between
+    // the look at its mark and the change. True when it plays on.
+    bool resume_playlist_unless_chosen() {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
+        if (playlist_count_.load() == 0) {
+            return false;
+        }
+        const uint16_t first = playlist_effects_[0].load();
+        bool resumed = false;
+        change_play([this, first, &resumed](Play& play) {
+            resumed = !owner_play_.load() && !scheduled_play_.load();
+            if (resumed) {
+                play.playlist = true;
+                play.effect = first;
+                count_start(play);
+            }
+        });
+        return resumed;
+    }
+
+    // At a start, as it was left, at its first effect: nothing chosen, nothing turned on.
+    void resume_playlist() {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
+        if (playlist_count_.load() > 0) {
+            const uint16_t first = playlist_effects_[0].load();
+            change_play([first](Play& play) {
+                play.playlist = true;
+                play.effect = first;
+                count_start(play);
+            });
+        }
+    }
+
+    // From the lighting task: on to next, only if the playlist still plays from expected, and from the
+    // start the task timed it by, mark. Anything chosen since is newer, and stands, and a start since,
+    // though at the same effect, has its first effect to play whole.
+    bool advance_playlist(uint16_t expected, uint16_t next, uint8_t mark) {
+        uint32_t word = play_.load();
+        uint32_t updated = 0;
+        do {
+            Play moved = unpack(word);
+            if (!moved.playlist || moved.effect != expected || moved.start_mark != mark) {
+                return false;
+            }
+            moved.effect = next;
+            updated = pack(moved);
+        } while (!play_.compare_exchange_weak(word, updated));
+        return true;
+    }
+
+    // From one effect to the next: how long the old one's last frame takes to give way.
+    void set_cross_fade_ms(uint16_t ms) { cross_fade_ms_.store(ms); }
+    uint16_t cross_fade_ms() const { return cross_fade_ms_.load(); }
+
+    // Only what it names, all at once. Zero, or a negative effect or kPowerKeep, leaves that part as it is.
     void apply_action(uint8_t brightness_percent, uint8_t speed_x4, int effect, int power) {
         change_play([=](Play& play) { apply_parts(play, brightness_percent, speed_x4, effect, power); });
         if (power >= 0) {
@@ -305,7 +467,24 @@ public:
 
     // From the schedule, which worked this out after take_owner_choice. A choice since then is
     // newer, so nothing changes and it says so. In the same word, so nothing can come in between.
-    bool apply_scheduled(uint8_t brightness_percent, uint8_t speed_x4, int effect, int power) {
+    // With playlist, it starts the playlist at its first effect, in place of effect, if it has effects,
+    // and with none takes effect_without and power_without, what the step comes to then, see
+    // ResolvedAction::with_playlist. Decided here, on the one reading of the list it starts from: a list
+    // emptied meanwhile cannot leave the step half of each.
+    bool apply_scheduled(uint8_t brightness_percent, uint8_t speed_x4, int effect, int power, bool playlist = false,
+                         int effect_without = -1, int power_without = kPowerKeep) {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
+        uint16_t effects[kMaxPlaylistEffects] = {};
+        const bool starts = playlist && this->playlist(effects) > 0;
+        if (playlist && !starts) {
+            effect = effect_without;
+            power = power_without;
+        }
+        // Before the change, so that a resume of what was left, coming after it, finds it: a step that
+        // chooses what plays is newer than what was left.
+        if (starts || effect >= 0) {
+            scheduled_play_.store(true);
+        }
         uint32_t word = play_.load();
         uint32_t updated = 0;
         do {
@@ -313,7 +492,11 @@ public:
             if (next.chosen_since_look) {
                 return false;
             }
-            apply_parts(next, brightness_percent, speed_x4, effect, power);
+            apply_parts(next, brightness_percent, speed_x4, starts ? effects[0] : effect, power);
+            next.playlist = next.playlist || starts;
+            if (starts) {
+                count_start(next);
+            }
             updated = pack(next);
         } while (!play_.compare_exchange_weak(word, updated));
         if (power >= 0) {
@@ -361,6 +544,18 @@ public:
         return was_chosen;
     }
     uint32_t owner_choice_ms() const { return owner_choice_ms_.load(); }
+
+    // A choice of what plays, an effect or the playlist, started or stopped: one of the power, brightness or
+    // speed alone says nothing of it.
+    void note_owner_play() {
+        owner_play_.store(true);
+        note_owner_choice();
+    }
+    // Whether the owner has chosen what plays since the start.
+    bool owner_chose_play() const { return owner_play_.load(); }
+
+    // Whether a scheduled step has chosen what plays, an effect or the playlist, since the start.
+    bool scheduled_play() const { return scheduled_play_.load(); }
 
     // Milliseconds of a clock that needs no lock, as the lighting task and buttons get here, which
     // rules out the time of day. Whoever reads the moment of a choice sets this.
@@ -434,16 +629,30 @@ public:
         const uint16_t count = effect_count_.load();
         if (!is_consumed(ButtonId::Effect) && play().requested && count > 0) {
             const EffectMask mask = favorites();
-            note_owner_choice();
-            change_play([&](Play& play) { play.effect = next_favorite(play.effect, mask, count); });
+            const std::lock_guard<std::mutex> guard(playlist_lock_);
+            note_owner_play();
+            change_play([&](Play& play) {
+                play.effect = next_favorite(play.effect, mask, count);
+                play.playlist = false;
+            });
         }
     }
 
-    // First in the button's own cycle, which is the catalog's first effect unless
-    // that one is not a favourite.
+    // With a playlist set, starts it, or stops it and keeps what plays. With none, does nothing.
     void long_press_effect() {
+        if (is_consumed(ButtonId::Effect) || !play().requested || playlist_count_.load() == 0) {
+            return;
+        }
+        play_playlist(!play().playlist);
+    }
+
+    // First in the button's own cycle, which is the catalog's first effect unless
+    // that one is not a favourite. A choice of one effect, so the playlist stops.
+    void double_click_effect() {
         if (!is_consumed(ButtonId::Effect) && play().requested) {
-            note_owner_choice();
+            const std::lock_guard<std::mutex> guard(playlist_lock_);
+            note_owner_play();
+            change_play([](Play& play) { play.playlist = false; });
             select_first_favorite();
         }
     }
@@ -563,6 +772,11 @@ public:
             output_failed_.load(),
             led_kept_.load(),
             action_soon_.load(),
+            now.rise,
+            now.playlist,
+            playlist_place(now.effect),
+            playlist_count_.load(),
+            now.start_mark,
         };
     }
 
@@ -577,17 +791,27 @@ private:
         // Left of the countdown to off, 0 when not counting. Here so that a step turning the garland
         // on or off ends the countdown it found, and never one begun after it.
         uint8_t off_seconds;
+        bool rise;      // The turn on asked for rises over a minute. Only a scheduled step sets it.
+        bool playlist;  // The playlist plays. A choice of one effect, by anyone, ends it.
+        // Counts the starts of the playlist, modulo 4, in the same word, so the lighting task times its
+        // first effect from then, though that effect may have been playing already. Two bits, so that two
+        // or three starts between two looks of the task still show.
+        uint8_t start_mark;
     };
+
+    static constexpr void count_start(Play& play) { play.start_mark = static_cast<uint8_t>((play.start_mark + 1) & 3); }
 
     static constexpr uint32_t pack(const Play& play) {
         return uint32_t{play.effect} | uint32_t{play.brightness} << 10 | uint32_t{play.speed} << 17 |
                uint32_t{play.requested} << 22 | uint32_t{play.chosen} << 23 | uint32_t{play.chosen_since_look} << 24 |
-               uint32_t{play.off_seconds} << 25;
+               uint32_t{play.off_seconds} << 25 | uint32_t{play.rise} << 28 | uint32_t{play.playlist} << 29 |
+               uint32_t{play.start_mark & 3u} << 30;
     }
 
     static constexpr Play unpack(uint32_t word) {
         return Play{(word >> 22 & 1) != 0, (word >> 23 & 1) != 0, static_cast<uint8_t>(word >> 10 & 0x7F), static_cast<uint8_t>(word >> 17 & 0x1F),
-                    static_cast<uint16_t>(word & 0x3FF), (word >> 24 & 1) != 0, static_cast<uint8_t>(word >> 25 & 7)};
+                    static_cast<uint16_t>(word & 0x3FF), (word >> 24 & 1) != 0, static_cast<uint8_t>(word >> 25 & 7),
+                    (word >> 28 & 1) != 0, (word >> 29 & 1) != 0, static_cast<uint8_t>(word >> 30 & 3)};
     }
 
     static constexpr void apply_parts(Play& play, uint8_t brightness_percent, uint8_t speed_x4, int effect, int power) {
@@ -599,16 +823,20 @@ private:
         }
         if (effect >= 0) {
             play.effect = static_cast<uint16_t>(effect);
+            play.playlist = false;
         }
         if (power >= 0) {
             play.off_seconds = 0;
-            order_on(play, power != 0);
+            order_on(play, power != kPowerOff);
+            play.rise = power == kPowerRise;
         }
     }
 
+    // Any order but a scheduled rise turns on at the usual pace.
     static constexpr void order_on(Play& play, bool on) {
         play.requested = on;
         play.chosen = on;
+        play.rise = false;
     }
 
     Play play() const { return unpack(play_.load()); }
@@ -660,6 +888,9 @@ private:
     std::atomic<uint8_t> consumed_buttons_{0};
     std::atomic<uint32_t> activity_{0};
     std::atomic<uint32_t> owner_choice_ms_{0};
+    std::atomic<bool> owner_play_{false};
+    // Set once a scheduled step has chosen what plays, an effect or the playlist, since the start.
+    std::atomic<bool> scheduled_play_{false};
     std::atomic<uint32_t (*)()> choice_clock_{nullptr};
     std::atomic<SaverKind> saver_kind_{SaverKind::Starfield};
     std::atomic<uint16_t> saver_delay_seconds_{kSaverDelayDefaultSeconds};
@@ -669,7 +900,7 @@ private:
     std::atomic<bool> setup_network_{false};
     std::atomic<uint8_t> update_percent_{kNoUpdate};
     std::atomic<bool> clock_module_{false};
-    std::atomic<uint32_t> play_{pack(Play{false, false, 50, kNormalSpeed, 0, false, 0})};
+    std::atomic<uint32_t> play_{pack(Play{false, false, 50, kNormalSpeed, 0, false, 0, false, false, false})};
     std::atomic<void (*)()> power_listener_{nullptr};
     std::atomic<uint16_t> catalog_revision_{0};
     std::atomic<bool> lighting_paused_{false};
@@ -681,6 +912,13 @@ private:
     std::atomic<uint16_t> led_kept_{0};
     std::atomic<bool> action_soon_{false};
     std::atomic<uint16_t> effect_count_{0};
+    std::array<std::atomic<uint16_t>, kMaxPlaylistEffects> playlist_effects_{};
+    std::atomic<uint8_t> playlist_count_{0};
+    // Held by what changes the list and by what starts it from what it reads, never by the lighting
+    // task, which only moves on by advance_playlist.
+    std::mutex playlist_lock_;
+    std::atomic<uint16_t> playlist_dwell_seconds_{kPlaylistDwellDefaultSeconds};
+    std::atomic<uint16_t> cross_fade_ms_{1000};
     std::array<std::atomic<uint32_t>, EffectMask::kWords * 2> favorites_{};
     std::atomic<ProbeStatus> probe_{ProbeStatus::NotChecked};
     std::atomic<uint16_t> led_estimate_{0};

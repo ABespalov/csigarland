@@ -17,7 +17,10 @@
 
 Import("env")
 
+import base64
+import hashlib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -55,7 +58,10 @@ def _find_python() -> str:
             return candidate
     own = Path(sys.executable).resolve()
     if environments.resolve() not in own.parents:
-        raise RuntimeError(f"No Python of PlatformIO's holds {_CRYPTOGRAPHY}, and this one, {own}, is not PlatformIO's to install into.")
+        # PlatformIO installed with pip runs from that Python, and ESP-IDF's comes only later in the
+        # build. The guides install both packages together, so a first build never stops here.
+        raise RuntimeError(f"No Python of PlatformIO's holds {_CRYPTOGRAPHY}, and this one, {own}, is not PlatformIO's to install into. "
+                           f"Install it beside PlatformIO: \"{own}\" -m pip install {_CRYPTOGRAPHY}")
     print(f"No Python of PlatformIO's holds {_CRYPTOGRAPHY}: installing it into {own}.")
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", _CRYPTOGRAPHY], check=False)
     if _cryptography_version(sys.executable) == _PINNED:
@@ -88,15 +94,32 @@ else:
 subprocess.run([_PYTHON, str(_TOOL), "root-header", str(_FOLDER), str(_HEADER)], check=True)
 
 
-# One update file for each thing a garland may need: both parts, or either alone.
+# The root in the folder, as the bytes of its certificate, which the image holds as they are.
+def _root_der(folder: Path) -> bytes:
+    path = folder if folder.is_file() else folder / "ota-root-ca.local.crt"
+    match = re.search(r"-----BEGIN CERTIFICATE-----(.+?)-----END CERTIFICATE-----", path.read_text(encoding="ascii"), re.S)
+    if match is None:
+        raise RuntimeError(f"{path} holds no certificate")
+    return base64.b64decode("".join(match.group(1).split()))
+
+
+# One update file for each thing a garland may need: both parts, or either alone. The root is the one in the
+# image's own bytes: the header it was compiled from is shared by both profiles' builds, and a root replaced
+# meanwhile, by new-signing-certificate.ps1 -Force, may have made it again since. Each signing holds the root
+# it reads to that one, which it would otherwise sign under and the image refuse.
 def _sign(target, source, env):
     image = Path(str(target[0]))
+    der = _root_der(_FOLDER)
+    if der not in image.read_bytes():
+        print(f"The image does not hold the root in {_FOLDER}: it changed while this built. Build again.")
+        return 1
+    expected = hashlib.sha256(der).hexdigest()
     for pack, part, out in (
         (str(_PACK), str(image), image.with_suffix(".ota")),
         ("-", str(image), image.with_name("firmware-only.ota")),
         (str(_PACK), "-", image.with_name("effects.ota")),
     ):
-        exit_code = subprocess.run([_PYTHON, str(_TOOL), "sign", str(_FOLDER), pack, part, str(out)]).returncode
+        exit_code = subprocess.run([_PYTHON, str(_TOOL), "sign", str(_FOLDER), pack, part, str(out), expected]).returncode
         if exit_code != 0:
             return exit_code
     return 0

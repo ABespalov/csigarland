@@ -74,4 +74,4 @@ New effects are welcome: a pack has room for 256, and 154 are used. Adding one h
 
 ## Commits and Pull Requests
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/), such as `fix(portal): refuse a foreign Host on the setup network`. Open pull requests against `main`, and fill in the template. Notable changes for an owner go in [CHANGELOG.md](CHANGELOG.md) under `Unreleased`.
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/), such as `fix(portal): refuse a foreign Host on the setup network`. Open pull requests against `main`, and fill in the template. What changes for an owner against the last release goes in [CHANGELOG.md](CHANGELOG.md) under `Unreleased`; a fix of work not yet released does not.

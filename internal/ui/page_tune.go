@@ -38,6 +38,7 @@ type tunePage struct {
 	checked   string
 	problem   string
 	clean     string // The file as last read or saved, to know whether closing would lose anything.
+	current   currentChart
 	// The file as its controls see it, read again whenever its words change, whoever changed them.
 	model      *EffectModel
 	fileColors []FileColor
@@ -310,11 +311,12 @@ func (p *tunePage) body(a *App) layout.Widget {
 
 // The LEDs and how they play here, which stay in sight.
 func (p *tunePage) previewRows(a *App) []layout.Widget {
-	return []layout.Widget{
+	rows := []layout.Widget{
 		func(gtx C) D { return a.layoutStrip(gtx, p.preview, &p.look, p.frame) },
 		a.lookSliders(&p.look),
 		a.hint(stripWords),
 	}
+	return append(rows, p.currentRows(a)...)
 }
 
 // Every field of the file as a control. The file below says the same in words, and either can be

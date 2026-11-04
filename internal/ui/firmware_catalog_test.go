@@ -28,14 +28,17 @@ import (
 	"github.com/ABespalov/csigarland/internal/catalog"
 )
 
-// An update file of firmware alone, as the header reads it: magic, format, the parts' sizes.
-func sampleUpdate() []byte {
+// An update file of firmware alone, of version, as the header reads it: magic, format, the parts' sizes,
+// and the image's description at its place, with the version it holds.
+func sampleUpdate(version string) []byte {
 	const header, certificate = 148, 10
 	file := make([]byte, header+certificate)
 	copy(file, "CGOT")
 	binary.LittleEndian.PutUint32(file[4:], 3)
 	binary.LittleEndian.PutUint32(file[8:], certificate)
-	image := []byte(strings.Repeat("image", 20))
+	image := make([]byte, 32+176+16)
+	binary.LittleEndian.PutUint32(image[32:], 0xABCD5432)
+	copy(image[32+16:], version)
 	binary.LittleEndian.PutUint32(file[16:], uint32(len(image)))
 	return append(file, image...)
 }
@@ -53,7 +56,7 @@ func untilTrue(t *testing.T, a *App, done func() bool) {
 }
 
 func TestAReleaseIsDownloadedFromTheCatalogAndReadyToInstall(t *testing.T) {
-	file := sampleUpdate()
+	file := sampleUpdate("1.0.0.30")
 	sum := sha256.Sum256(file)
 	var server *httptest.Server
 	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +104,7 @@ func TestMain(m *testing.M) {
 // Connected to a garland that runs an older firmware, the window offers the newest release, and Install
 // downloads it and sends it to the garland.
 func TestANewerReleaseIsOfferedAndInstalledAfterConnecting(t *testing.T) {
-	file := sampleUpdate()
+	file := sampleUpdate("1.0.0.102")
 	sum := sha256.Sum256(file)
 	var releases *httptest.Server
 	releases = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -192,5 +195,49 @@ func TestNothingIsOfferedForTheNewestRelease(t *testing.T) {
 	a.disconnect()
 	if a.offer.looked {
 		t.Fatal("the look stayed after the garland was left")
+	}
+}
+
+// A download from the catalog that comes after the owner chose another file leaves that choice, and
+// sends nothing, though it was asked to install.
+func TestALateDownloadLeavesAFileChosenSince(t *testing.T) {
+	file := sampleUpdate("1.0.0.102")
+	sum := sha256.Sum256(file)
+	release := make(chan struct{})
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		_, _ = w.Write(file)
+	}))
+	defer server.Close()
+	a := sceneApp(t, PageFirmware)
+	page := &a.firmware
+	page.releases.http = server.Client()
+	entry := catalog.Entry{Version: "1.0.0.102", File: "csigarland-1.0.0.102.ota", URL: server.URL + "/a.ota",
+		SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(file))}
+	page.download(a, entry, true)
+	// The owner's own file is picked, and its reading, from a slow disk, outlasts the download.
+	savedRead := readUpdateFile
+	picked, reading := make(chan struct{}), make(chan struct{})
+	pickUpdateFile = func(uintptr, string, string, string) (string, error) {
+		close(picked)
+		return "mine.ota", nil
+	}
+	readUpdateFile = func(string) ([]byte, error) {
+		<-reading
+		return file, nil
+	}
+	t.Cleanup(func() { pickUpdateFile, readUpdateFile = chooseFile, savedRead })
+	page.chooseFile(a)
+	<-picked
+	close(release)
+	untilTrue(t, a, func() bool { return !page.releases.fetching })
+	if page.busy || page.file != nil {
+		t.Fatalf("the download was taken: busy %v, path %q", page.busy, page.path)
+	}
+	close(reading)
+	untilTrue(t, a, func() bool { return !a.choosing })
+	if page.path != "mine.ota" || page.busy {
+		t.Fatalf("path %q, busy %v", page.path, page.busy)
 	}
 }

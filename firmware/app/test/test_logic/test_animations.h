@@ -269,12 +269,12 @@ static void test_catalog_fits_the_favourites_mask() {
     char text[kFavoritesTextBytes];
     EffectMask only_last;
     only_last.set(last, true);
-    favorites_to_text(only_last, text, sizeof(text));
+    TEST_ASSERT_TRUE(favorites_to_text(only_last, text, sizeof(text)));
     TEST_ASSERT_EQUAL_STRING(catalog_effect(last).id, text);
     TEST_ASSERT_TRUE(only_last == favorites_from_text(text));
     TEST_ASSERT_EQUAL_UINT16(last, next_favorite(0, only_last, static_cast<uint16_t>(catalog_size())));
     // Every effect ticked still fits the buffer, which is what would cut the list short.
-    favorites_to_text(EffectMask::all(catalog_size()), text, sizeof(text));
+    TEST_ASSERT_TRUE(favorites_to_text(EffectMask::all(catalog_size()), text, sizeof(text)));
     TEST_ASSERT_TRUE(EffectMask::all(catalog_size()) == favorites_from_text(text));
 }
 

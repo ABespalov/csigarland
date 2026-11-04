@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -25,6 +24,7 @@ import (
 	"gioui.org/widget"
 
 	"github.com/ABespalov/csigarland/internal/api"
+	"github.com/ABespalov/csigarland/internal/catalog"
 	"github.com/ABespalov/csigarland/internal/secret"
 )
 
@@ -56,6 +56,9 @@ type firmwarePage struct {
 	percent    *atomic.Int32      // How much of the file has gone, set by the upload as it goes.
 	stop       widget.Clickable
 	releases   releaseCatalog
+	choice     uint64 // Moves with each file chosen or download begun: only the latest is taken.
+	check      widget.Clickable
+	checking   bool
 }
 
 func (p *firmwarePage) init() {}
@@ -76,13 +79,16 @@ func (p *firmwarePage) rows(a *App) []layout.Widget {
 			p.chooseFile(a)
 		}
 		if p.install.Clicked(gtx) && !p.busy && p.file != nil {
-			p.send(a)
+			p.send(a, "")
 		}
 		if p.stop.Clicked(gtx) && p.uploading {
 			p.cancel()
 		}
 		if p.releases.open.Clicked(gtx) && !p.busy {
 			p.fetchCatalog(a)
+		}
+		if p.check.Clicked(gtx) && !p.busy {
+			p.checkAPI(a)
 		}
 		current := fmt.Sprintf("Running version %s with %d built-in effects.", p.running.Version, p.running.Effects)
 		if p.running.OnTrial {
@@ -96,6 +102,9 @@ func (p *firmwarePage) rows(a *App) []layout.Widget {
 			func(gtx C) D { return a.labelButton(gtx, &p.choose, buttonOther, "open", "Choose a file", "", !p.busy) },
 			func(gtx C) D {
 				return a.labelButton(gtx, &p.releases.open, buttonOther, "globe", "From the catalog", "The releases published on the project's site", !p.busy && !p.releases.fetching)
+			},
+			func(gtx C) D {
+				return a.labelButton(gtx, &p.check, buttonOther, "check", "Check the API", "Reads every route of the public API and holds each answer to what this utility reads", !p.busy && !p.checking)
 			},
 		}
 		if p.path != "" {
@@ -146,18 +155,27 @@ func (p *firmwarePage) progress(a *App, percent int) layout.Widget {
 	}
 }
 
+// How an update file is picked and read: stood in for by tests, which hold the reading up.
+var (
+	pickUpdateFile = chooseFile
+	readUpdateFile = func(path string) ([]byte, error) { return readBounded(path, catalog.MaxFileBytes) }
+)
+
 func (p *firmwarePage) chooseFile(a *App) {
 	if a.choosing {
 		return
 	}
 	a.choosing = true
+	// From the moment the dialog opens: a download that ends while a file is picked, or read, is no
+	// longer the owner's latest word, and goes nowhere.
+	p.choice++
 	owner := a.owner.Load()
 	go func() {
-		path, err := chooseFile(owner, "Update file", "*.ota", "Update files (*.ota)")
+		path, err := pickUpdateFile(owner, "Update file", "*.ota", "Update files (*.ota)")
 		var data []byte
 		var update api.UpdateFile
 		if err == nil && path != "" {
-			if data, err = os.ReadFile(path); err == nil {
+			if data, err = readUpdateFile(path); err == nil {
 				update, err = api.ParseUpdate(data)
 			}
 		}
@@ -169,6 +187,7 @@ func (p *firmwarePage) chooseFile(a *App) {
 				}
 				return
 			}
+			p.choice++
 			p.path = path
 			p.file = nil
 			if err != nil {
@@ -183,8 +202,10 @@ func (p *firmwarePage) chooseFile(a *App) {
 	}()
 }
 
-// Over only when the garland has restarted, runs what was sent and has confirmed it.
-func (p *firmwarePage) send(a *App) {
+// Over only when the garland has restarted, runs what was sent and has confirmed it. onlyIfNewer, for an
+// offer, is the version it offered: sent only while the garland, read right before, runs an older one, as
+// another program may have updated it since. Empty for a file chosen by hand, older ones among them.
+func (p *firmwarePage) send(a *App, onlyIfNewer string) {
 	client := a.client
 	if client == nil {
 		return
@@ -218,6 +239,14 @@ func (p *firmwarePage) send(a *App) {
 		ctx, cancelLook := context.WithTimeout(upload, updateBeforeLimit)
 		before, err := client.Firmware(ctx)
 		cancelLook()
+		if err == nil && onlyIfNewer != "" && !catalog.Newer(onlyIfNewer, before.Version) {
+			post(func() {
+				p.uploading = false
+				p.busy = false
+				a.report(fmt.Sprintf("The garland runs %s by now, so %s was not sent.", before.Version, onlyIfNewer))
+			})
+			return
+		}
 		var sent bool
 		if err == nil {
 			sent = true
@@ -242,7 +271,7 @@ func (p *firmwarePage) send(a *App) {
 			})
 			return
 		}
-		watch := updateWatch{update: update, bootBefore: before.Boot, started: time.Now(),
+		watch := updateWatch{update: update, bootBefore: before.Boot, packBefore: before.PackDigest, imageBefore: before.Image, started: time.Now(),
 			unknown: err != nil, cancelled: errors.Is(err, context.Canceled)}
 		post(func() {
 			p.uploading = false
@@ -276,6 +305,10 @@ func (p *firmwarePage) send(a *App) {
 				}
 				if said.finished {
 					p.busy = false
+					// A firmware that came up and confirmed itself is held to the API this utility reads.
+					if !said.failed {
+						p.checkAPI(a)
+					}
 				}
 			})
 			if said.finished {
@@ -296,8 +329,11 @@ func installWasRefused(err error) bool {
 type updateWatch struct {
 	update        api.UpdateFile
 	bootBefore    string
+	packBefore    string // The effects running before the send.
+	imageBefore   string // And the firmware.
 	started       time.Time
 	unknown       bool // The upload ended with no answer, so it may have been taken or not.
+	sawTrial      bool // A trial of the file's image was seen, which only taking the file starts.
 	cancelled     bool // And that was the owner's doing.
 	sameBootSince time.Time
 	stage         string // What the last words were about, for the journal to hear of each once.
@@ -356,8 +392,19 @@ func (w *updateWatch) look(now time.Time, running api.Firmware, err error) watch
 	case api.UpdateWrongEffects:
 		return w.end("Not installed: the garland is not running the effects in this file.", true)
 	case api.UpdateConfirmed:
+		// With the upload's answer lost, the bytes running say nothing of this send: the garland may have
+		// restarted for another reason, already running them, or another program sent the same. Only a trial
+		// of the file's image seen, or effects alone that were not running before, say it took it.
+		tookEffects := w.update.Image == "" && w.update.PackDigest != "" && w.packBefore != w.update.PackDigest && running.Image == w.imageBefore
+		if w.unknown && !w.sawTrial && !tookEffects {
+			return w.end(fmt.Sprintf("The garland restarted and runs %s. The upload got no answer, so whether it took this file cannot be told from here: send it again if need be.", running.Version), true)
+		}
 		return w.end("Update finished and confirmed.", false)
 	case api.UpdateOnTrial:
+		// Only a file with firmware starts a trial: one of effects alone did not start this one.
+		if w.update.Image != "" {
+			w.sawTrial = true
+		}
 		if late {
 			return w.end("Running the new firmware, but it has not confirmed itself yet.", true)
 		}
@@ -392,6 +439,7 @@ type infoPage struct {
 	rowsOf   map[int]*clientRow
 	copyMAC  widget.Clickable
 	copyRoot widget.Clickable
+	backup   backupCard
 }
 
 func (p *infoPage) init() { p.rowsOf = map[int]*clientRow{} }
@@ -455,6 +503,7 @@ func (p *infoPage) rows(a *App) []layout.Widget {
 				a.fact("Next action", NextText(i.Next)),
 			)
 		},
+		p.backupWidget(a),
 		p.clientsCard(a),
 	}
 	return rows

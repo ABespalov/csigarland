@@ -18,7 +18,7 @@ Beside each update file in a release:
 The firmware's toolchain comes from the platform `platformio.ini` pins and the components `dependencies.lock` names. Install:
 
 * Git and PowerShell 7.2 or later.
-* PlatformIO Core 6.1.19: `pip install platformio==6.1.19`.
+* PlatformIO Core 6.1.19, with the signing tool's `cryptography` in the same Python, as the first build needs it before ESP-IDF's environment exists: `pip install platformio==6.1.19 cryptography==44.0.3`.
 * For the utility: Go, any 1.26 or later (the build fetches the exact `toolchain` that `go.mod` names), and WinLibs GCC 16.1.0 UCRT, POSIX threads, SEH, release r2, on the `PATH`. Another compiler builds the utility as well, but not the same file.
 
 ## 3. The Sources
@@ -30,7 +30,7 @@ git clone https://github.com/ABespalov/csigarland C:\src\csigarland
 ```
 
 ```bash
-git -C C:\src\csigarland checkout v1.0.0
+git -C C:\src\csigarland checkout v1.1.0
 ```
 
 A working tree with no changes is what the manifest's `source_sha256` describes. Any folder will do: a release is a Release build, with no debug information to name where it was built.

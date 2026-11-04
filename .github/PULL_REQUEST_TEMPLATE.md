@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [ ] Tests and documents are in this change, and `CHANGELOG.md` if an owner would notice it.
+- [ ] Tests and documents are in this change, and `CHANGELOG.md` if an owner of the last release would notice it.
 - [ ] Commits follow Conventional Commits.
 - [ ] No keys, certificates, tokens or passwords.
 - [ ] The firmware can still take its next update, and no effect or setting goes around the 1400 mA limit.

@@ -9,6 +9,7 @@
 
 #include "lighting_task.h"
 
+#include <algorithm>
 #include <array>
 #include <span>
 
@@ -22,6 +23,7 @@
 #include "freertos/task.h"
 #include "garland_output.h"
 #include "garland_probe.h"
+#include "light_fade.h"
 #include "output_health.h"
 
 namespace garland {
@@ -103,13 +105,25 @@ void lighting_task(void* arg) {
     static std::array<Rgb, CSIGARLAND_MAX_LEDS> s_frame;
     static std::array<RgbQ8, CSIGARLAND_MAX_LEDS> s_targets;
     static std::array<Rgb, CSIGARLAND_MAX_LEDS> s_output;
+    // The old effect's last frame, while the new one takes over from it.
+    static std::array<Rgb, CSIGARLAND_MAX_LEDS> s_from;
     static FrameDither s_dither;
+    LightFade fade;
+    bool crossing = false;
+    int64_t cross_start_us = 0;
+    uint32_t cross_span_ms = 0;
+    size_t from_count = 0;
+    bool drawn_since_on = false;  // So a cross-fade never starts from what was lit before a turn off.
+    int64_t effect_since_us = 0;  // When what plays began, for the playlist.
+    uint8_t playlist_mark = state.snapshot().playlist_mark;
+    bool paused = false;  // An update held the task up: see where the playlist is timed.
     s_dither.restart();
     const esp_timer_handle_t dither_timer = create_dither_timer();
     uint8_t gain_percent = 0;
     uint32_t gain = brightness_gain(gain_percent);
     int64_t last_sent_us = 0;
     uint16_t shown_count = 0;
+    size_t limited_count = 0;  // The chain length the targets were last rendered and limited for.
     bool rail_on = false;
     bool clamp_reported = false;
     OutputHealth health;
@@ -137,6 +151,7 @@ void lighting_task(void* arg) {
         const bool update_running = now.update_percent != kNoUpdate;
         state.set_lighting_paused(update_running);
         if (update_running) {
+            paused = true;
             continue;
         }
         if (!output.set_led_count(now.led_count)) {
@@ -175,8 +190,9 @@ void lighting_task(void* arg) {
         if (!now.power_requested) {
             probed = false;
         }
-        if (now.power_requested != rail_on) {
-            if (now.power_requested && !probed) {
+        const int64_t turn_us = esp_timer_get_time();
+        if (now.power_requested && !rail_on) {
+            if (!probed) {
                 // The rail must be off to measure, so this is the only moment to count. Most of a
                 // second goes by, in which the garland may be turned off, an update begin, or the
                 // count or effect change: so the rail comes on only in a turn that reads all of it
@@ -186,24 +202,39 @@ void lighting_task(void* arg) {
                 xTaskNotifyGive(xTaskGetCurrentTaskHandle());
                 continue;
             }
-            if (now.power_requested) {
-                probed = false;
-                rail_on = output.power_on();
-                if (!rail_on) {
-                    state.refuse_power();
-                }
-                effect_time_us = 0;
-                s_renderer.reset();
-                s_dither.restart();
-                // So the first pass renders at once, with nothing old in the targets.
-                last_presence_check_us = esp_timer_get_time();
-                last_frame_us = last_presence_check_us - kRenderPeriodUs;
-            } else {
-                output.power_off();
-                rail_on = false;
+            probed = false;
+            rail_on = output.power_on();
+            if (!rail_on) {
+                state.refuse_power();
             }
+            effect_time_us = 0;
+            s_renderer.reset();
+            s_dither.restart();
+            // From dark: in a moment, or over a minute for a scheduled rise.
+            fade.set(0);
+            fade.go(LightFade::kFull, now.rise ? kRiseMs : kFadeOnMs, turn_us);
+            crossing = false;
+            drawn_since_on = false;
+            effect_since_us = turn_us;
+            // So the first pass renders at once, with nothing old in the targets.
+            last_presence_check_us = esp_timer_get_time();
+            last_frame_us = last_presence_check_us - kRenderPeriodUs;
             state.set_rail_on(rail_on);
             set_dither_timer(dither_timer, rail_on);
+        } else if (now.power_requested && fade.target() == 0) {
+            // Turned on again on its way to dark: back up from where it got to.
+            fade.go(LightFade::kFull, kFadeOnMs, turn_us);
+        } else if (!now.power_requested && rail_on) {
+            // The rail stays on while the light goes, and the power sequence follows once it has.
+            if (fade.target() != 0) {
+                fade.go(0, kFadeOffMs, turn_us);
+            }
+            if (fade.dark(turn_us)) {
+                output.power_off();
+                rail_on = false;
+                state.set_rail_on(false);
+                set_dither_timer(dither_timer, false);
+            }
         }
 
         if (!rail_on && now.output_failed) {
@@ -224,11 +255,42 @@ void lighting_task(void* arg) {
                 next_parse_us = copied ? 0 : now_us + kParseRetryUs;
                 last_revision = revision;
                 if (copied) {
+                    // What showed last gives way to the new effect, unless nothing has shown since
+                    // the garland came on.
+                    cross_span_ms = state.cross_fade_ms();
+                    crossing = drawn_since_on && cross_span_ms > 0;
+                    if (crossing) {
+                        // As long as it was drawn: past that, the targets hold an older, longer chain's
+                        // frame, which the new LEDs fade in from dark rather than show.
+                        from_count = std::min(frame.size(), limited_count);
+                        std::copy(frame.begin(), frame.begin() + static_cast<std::ptrdiff_t>(from_count), s_from.begin());
+                        cross_start_us = now_us;
+                    }
+                    effect_since_us = now_us;
                     effect_time_us = 0;
                     s_renderer.reset();
                 }
             }
-            if (now_us - last_frame_us >= kRenderPeriodUs) {
+            // A start of the playlist times its first effect from now, though it was playing already.
+            // Back from a pause too: the starts made meanwhile, as many as they were, are not counted
+            // past what two bits hold, and an effect stopped that long has its dwell whole again.
+            if (now.playlist_mark != playlist_mark || paused) {
+                playlist_mark = now.playlist_mark;
+                effect_since_us = now_us;
+                paused = false;
+            }
+            // The playlist moves on by itself, never while the light goes, and never over a choice
+            // made since: advance_playlist checks that in the same word.
+            if (now.playlist && fade.target() != 0 &&
+                now_us - effect_since_us >= int64_t{state.playlist_dwell_seconds()} * 1'000'000) {
+                uint16_t effects[kMaxPlaylistEffects] = {};
+                const int next = playlist_next(effects, state.playlist(effects), now.effect);
+                if (next >= 0 && next != now.effect) {
+                    state.advance_playlist(now.effect, static_cast<uint16_t>(next), now.playlist_mark);
+                }
+                effect_since_us = now_us;
+            }
+            if (frame_render_due(now_us, last_frame_us, kRenderPeriodUs, led_count, limited_count)) {
                 effect_time_us += static_cast<uint64_t>(now_us - last_frame_us) * now.speed_x4 / 4;
                 last_frame_us = now_us;
                 if (now.brightness_percent != gain_percent) {
@@ -236,8 +298,16 @@ void lighting_task(void* arg) {
                     gain = brightness_gain(gain_percent);
                 }
                 s_renderer.render(s_effect, static_cast<uint32_t>(effect_time_us / 1000), frame);
-                apply_brightness(frame, gain, targets);
+                if (crossing) {
+                    const auto elapsed_ms = static_cast<uint32_t>((now_us - cross_start_us) / 1000);
+                    const uint32_t weight = cross_fade_weight(elapsed_ms, cross_span_ms);
+                    cross_fade(std::span<const Rgb>(s_from.data(), from_count), frame, weight);
+                    crossing = weight < 65536;
+                }
+                drawn_since_on = true;
+                apply_brightness(frame, fade.apply(gain, now_us), targets);
                 const uint32_t current_ma = limit_current(targets, CSIGARLAND_POWER_LIMIT_MA);
+                limited_count = led_count;
                 if (current_ma > CSIGARLAND_POWER_LIMIT_MA && !clamp_reported) {
                     ESP_LOGW(TAG, "clamped %lu mA to %d mA", static_cast<unsigned long>(current_ma),
                              CSIGARLAND_POWER_LIMIT_MA);

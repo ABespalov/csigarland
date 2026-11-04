@@ -16,6 +16,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "auth_logic.h"
 #include "effect_algorithms.cpp"
@@ -29,10 +30,13 @@
 #include "effect_renderer.cpp"
 #include "effects.cpp"
 #include "effects_data.h"
+#include "event_stream.h"
 #include "garland_probe_math.h"
 #include "garland_state.h"
+#include "light_fade.h"
 #include "network_logic.h"
 #include "ota_logic.h"
+#include "playlist_logic.h"
 #include "rtc_logic.h"
 #include "schedule.cpp"
 #include "screen_model.h"
@@ -398,15 +402,19 @@ static void test_favorites_text_round_trip() {
     load_shipped_catalog();
     char text[kFavoritesTextBytes];
     const uint32_t mask = 0b101;
-    favorites_to_text(mask, text, sizeof(text));
+    TEST_ASSERT_TRUE(favorites_to_text(mask, text, sizeof(text)));
     TEST_ASSERT_NOT_NULL(std::strchr(text, ','));
     TEST_ASSERT_TRUE(EffectMask(mask) == favorites_from_text(text));
     // An effect removed from a later catalog does not disturb the others.
     const std::string with_stale = std::string("old-effect,") + text;
     TEST_ASSERT_TRUE(EffectMask(mask) == favorites_from_text(with_stale.c_str()));
     TEST_ASSERT_FALSE(favorites_from_text("").any());
-    favorites_to_text(EffectMask::all(catalog_size()), text, sizeof(text));
+    TEST_ASSERT_TRUE(favorites_to_text(EffectMask::all(catalog_size()), text, sizeof(text)));
     TEST_ASSERT_TRUE(EffectMask::all(catalog_size()) == favorites_from_text(text));
+    // A list that does not fit whole is not cut short: nothing is written, and the caller says so.
+    char small[20];
+    TEST_ASSERT_FALSE(favorites_to_text(EffectMask::all(catalog_size()), small, sizeof(small)));
+    TEST_ASSERT_EQUAL_STRING("", small);
 }
 
 /* Algorithms */
@@ -684,6 +692,7 @@ static void test_wordmark_colours_and_size() {
 #include "test_packs.h"
 #include "test_auth.h"
 #include "test_api.h"
+#include "test_light.h"
 
 int main() {
     UNITY_BEGIN();
@@ -693,7 +702,8 @@ int main() {
     RUN_TEST(test_holding_the_cancelling_press_does_not_restart_the_countdown);
     RUN_TEST(test_a_deliberate_order_ends_the_countdown);
     RUN_TEST(test_long_press_power_in_standby_does_nothing);
-    RUN_TEST(test_long_press_effect_goes_to_the_first_favorite_when_on);
+    RUN_TEST(test_double_click_effect_goes_to_the_first_favorite_when_on);
+    RUN_TEST(test_long_press_effect_starts_and_stops_the_playlist);
     RUN_TEST(test_long_press_speed_returns_to_normal_when_on);
     RUN_TEST(test_a_press_that_wakes_the_screen_does_nothing_else);
     RUN_TEST(test_schedule_accepts_half_speed);
@@ -808,5 +818,6 @@ int main() {
     run_schedule_tests();
     RUN_TEST(test_wordmark_colours_and_size);
     run_network_tests();
+    run_light_tests();
     return UNITY_END();
 }

@@ -1,6 +1,6 @@
 # Utility: Status
 
-Where the public API and the Go + Gio utility stand at 1.0.0, and what is planned. The API is described in [its own page](../stubs/PUBLIC-API.md), and the utility in [its guide](../guides/utility.md).
+Where the public API and the Go + Gio utility stand, and what is planned. The API is described in [its own page](../stubs/PUBLIC-API.md), and the utility in [its guide](../guides/utility.md).
 
 ## In 1.0.0
 
@@ -11,9 +11,21 @@ Where the public API and the Go + Gio utility stand at 1.0.0, and what is planne
 - **`internal/ui`:** the window in Gio, after the csiPass companion: connect and pair, Effects, Tune with a live preview and an editor of every field, Schedule, Device, Network, Firmware with updates from a file or the online catalog, Info and Log. Every page laid out in a test.
 - **Build:** `deploy/build-utility.ps1`, the same file to the byte from the same sources, Go and compiler, as [Building a Release Again](../guides/rebuild.md) says.
 
+## In 1.1.0
+
+- **API:** the playlist, its place in the state, the schedule's next 24 hours, the rise and the playlist as steps. `CheckRoutes` reads every route that changes nothing and holds each answer to the types here.
+- **`internal/backup`:** the schedule, favourites, playlist, screen and uploads to a file and back, with a test that puts an erased garland back.
+- **`internal/ui`:** the offer of a newer release, the playlist card, the next 24 hours, Tune's current by the firmware's model, the backup card, the API check after an update, the playlist in the rail, and the countdown of a trial after a start.
+
+## Seen on the Board
+
+The 1.0.0 utility against the owner's garland: pairing, the pages, updates and the log. What 1.1.0 adds is yet to be seen on it.
+
+- **Push updates:** `Events` reads the garland's stream on a connection of its own, and the window asks for no state while it is open.
+- **Notices for the `.exe`:** Go's own library and the C++ runtime it links statically are in `THIRD_PARTY_NOTICES.md`, and `deploy/build-utility.ps1` fails on a library of the compiler's that has no notice.
+
 ## Planned
 
-- **To see on the board,** all of it never yet run against a real garland: pairing, token expiry and forgetting, a new root; every route's shape against `internal/api`, whose test holds only the field names, and its errors; the log, and the heap with the log kept; an update sent from the utility, refused for its signature, cancelled before and after the garland took it, with its answer lost, gone back, and confirmed.
 - **Ubuntu:** Secret Service for the token, a file dialog, the window's development headers in CI.
 - **macOS:** Keychain, a file dialog.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

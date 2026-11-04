@@ -38,15 +38,17 @@ Set-StrictMode -Version Latest
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 # Short, as a long path changes the debug info: see the length the build warns of.
 $Work = Join-Path $RepoRoot 'temp\r'
+# A release is what has to build again to the byte: the Release profile's environment.
+$Environment = 'esp32c6-release'
 $Made = @(
-    '.pio\build\esp32c6\firmware.elf',
-    '.pio\build\esp32c6\firmware.bin',
-    '.pio\build\esp32c6\bootloader.bin',
-    '.pio\build\esp32c6\partitions.bin',
+    ".pio\build\$Environment\firmware.elf",
+    ".pio\build\$Environment\firmware.bin",
+    ".pio\build\$Environment\bootloader.bin",
+    ".pio\build\$Environment\partitions.bin",
     'generated\effects.pack',
-    '.pio\build\esp32c6\firmware.ota',
-    '.pio\build\esp32c6\firmware-only.ota',
-    '.pio\build\esp32c6\effects.ota'
+    ".pio\build\$Environment\firmware.ota",
+    ".pio\build\$Environment\firmware-only.ota",
+    ".pio\build\$Environment\effects.ota"
 )
 
 Import-Module (Join-Path $PSScriptRoot '..\SigningPython.psm1') -Force
@@ -67,12 +69,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $results = @()
-$saved = @{ Throwaway = $env:CSIGARLAND_THROWAWAY_SIGNING; Number = $env:CSIGARLAND_BUILD_NUMBER; Profile = $env:CSIGARLAND_PROFILE }
+$saved = @{ Throwaway = $env:CSIGARLAND_THROWAWAY_SIGNING; Number = $env:CSIGARLAND_BUILD_NUMBER }
 try {
     $env:CSIGARLAND_THROWAWAY_SIGNING = '1'
     $env:CSIGARLAND_BUILD_NUMBER = "$BuildNumber"
-    # A release is what has to build again to the byte.
-    $env:CSIGARLAND_PROFILE = 'release'
     # Both copies first, so that both hold the sources as they were at one moment.
     $apps = @($copies | ForEach-Object { Copy-csiGarlandSources -RepoRoot $RepoRoot -Destination $_ })
     for ($n = 0; $n -lt $copies.Count; $n++) {
@@ -82,7 +82,7 @@ try {
         New-Item -ItemType Directory -Path $signing -Force | Out-Null
         Copy-Item -Path (Join-Path $chain '*') -Destination $signing
         Write-Host "Building in $copy"
-        & pio run -d $app -e esp32c6 2>&1 | ForEach-Object { $line = $_.ToString(); if ($line -match 'error|warning|SUCCESS|FAILED|CSIGARLAND_VERSION') { Write-Host $line } }
+        & pio run -d $app -e $Environment 2>&1 | ForEach-Object { $line = $_.ToString(); if ($line -match 'error|warning|SUCCESS|FAILED|CSIGARLAND_VERSION') { Write-Host $line } }
         if ($LASTEXITCODE -ne 0) {
             throw "The build in $copy failed with exit code $LASTEXITCODE."
         }
@@ -99,7 +99,6 @@ try {
 } finally {
     $env:CSIGARLAND_THROWAWAY_SIGNING = $saved.Throwaway
     $env:CSIGARLAND_BUILD_NUMBER = $saved.Number
-    $env:CSIGARLAND_PROFILE = $saved.Profile
 }
 
 $Made += 'the utility'

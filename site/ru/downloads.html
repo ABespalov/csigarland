@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!-- Made by deploy/site-pages.ps1 from site/downloads.html and deploy/site-ru.json: edit those, not this. -->
+<html lang="ru">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: The downloads: the firmware's update file and the csiGarland utility, from GitHub Releases
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="downloads.meta.title">Загрузки — csiGarland</title>
+  <meta name="description" data-i18n-content="downloads.meta.desc" content="Свежие файлы обновлений прошивки csiGarland и настольная утилита для Windows (Linux и macOS — в разработке) с датами выпуска, описанием изменений и контрольными суммами SHA-256.">
+  <link rel="canonical" href="https://garland.csilab.am/ru/downloads.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/downloads.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/downloads.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/downloads.html">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../lang.js"></script>
+  <script src="../site.js" defer></script>
+  <script src="../downloads.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Перейти к содержимому</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="На главную csiGarland" data-i18n-aria="nav.home"><img src="../assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Основная навигация" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Устройство</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">План работ</a>
+        <a href="documents.html" data-i18n="nav.documents">Документация</a>
+        <a href="downloads.html" aria-current="page" data-i18n="nav.downloads">Загрузки</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Исходный код</a>
+      </nav>
+      <a class="lang-switch" id="lang-switch" href="../downloads.html" hreflang="en" lang="en" aria-label="English version" title="English version">EN</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow" data-i18n="downloads.eyebrow">Загрузки</p>
+      <h1 data-i18n="downloads.title">Релизы</h1>
+      <p class="lead" data-i18n="downloads.lead">Готовые файлы из GitHub Releases проекта (сначала самые новые): подписанный пакет обновления прошивки и эффектов, а также настольная утилита. Пакет обновления подписан корневым ключом проекта, которому доверяет релизная прошивка. Если вы собрали и впервые прошили плату со своими ключами, она принимает только обновления, подписанные вами.</p>
+      <div id="downloads" class="downloads" aria-live="polite">
+        <noscript><p>The list needs JavaScript. Every file is on <a href="https://github.com/ABespalov/csigarland/releases" rel="noopener noreferrer">GitHub Releases</a>.</p></noscript>
+      </div>
+      <p class="muted" id="downloads-updated"></p>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="downloads.install.title">Установка</h2>
+      <div class="grid">
+        <div class="card"><h3 data-i18n="downloads.i1.title">Прошивка</h3><p data-i18n="downloads.i1.body">В веб-портале гирлянды откройте вкладку Firmware и выберите скачанный файл .ota. Либо в настольной утилите откройте Firmware и нажмите «From the catalog»: утилита сама скачает релиз и сверит его хеш со списком. Гирлянда проверит цифровую подпись до записи во flash, запустит новую версию в пробном режиме на минуту и вернётся к старой при сбое.</p></div>
+        <div class="card"><h3 data-i18n="downloads.i2.title">Настольная утилита</h3><p data-i18n="downloads.i2.body">Один исполняемый файл для Windows без установщика: скачайте и запустите. Утилита сама находит гирлянды в локальной сети и привязывается к вашему устройству после подтверждения кнопками на корпусе. Версии для Linux и macOS запланированы.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="downloads.check.title">Проверка скачанных файлов</h2>
+      <p><span data-i18n="downloads.check.a">Контрольная сумма SHA-256 указана рядом с каждым файлом и в файле .manifest.json релиза. Чтобы лично убедиться, что бинарный файл до байта соответствует открытому исходному коду, пересоберите его в чистом форке по инструкции </span><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/rebuild.md" rel="noopener noreferrer" data-i18n="downloads.check.link">Воспроизводимая сборка релиза до байта (Building a Release Again)</a><span data-i18n="downloads.check.b">. Прошивка сверяется по бинарному образу и пакету эффектов (ключ подписи для этого не нужен), а утилита — побайтово целиком.</span></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span data-i18n="footer.copy">csiGarland, проект csi Research Lab. Лицензия MIT.</span>
+      <a href="https://github.com/ABespalov/csigarland/releases" rel="noopener noreferrer" data-i18n="downloads.footer.all">Все релизы на GitHub</a>
+    </div>
+  </footer>
+</body>
+</html>

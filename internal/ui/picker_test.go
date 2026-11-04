@@ -131,6 +131,8 @@ func TestAWheelTurnsAsAPhonesDoes(t *testing.T) {
 // waits for something in its field.
 func TestTheSchedulesWindowsFillTheirFields(t *testing.T) {
 	a := sceneApp(t, PageSchedule)
+	// Without the next 24 hours, so that the clock module's card is in sight with the form open.
+	a.schedule.timeline = nil
 	a.schedule.openForm(newAction)
 	frame := func() {
 		var ops op.Ops

@@ -58,10 +58,10 @@ func TestActionsAreSaidAsThePortalSaysThem(t *testing.T) {
 	if DaysText(127) != "every day" || DaysText(1|1<<6) != "Sun, Sat" {
 		t.Error(DaysText(127), DaysText(65))
 	}
-	if StepsText("off", 40, 1, "x") != "Turn off" {
+	if StepsText("off", 40, 1, "x", false) != "Turn off" {
 		t.Error("off takes nothing with it")
 	}
-	if got := StepsText("on", 75, 0.5, "Fire"); got != "Turn on, brightness 75%, speed 0.5x, effect Fire" {
+	if got := StepsText("on", 75, 0.5, "Fire", false); got != "Turn on, brightness 75%, speed 0.5x, effect Fire" {
 		t.Error(got)
 	}
 	if NextText(api.NextAction{}) != "Waiting for the clock to be set." || NextText(api.NextAction{Clock: true}) != "Nothing in the coming week." {

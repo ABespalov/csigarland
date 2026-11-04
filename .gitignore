@@ -55,3 +55,9 @@ deploy/*.local.*
 *.exe
 *.dll
 bin/
+
+# Local publication drafts
+/docs/articles/
+
+# Others
+docs/*/JOURNAL.md

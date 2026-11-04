@@ -52,9 +52,14 @@
 #   -LogFile <path>
 #       Write the log here instead.
 #
+#   -LockHeld
+#       For deploy\stage-assets.ps1 alone, which holds the firmware build lock of this checkout for all its
+#       staging and runs this under it: no lock is taken here. Never given by hand.
+#
 #   -BuildProfile Release|Dev
 #       Release, the default, builds with no debug information and the plain version, such as
-#       1.0.0.102. Dev keeps the debug information and marks the version 1.0.0.102-dev.
+#       1.0.0.102, as the environment esp32c6-release. Dev, as esp32c6, keeps the debug
+#       information and marks the version 1.0.0.102-dev.
 #
 #   -WhatIf, -Confirm
 #       Standard PowerShell. -WhatIf reports what would be flashed and stops.
@@ -66,7 +71,8 @@
 # Every flash builds first and checks the image before writing anything: the
 # build counter must have moved by exactly one, and the .bin must name that
 # identity both in esp_app_desc.version and in the display's `FW ` string. Any
-# disagreement stops the flash with the device untouched; the number stays spent.
+# disagreement stops the flash with the device untouched. A build that fails, or fails a
+# check, gives its number back, so the next build takes it; one that passed keeps it.
 #
 # Examples:
 #   pwsh -File deploy\flash-device.ps1 -ListCandidates
@@ -88,13 +94,15 @@ param(
     [switch]$FullClean,
     [switch]$NoMonitor,
     [string]$LogFile = '',
-    [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release'
+    [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release',
+    [switch]$LockHeld
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# The firmware build lock, once a write over USB holds it for the rest of the run.
+$script:FirmwareLock = $null
 
-$EnvironmentName = 'esp32c6'
 $SupportedVid = '303A'
 $SupportedPid = '1001'  # USB Serial/JTAG, in the application and in ROM download mode.
 
@@ -103,6 +111,9 @@ $FirmwareDir = Join-Path $RepoRoot 'firmware\app'
 $TempRoot = Join-Path $RepoRoot 'temp'
 $ProfilePath = Join-Path $PSScriptRoot 'device-profile.local.json'
 $CounterPath = Join-Path $FirmwareDir '.csigarland_build_counter'
+Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
+# Each profile in its own folder, so a change of profile compiles nothing again that has not changed.
+$EnvironmentName = Get-csiGarlandFirmwareEnvironment -BuildProfile $BuildProfile
 $BinPath = Join-Path $FirmwareDir ".pio\build\$EnvironmentName\firmware.bin"
 $PackSlotPath = Join-Path $FirmwareDir 'generated\effects_slot.bin'
 $PackBlankPath = Join-Path $FirmwareDir 'generated\effects_blank.bin'
@@ -111,7 +122,6 @@ $PartitionTableBytes = '0xC00'
 $PySerialVersion = '3.5'
 
 Import-Module (Join-Path $PSScriptRoot 'DeviceDetection.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'DeviceMonitor.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'SigningPython.psm1') -Force
 
@@ -193,18 +203,18 @@ function Invoke-Pio {
 }
 
 function Get-EspPython {
-    $python = Get-ChildItem (Join-Path $env:USERPROFILE '.platformio\penv\.espidf-*\Scripts\python.exe') | Sort-Object FullName -Descending |
+    $python = Get-ChildItem (Join-Path (Get-csiGarlandPlatformIOCore) 'penv\.espidf-*\Scripts\python.exe') | Sort-Object FullName -Descending |
         Select-Object -First 1 -ExpandProperty FullName
     if (-not $python) {
-        throw 'The Python environment of ESP-IDF was not found under .platformio. Nothing was written.'
+        throw "The Python environment of ESP-IDF was not found under $(Get-csiGarlandPlatformIOCore). Nothing was written."
     }
     return $python
 }
 
 function Get-EsptoolPath {
-    $esptool = Join-Path $env:USERPROFILE '.platformio\packages\tool-esptoolpy\esptool.py'
+    $esptool = Join-Path (Get-csiGarlandPlatformIOPackages) 'tool-esptoolpy\esptool.py'
     if (-not (Test-Path -LiteralPath $esptool)) {
-        throw 'esptool was not found under .platformio. Nothing was written.'
+        throw "esptool was not found under $(Get-csiGarlandPlatformIOPackages). Nothing was written."
     }
     return $esptool
 }
@@ -226,62 +236,83 @@ function Confirm-EsptoolRuns {
     }
 }
 
-# One numbered build, checked before anything is written. The counter moves
-# before compiling, so a failed compile leaves its number spent.
+# One numbered build, checked before anything is written. The counter moves as the compile starts; a
+# build that fails, or one that fails a check after it, gives its number back and leaves no image of it,
+# so the next build takes the same number. An image that passed every check keeps it, written or not.
 function Invoke-NumberedFirmwareBuild {
     if (-not (Get-Command pio -ErrorAction SilentlyContinue)) {
         throw 'PlatformIO (pio) is not on PATH.'
     }
-    if ($FullClean) {
-        $cleanExit = Invoke-Pio -PioArgs @('run', '-e', $EnvironmentName, '-t', 'clean')
-        if ($cleanExit -ne 0) {
-            throw "PlatformIO clean failed with exit code $cleanExit"
-        }
-    }
-    Clear-FirmwareBuildOutputs
-
-    $source = Get-csiGarlandSourceIdentity -RepoRoot ([System.IO.Path]::GetFullPath((Join-Path $FirmwareDir '..\..')))
-    $before = Get-csiGarlandBuildNumber -CounterPath $CounterPath
-    $env:CSIGARLAND_INCREMENT_BUILD = '1'
-    $env:CSIGARLAND_PROFILE = $BuildProfile.ToLowerInvariant()
+    # One firmware build of this checkout at a time, from its outputs cleared to its number given back:
+    # another would take the same number, or clear what this one is checking. Taken here unless the script
+    # holds it already, for a write over USB, or the staging that runs this does.
+    $lock = if ($LockHeld -or $script:FirmwareLock) { $null } else { Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware }
+    $built = $false
+    $before = -1
+    # A stop by Ctrl+C runs this finally too.
     try {
-        $buildExit = Invoke-Pio -PioArgs @('run', '-e', $EnvironmentName)
-    } finally {
-        Remove-Item Env:CSIGARLAND_INCREMENT_BUILD, Env:CSIGARLAND_PROFILE -ErrorAction SilentlyContinue
-    }
-    if ($buildExit -ne 0) {
-        throw "PlatformIO build failed with exit code $buildExit. Nothing was written to the device."
-    }
+        if ($FullClean) {
+            $cleanExit = Invoke-Pio -PioArgs @('run', '-e', $EnvironmentName, '-t', 'clean')
+            if ($cleanExit -ne 0) {
+                throw "PlatformIO clean failed with exit code $cleanExit"
+            }
+        }
+        Clear-FirmwareBuildOutputs
 
-    $after = Get-csiGarlandBuildNumber -CounterPath $CounterPath
-    if ($after -ne $before + 1) {
-        throw ("Build counter went from $before to $after; a build consumes exactly one " +
-            'number. Nothing was written to the device.')
-    }
-    $version = Get-csiGarlandFirmwareIdentity `
-        -IniPath (Join-Path $FirmwareDir 'platformio.ini') `
-        -BuildNumber $after `
-        -BuildProfile $BuildProfile
-    $problem = Get-csiGarlandBinIdentityProblem -BinPath $BinPath -Version $version
-    if ($null -ne $problem) {
-        throw ("Firmware identity mismatch: $problem. Nothing was written to the device. " +
-            "Build number $after is spent. -FullClean rebuilds every component.")
-    }
-    # Checked as a garland would check it, so that an image that trusts any other root never starts.
-    if (-not (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath (Join-Path (Split-Path -Parent $BinPath) 'firmware.ota'))) {
-        throw "The build is not signed under this repository's root, as a throwaway build would not be. Nothing was written to the device."
-    }
-    Confirm-EsptoolRuns
-    Write-Host "Image identity verified: $version in esp_app_desc and the display string."
-    # Beside the image, so that whoever passes it on later says what it was made from.
-    $source | Add-Member version $version
-    $source | Add-Member image (Get-csiGarlandImageId -BinPath $BinPath)
-    $stampPath = Join-Path (Split-Path -Parent $BinPath) 'firmware.source.json'
-    [System.IO.File]::WriteAllText($stampPath, (($source | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
-    return [pscustomobject]@{
-        Version    = $version
-        Sha256     = (Get-FileHash -LiteralPath $BinPath -Algorithm SHA256).Hash
-        PackSha256 = (Get-FileHash -LiteralPath $PackSlotPath -Algorithm SHA256).Hash
+        $source = Get-csiGarlandSourceIdentity -RepoRoot ([System.IO.Path]::GetFullPath((Join-Path $FirmwareDir '..\..')))
+        $before = Get-csiGarlandBuildNumber -CounterPath $CounterPath
+        $env:CSIGARLAND_INCREMENT_BUILD = '1'
+        try {
+            # What PlatformIO would delete on a change of platformio.ini, firmware_build_version.py keeps.
+            $buildExit = Invoke-Pio -PioArgs @('run', '-e', $EnvironmentName, '--disable-auto-clean')
+        } finally {
+            Remove-Item Env:CSIGARLAND_INCREMENT_BUILD -ErrorAction SilentlyContinue
+        }
+        if ($buildExit -ne 0) {
+            throw "PlatformIO build failed with exit code $buildExit. Nothing was written to the device."
+        }
+
+        $after = Get-csiGarlandBuildNumber -CounterPath $CounterPath
+        if ($after -ne $before + 1) {
+            throw ("Build counter went from $before to $after; a build consumes exactly one " +
+                'number. Nothing was written to the device.')
+        }
+        $version = Get-csiGarlandFirmwareIdentity `
+            -IniPath (Join-Path $FirmwareDir 'platformio.ini') `
+            -BuildNumber $after `
+            -BuildProfile $BuildProfile
+        $problem = Get-csiGarlandBinIdentityProblem -BinPath $BinPath -Version $version
+        if ($null -ne $problem) {
+            throw ("Firmware identity mismatch: $problem. Nothing was written to the device. " +
+                '-FullClean rebuilds every component.')
+        }
+        # Checked as a garland would check it, so that an image that trusts any other root never starts.
+        if (-not (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath (Join-Path (Split-Path -Parent $BinPath) 'firmware.ota'))) {
+            throw "The build is not signed under this repository's root, as a throwaway build would not be. Nothing was written to the device."
+        }
+        Write-Host "Image identity verified: $version in esp_app_desc and the display string."
+        # Beside the image, so that whoever passes it on later says what it was made from.
+        $source | Add-Member version $version
+        $source | Add-Member image (Get-csiGarlandImageId -BinPath $BinPath)
+        $stampPath = Join-Path (Split-Path -Parent $BinPath) 'firmware.source.json'
+        [System.IO.File]::WriteAllText($stampPath, (($source | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
+        $image = [pscustomobject]@{
+            Version    = $version
+            Sha256     = (Get-FileHash -LiteralPath $BinPath -Algorithm SHA256).Hash
+            PackSha256 = (Get-FileHash -LiteralPath $PackSlotPath -Algorithm SHA256).Hash
+        }
+        $built = $true
+        return $image
+    } finally {
+        if (-not $built -and $before -ge 0) {
+            Clear-FirmwareBuildOutputs
+            if (Undo-csiGarlandBuildNumber -CounterPath $CounterPath -Before $before) {
+                Write-Warning "The build failed, so build number $($before + 1) is not spent: the next build takes it."
+            }
+        }
+        if ($lock) {
+            $lock.Dispose()
+        }
     }
 }
 
@@ -461,12 +492,17 @@ function Invoke-VerifiedUpload {
     return [pscustomobject]@{ Exit = (Invoke-Esptool -ToolArgs $toolArgs); Target = $current }
 }
 
+# A write over USB takes the files of the build folder after their checks: held until this script ends,
+# the lock keeps another build of this checkout from replacing them in between.
+$script:FirmwareLock = if ($LockHeld) { $null } else { Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware }
 if ($EffectsOnly) {
     Confirm-EsptoolRuns
     $image = New-EffectsOnlyImage
     Assert-BoardHasPackSlots -PortName $target.Port
 } else {
     $image = Invoke-NumberedFirmwareBuild
+    # Asked only of a write over USB, which runs it: a build alone, for staging or OTA, needs no esptool.
+    Confirm-EsptoolRuns
 }
 
 $upload = Invoke-VerifiedUpload
@@ -476,6 +512,12 @@ if ($upload.Exit -ne 0) {
     Write-Host 'Upload failed; retrying once with the same verified image.'
     Start-Sleep -Seconds 2
     $upload = Invoke-VerifiedUpload
+}
+# The build folder's files are no longer needed: the log that follows holds no lock, so a staging or a
+# build elsewhere need not wait for it to close.
+if ($script:FirmwareLock) {
+    $script:FirmwareLock.Dispose()
+    $script:FirmwareLock = $null
 }
 if ($upload.Exit -ne 0) {
     throw ("Upload failed with exit code $($upload.Exit). If the board is not responding, " +

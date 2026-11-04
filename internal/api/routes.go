@@ -87,7 +87,14 @@ type State struct {
 	Effect     string  `json:"effect"`
 	EffectName string  `json:"effect_name"`
 	Speed      float64 `json:"speed"`
-	Leds       Leds    `json:"leds"`
+	Playlist   bool    `json:"playlist"` // The playlist plays. Firmware 1.0.0 says nothing, which reads false.
+	// Where what plays stands in the playlist, from 1, or 0 when not in it, and how many it holds.
+	PlaylistAt   int  `json:"playlist_at"`
+	PlaylistSize int  `json:"playlist_size"`
+	Leds         Leds `json:"leds"`
+	// The unix second up to which the garland's scheduler has done its steps, 0 before its first pass, or
+	// from a firmware that does not say.
+	StepsDoneUntil int64 `json:"steps_done_until"`
 }
 
 // State reads what the garland is doing.
@@ -192,9 +199,14 @@ func (c *Client) PreviewEffect(ctx context.Context, file []byte) error {
 
 // EffectStore is the room for uploaded effects.
 type EffectStore struct {
-	Available bool `json:"available"`
-	Uploaded  int  `json:"uploaded"`
-	Max       int  `json:"max"`
+	Available    bool  `json:"available"`
+	Uploaded     int   `json:"uploaded"`
+	Max          int   `json:"max"`
+	MaxFileBytes int   `json:"max_file_bytes"`
+	EntriesUsed  int   `json:"entries_used"`
+	EntriesTotal int   `json:"entries_total"`
+	FreeHeap     int64 `json:"free_heap"`
+	MinFreeHeap  int64 `json:"min_free_heap"`
 }
 
 // EffectStore reads how many effects are uploaded, and how many can be.
@@ -203,10 +215,15 @@ func (c *Client) EffectStore(ctx context.Context) (EffectStore, error) {
 	return store, c.get(ctx, "effects/store", nil, &store)
 }
 
+// scheduleSchema is the schedule's JSON as this client reads it: with rise and the playlist.
+const scheduleSchema = 2
+
 // Power steps of a scheduled action.
 const (
 	StepOn  = "on"
 	StepOff = "off"
+	// StepRise turns on rising from dark over a minute.
+	StepRise = "rise"
 )
 
 // Action is one scheduled action.
@@ -218,6 +235,7 @@ type Action struct {
 	Brightness int     `json:"brightness,omitempty"`
 	Speed      float64 `json:"speed,omitempty"`
 	Effect     string  `json:"effect,omitempty"`
+	Playlist   bool    `json:"playlist,omitempty"` // Starts the playlist, in place of an effect.
 }
 
 // NextAction is what the schedule does next.
@@ -228,6 +246,9 @@ type NextAction struct {
 	Brightness int     `json:"brightness"`
 	Speed      float64 `json:"speed"`
 	EffectName string  `json:"effect_name"`
+	Playlist   bool    `json:"playlist"`
+	// Unread says the garland could not read its schedule yet, new after 1.0.0: no next action is known.
+	Unread bool `json:"unread,omitempty"`
 }
 
 // Schedule is the whole list of actions.
@@ -235,7 +256,10 @@ type Schedule struct {
 	Entries  []Action   `json:"entries"`
 	Max      int        `json:"max"`
 	Revision uint32     `json:"revision"`
+	Schema   int        `json:"schema"` // 2 with the rise and the playlist; 1.0.0 says none.
 	Next     NextAction `json:"next"`
+	// The effects the actions name that the garland lacks, which it keeps: new after 1.0.0.
+	Missing []string `json:"missing"`
 }
 
 // Schedule reads the list of actions.
@@ -252,7 +276,8 @@ func (c *Client) SetSchedule(ctx context.Context, entries []Action, revision uin
 	if entries == nil {
 		entries = []Action{}
 	}
-	body := map[string]any{"entries": entries, "revision": revision}
+	// The schema says this client knows every step a list may hold, so the garland lets it replace one.
+	body := map[string]any{"entries": entries, "revision": revision, "schema": scheduleSchema}
 	return schedule, c.post(ctx, "schedule", body, &schedule)
 }
 

@@ -351,7 +351,12 @@ void display_view_draw(const ScreenModel& model) {
     lv_obj_set_height(s_screen.text_box, (model.shows_progress ? kUpdateBarTop : kStatsTop) - kTextBoxTop);
 
     lv_label_set_text_static(s_screen.icon_glyph, icon_text(model.icon));
-    lv_label_set_text_static(s_screen.title, model.title);
+    // In the body's font for a playlist's place, and for any title that would not fit beside the icon.
+    lv_point_t title_size;
+    lv_text_get_size(&title_size, model.title, kTitleFont, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const bool fits = kIconSize + kHeadlineGap + title_size.x <= kTextWidth;
+    lv_obj_set_style_text_font(s_screen.title, fits && !model.title_small ? kTitleFont : kBodyFont, 0);
+    lv_label_set_text(s_screen.title, model.title);
     lv_label_set_text(s_screen.text, model.text);
     set_footer(model.footer);
     if (model.shows_progress) {

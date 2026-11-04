@@ -17,17 +17,18 @@
 # The compiler's __DATE__ and __TIME__ come from CSIGARLAND_SOURCE_DATE in
 # platformio.ini, by SOURCE_DATE_EPOCH, rather than from the day of the build.
 #
-# CSIGARLAND_PROFILE picks the profile. "release" compiles with no debug information,
+# The environment picks the profile. esp32c6-release compiles with no debug information,
 # which keeps the paths of the machine out of the ELF the image hashes, and gives the
-# plain version, such as 1.0.0.102. "dev", the default for a plain `pio run`, keeps
-# ESP-IDF's debug information and marks the version, as 1.0.0.102-dev, so that it is
-# never taken for a release.
+# plain version, such as 1.0.0.102. esp32c6, the Dev profile, keeps ESP-IDF's debug
+# information and marks the version, as 1.0.0.102-dev, so that it is never taken for a
+# release. Each builds in its own folder, so neither compiles the other's objects again.
 
 Import("env")
 
 import calendar
 import datetime
 import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -38,7 +39,40 @@ _BASE_RE = re.compile(
     re.MULTILINE,
 )
 _COUNTER_FILE = ".csigarland_build_counter"
-_PROFILES = ("release", "dev")
+_RELEASE_SUFFIX = "-release"
+# As sdkconfig_made.py writes its mark.
+_MADE_FORMAT = "made-from-defaults/2"
+# The scripts a Release build runs, as platformio.ini lists them for it.
+_RELEASE_SCRIPTS = [
+    "pre:scripts/firmware_build_version.py",
+    "pre:scripts/effect_pack.py",
+    "pre:scripts/ota_signing.py",
+    "pre:scripts/portal_pack.py",
+    "post:scripts/link_order.py",
+    "post:scripts/sdkconfig_made.py",
+]
+# What PlatformIO takes from the environment into a build, besides platformio.ini: flags, the sources'
+# filter and folders, and scripts of its own, any of which could make another image of the same sources.
+_OUTSIDE_FLAGS = (
+    "PLATFORMIO_BUILD_FLAGS",
+    "PLATFORMIO_BUILD_SRC_FLAGS",
+    "PLATFORMIO_BUILD_UNFLAGS",
+    "PLATFORMIO_BUILD_SRC_FILTER",
+    "PLATFORMIO_EXTRA_SCRIPTS",
+    "PLATFORMIO_SRC_DIR",
+    "PLATFORMIO_INCLUDE_DIR",
+    "PLATFORMIO_LIB_DIR",
+    "PLATFORMIO_LIB_EXTRA_DIRS",
+    "PLATFORMIO_DEFAULT_ENVS",
+    # And what ESP-IDF itself takes from it before the project's own: another file of defaults, or another
+    # effective config, which the post script would then take for the one the defaults made.
+    "SDKCONFIG_DEFAULTS",
+    "SDKCONFIG",
+)
+# The board's description, the platform's own file of espressif32 7.0.1: PlatformIO also takes one of the
+# same name from boards_dir, PLATFORMIO_BOARDS_DIR or its core's boards folder ahead of it, and what it holds,
+# build.f_image among it, goes into the image's header. A change of the platform's version changes this too.
+_BOARD_SHA256 = "dfb1e6846a162fa8d40752e86038e89cf6f3d6db117999e0511b5602f3309356"
 _SOURCE_DATE_RE = re.compile(r"^CSIGARLAND_SOURCE_DATE\s*=\s*(\d{4}-\d{2}-\d{2})\s*$", re.MULTILINE)
 
 
@@ -87,21 +121,120 @@ def _invalidate_stale_configure(build_dir: Path, project_ver: Path) -> None:
         ninja.unlink()
 
 
+def _keep_objects_through_project_changes() -> None:
+    # PlatformIO deletes all of .pio/build, every environment's objects, whenever platformio.ini or
+    # the list of source files changes, and ESP-IDF then compiles whole again, for minutes. A build
+    # with --disable-auto-clean, as the deploy scripts run, skips that, and this does what is needed
+    # in its place: CMake configures each environment again, and SCons compiles again only what
+    # that changes, as it keys every object on its command. The stamp PlatformIO compares is then
+    # written, so a later build or test without the flag finds nothing to delete.
+    try:
+        from platformio.run.helpers import compute_project_checksum
+    except ImportError:
+        return
+    builds = Path(env.subst("$PROJECT_BUILD_DIR"))
+    stamp = builds / "project.checksum"
+    checksum = compute_project_checksum(env.GetProjectConfig())
+    if stamp.is_file() and stamp.read_text(encoding="utf-8") == checksum:
+        return
+    for ninja in builds.glob("*/build.ninja"):
+        ninja.unlink()
+    builds.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(checksum, encoding="utf-8")
+
+
+_CONFIG_LINE = re.compile(r"^CONFIG_(\w+)=(.*)$")
+_CONFIG_UNSET = re.compile(r"^# CONFIG_(\w+) is not set$")
+
+
+def _config_values(text: str) -> dict:
+    # Each value as config/sdkconfig.json holds it: y as true, not set as false, a number as a number, a
+    # string unquoted. The lines of deprecated names, which the JSON lacks, are passed over by the caller.
+    found = {}
+    for line in text.splitlines():
+        unset = _CONFIG_UNSET.match(line)
+        if unset:
+            found[unset.group(1)] = False
+            continue
+        match = _CONFIG_LINE.match(line)
+        if not match:
+            continue
+        raw = match.group(2)
+        if raw == "y":
+            value = True
+        elif len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
+            value = raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        else:
+            try:
+                value = int(raw, 0)
+            except ValueError:
+                value = raw
+        found[match.group(1)] = value
+    return found
+
+
+def _config_as_configured(effective: Path, configured: Path) -> bool:
+    # Whether the effective config holds just what the last configure of this environment made of it. With
+    # no configure to compare with, it cannot be told, and is not taken.
+    if not configured.is_file():
+        return False
+    try:
+        made = json.loads(configured.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    values = _config_values(effective.read_text(encoding="utf-8"))
+    return all(made[name] == value for name, value in values.items() if name in made)
+
+
 def _renew_stale_sdkconfig(project_dir: Path, build_dir: Path) -> None:
     # ESP-IDF makes sdkconfig.<env> from sdkconfig.defaults once and keeps it after, so a changed
     # default would never reach a checkout that has built before, only a clean one. The defaults'
     # digest is kept beside the build, and when they change the effective config is made again.
     defaults = project_dir / "sdkconfig.defaults"
     effective = project_dir / f"sdkconfig.{env.subst('$PIOENV')}"
-    stamp = project_dir / "generated" / "sdkconfig.defaults.sha256"
+    # One per environment, as each has its own sdkconfig to make again.
+    stamp = project_dir / "generated" / f"sdkconfig.defaults.{env.subst('$PIOENV')}.sha256"
     digest = hashlib.sha256(defaults.read_bytes()).hexdigest()
-    if effective.is_file() and (not stamp.is_file() or stamp.read_text(encoding="utf-8").strip() != digest):
-        print(f"sdkconfig.defaults changed: {effective.name} is made again from it.")
+    # Before each environment had its own, one stamp served esp32c6, and it still says what that built.
+    known = stamp if stamp.is_file() else project_dir / "generated" / "sdkconfig.defaults.sha256"
+    # A Release build takes the effective config only as it was made from the defaults: one edited since,
+    # or never seen made, would put into a published image what the tag's sources do not hold. A build
+    # that finds none marks it to be made, and sdkconfig_made.py, after that build's configure, records it
+    # as made, and its digest, which every later build holds it to. A mark left says no configure took it.
+    # Every value must also be the one the last configure wrote into config/sdkconfig.json.
+    made = project_dir / "generated" / f"sdkconfig.{env.subst('$PIOENV')}.made.sha256"
+    pending = project_dir / "generated" / f"sdkconfig.{env.subst('$PIOENV')}.pending"
+    configured = build_dir / "config" / "sdkconfig.json"
+    release = env.subst("$PIOENV").endswith(_RELEASE_SUFFIX)
+    stale = effective.is_file() and (not known.is_file() or known.read_text(encoding="utf-8").strip() != digest)
+    if not stale and release and effective.is_file():
+        if not _config_as_configured(effective, configured):
+            stale = True
+        elif pending.is_file():
+            stale = True
+        else:
+            made_mark = made.read_text(encoding="utf-8").strip() if made.is_file() else ""
+            stale = made_mark != f"{_MADE_FORMAT} {hashlib.sha256(effective.read_bytes()).hexdigest()}"
+    if stale:
+        print(f"{effective.name} is made again from sdkconfig.defaults.")
         effective.unlink()
         ninja = build_dir / "build.ninja"
         if ninja.is_file():
             ninja.unlink()
     _write_if_changed(stamp, digest + "\n")
+    if not effective.is_file():
+        pending.write_text("made by the next configure\n", encoding="utf-8")
+
+
+def _check_board() -> None:
+    board = env.BoardConfig()
+    taken = Path(board.manifest_path).resolve()
+    own = (Path(env.PioPlatform().get_dir()) / "boards" / taken.name).resolve()
+    if taken != own:
+        raise RuntimeError(f"The board is described by {taken}, not the platform's own {own}: a Release build takes only that one")
+    digest = hashlib.sha256(taken.read_bytes()).hexdigest()
+    if digest != _BOARD_SHA256:
+        raise RuntimeError(f"{taken} is not the board description of espressif32 7.0.1 (SHA-256 {digest}): put the platform back")
 
 
 def inject_build_version() -> None:
@@ -126,9 +259,26 @@ def inject_build_version() -> None:
             build_number += 1
             counter.write_text(f"{build_number}\n", encoding="utf-8")
 
-    profile = os.environ.get("CSIGARLAND_PROFILE", "").strip().lower() or "dev"
-    if profile not in _PROFILES:
-        raise RuntimeError(f"CSIGARLAND_PROFILE must be release or dev, not {profile!r}")
+    profile = "release" if env.subst("$PIOENV").endswith(_RELEASE_SUFFIX) else "dev"
+    # The variable that picked it before would now be passed over without a word.
+    asked = os.environ.get("CSIGARLAND_PROFILE", "").strip().lower()
+    if asked and asked != profile:
+        raise RuntimeError(
+            f"CSIGARLAND_PROFILE={asked} no longer picks the profile: build -e esp32c6-release for Release, "
+            "-e esp32c6 for Dev, and remove the variable"
+        )
+
+    # PlatformIO takes these into a build: a Release build made with them would be another image than the
+    # tag's sources make, with nothing in its manifest to say so. And the scripts it runs are just the
+    # project's own, the list platformio.ini holds.
+    if profile == "release":
+        for name in _OUTSIDE_FLAGS:
+            if os.environ.get(name, "").strip():
+                raise RuntimeError(f"{name} is set, which a Release build does not take: unset it, or build -e esp32c6 for Dev")
+        scripts = [str(script).strip() for script in env.GetProjectOption("extra_scripts", [])]
+        if scripts != _RELEASE_SCRIPTS:
+            raise RuntimeError(f"A Release build runs the project's scripts alone, not {scripts}")
+        _check_board()
 
     version = f"{match.group(1)}.{match.group(2)}.{match.group(3)}.{build_number}"
     if match.group(4):
@@ -150,6 +300,7 @@ def inject_build_version() -> None:
         "#pragma once\n"
         f'#define CSIGARLAND_VERSION "{version}"\n',
     )
+    _keep_objects_through_project_changes()
     _invalidate_stale_configure(Path(env.subst("$BUILD_DIR")), project_ver)
     _renew_stale_sdkconfig(project_dir, Path(env.subst("$BUILD_DIR")))
     print(f"CSIGARLAND_VERSION: {version} ({profile})")

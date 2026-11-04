@@ -136,7 +136,8 @@ struct ScreenModel {
     ScreenId id = ScreenId::Standby;
     ScreenTone tone = ScreenTone::Idle;
     ScreenIcon icon = ScreenIcon::Power;
-    const char* title = "";
+    char title[20] = {};  // "Playing 16/16" at the longest.
+    bool title_small = false;  // In the body's font, as a playlist's place would not fit in the title's.
     char text[72] = {};
     char footer[24] = {};
     char stats[kScreenStatCount][12] = {};
@@ -146,6 +147,17 @@ struct ScreenModel {
     bool shows_clock_glyph = false;
     bool clock_glyph_lit = false;  // A scheduled action comes within a day.
 };
+
+// While the playlist plays, where it stands: "Playing 3/12".
+inline void fill_screen_title(const Snapshot& s, const ScreenRow& row, ScreenModel& out) {
+    if (row.id == ScreenId::Playing && s.playlist && s.playlist_at != 0) {
+        std::snprintf(out.title, sizeof(out.title), "%s %u/%u", row.title, s.playlist_at, s.playlist_size);
+        // Always, so that the size does not change as the playlist moves from 9 to 10.
+        out.title_small = true;
+    } else {
+        std::snprintf(out.title, sizeof(out.title), "%s", row.title);
+    }
+}
 
 inline void fill_screen_text(const Snapshot& s, const ScreenRow& row, const ScreenInputs& inputs, ScreenModel& out) {
     if (row.text != nullptr) {
@@ -214,7 +226,7 @@ inline ScreenModel build_screen_model(const Snapshot& s, const ScreenInputs& inp
     model.id = row.id;
     model.tone = row.tone;
     model.icon = row.icon;
-    model.title = row.title;
+    fill_screen_title(s, row, model);
     model.percent = update_shown_percent(s.update_percent);
     model.shows_stats = row.shows_stats;
     model.shows_progress = row.shows_progress;

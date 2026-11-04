@@ -9,6 +9,8 @@
 
 #include "portal_effects.h"
 
+#include "playlist_logic.h"
+
 #include <cJSON.h>
 
 #include <cstdio>
@@ -20,6 +22,8 @@
 #include "esp_system.h"
 #include "garland_state.h"
 #include "network_logic.h"
+#include "nvs.h"
+#include "playlist_resolver.h"
 #include "portal_common.h"
 #include "schedule.h"
 #include "scheduler.h"
@@ -30,7 +34,6 @@ namespace {
 
 const char* const TAG = "portal";
 
-constexpr size_t kStateJsonBytes = 320;
 constexpr size_t kEffectJsonBytes = 224;  // The longest id, name and group with the JSON around them.
 constexpr size_t kEffectQueryBytes = 64;
 constexpr size_t kJsonChunkBytes = 1400;  // About one TCP segment.
@@ -47,23 +50,37 @@ const char* probe_id(ProbeStatus status) {
 }
 
 esp_err_t send_state(httpd_req_t* req, const State& state) {
-    const Snapshot s = state.snapshot();
-    char speed[kSpeedTextBytes];
-    speed_to_text(s.speed_x4, speed);
     char body[kStateJsonBytes];
-    const int length = snprintf(
-        body, sizeof(body),
-        "{\"power\":%s,\"brightness\":%u,\"effect\":\"%s\",\"effect_name\":\"%s\",\"speed\":%s,"
-        "\"leds\":{\"setting\":%u,\"count\":%u,\"kept\":%u,\"max\":%d,\"probe\":\"%s\",\"estimate\":%u}}",
-        s.power_requested ? "true" : "false", s.brightness_percent, catalog_id(s.effect).c_str(),
-        catalog_name(s.effect).c_str(), speed,
-        s.led_setting, s.led_count, s.led_kept, CSIGARLAND_MAX_LEDS, probe_id(s.probe), s.led_estimate);
-    if (length < 0 || static_cast<size_t>(length) >= sizeof(body)) {
+    const int length = portal_state_json(state, body, sizeof(body));
+    if (length < 0) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "state too long");
     }
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, body, length);
 }
+
+}  // namespace
+
+int portal_state_json(const State& state, char* out, size_t size) {
+    // Before the snapshot, so that a step done after it is at worst still to come by this, never done while
+    // the state does not show it yet.
+    const int64_t steps_done_until = schedule_steps_done_until();
+    const Snapshot s = state.snapshot();
+    char speed[kSpeedTextBytes];
+    speed_to_text(s.speed_x4, speed);
+    const int length = snprintf(
+        out, size,
+        "{\"power\":%s,\"brightness\":%u,\"effect\":\"%s\",\"effect_name\":\"%s\",\"speed\":%s,\"playlist\":%s,"
+        "\"playlist_at\":%u,\"playlist_size\":%u,\"steps_done_until\":%lld,"
+        "\"leds\":{\"setting\":%u,\"count\":%u,\"kept\":%u,\"max\":%d,\"probe\":\"%s\",\"estimate\":%u}}",
+        s.power_requested ? "true" : "false", s.brightness_percent, catalog_id(s.effect).c_str(),
+        catalog_name(s.effect).c_str(), speed, s.playlist ? "true" : "false", s.playlist_at, s.playlist_size,
+        static_cast<long long>(steps_done_until),
+        s.led_setting, s.led_count, s.led_kept, CSIGARLAND_MAX_LEDS, probe_id(s.probe), s.led_estimate);
+    return length < 0 || static_cast<size_t>(length) >= size ? -1 : length;
+}
+
+namespace {
 
 // A long list sent in chunks costs no memory for its whole length. Each chunk is three
 // writes to the socket, and small writes wait for each other's acknowledgement, so items
@@ -104,9 +121,19 @@ char ChunkedJson::s_buffer[kJsonChunkBytes];
 
 // The page knows the list already, so a change answers with no more than that it was made.
 esp_err_t send_effect_change(httpd_req_t* req, const char* body) {
-    static_cast<State*>(req->user_ctx)->note_catalog_changed();
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+// The same, once the catalog itself changed, by an upload or a deletion: the next action is worked out
+// again, and the playlist resolved again from the ids it was saved by, as an effect uploaded may be one
+// it names, which a start left out while it was missing. A reading that fails is tried again until it
+// is, and until then GET and Play of the playlist resolve it first.
+esp_err_t send_catalog_change(httpd_req_t* req, const char* body) {
+    auto& state = *static_cast<State*>(req->user_ctx);
+    state.note_catalog_changed();
+    playlist_resolve(state);
+    return send_effect_change(req, body);
 }
 
 int read_effect_index(const cJSON* root) {
@@ -116,7 +143,12 @@ int read_effect_index(const cJSON* root) {
 
 esp_err_t save_favorites(State& state, const EffectMask& favorites) {
     static char s_text[kFavoritesTextBytes];
-    favorites_to_text(favorites, s_text, sizeof(s_text));
+    // Nothing is saved or changed for a list too long to save whole: kept in part, the rest would be
+    // gone at the next start, with nothing said.
+    if (!favorites_to_text(favorites, s_text, sizeof(s_text))) {
+        ESP_LOGW(TAG, "too many favourites to save");
+        return ESP_ERR_INVALID_SIZE;
+    }
     const esp_err_t err = settings_save_favorites(s_text);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "saving favourites failed: %s", esp_err_to_name(err));
@@ -146,6 +178,21 @@ bool is_scheduled(const char* id) {
         }
     }
     return false;
+}
+
+// Whether the list saved names id, by its id: the state's positions may be stale, see playlist_resolver.h.
+// False with nothing named when none was saved; unreadable when one may be there and was not read.
+enum class Named { No, Yes, Unreadable };
+Named playlist_saved_names(const char* id) {
+    static char s_text[kPlaylistTextBytes];
+    const esp_err_t err = settings_read_playlist(s_text, sizeof(s_text));
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return Named::No;
+    }
+    if (err != ESP_OK) {
+        return Named::Unreadable;
+    }
+    return playlist_names(playlist_from_text(s_text), id) ? Named::Yes : Named::No;
 }
 
 }  // namespace
@@ -296,6 +343,9 @@ esp_err_t portal_handle_favorite(httpd_req_t* req) {
         return portal_send_status(req, "409 Conflict", "At least one favourite is required");
     }
     const esp_err_t err = save_favorites(state, updated);
+    if (err == ESP_ERR_INVALID_SIZE) {
+        return portal_send_status(req, "409 Conflict", "Too many favourites to keep: unmark some first");
+    }
     if (err != ESP_OK) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save");
     }
@@ -325,19 +375,19 @@ esp_err_t portal_handle_effect_read(httpd_req_t* req) {
 // Body: the effect's file. Query: ?id=my-effect. Replaces an effect of the same id.
 esp_err_t portal_handle_effect_upload(httpd_req_t* req) {
     char id[kMaxEffectIdLength + 1];
-    if (!read_id_query(req, id) || !portal_read_body(req, effect_store_body(), kMaxEffectFileBytes)) {
+    if (!read_id_query(req, id) || !portal_read_text(req, effect_store_body(), kMaxEffectFileBytes)) {
         return ESP_OK;
     }
     const char* const problem = effect_store_save(id);
     if (problem != nullptr) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, problem);
     }
-    return send_effect_change(req, "{\"ok\":true}");
+    return send_catalog_change(req, "{\"ok\":true}");
 }
 
 // Body: the effect's file. Plays it, saving nothing, until another effect is chosen.
 esp_err_t portal_handle_effect_preview(httpd_req_t* req) {
-    if (!portal_read_body(req, effect_store_body(), kMaxEffectFileBytes)) {
+    if (!portal_read_text(req, effect_store_body(), kMaxEffectFileBytes)) {
         return ESP_OK;
     }
     const char* const problem = effect_store_preview();
@@ -363,8 +413,19 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
     const auto position = static_cast<size_t>(found);
     auto& state = *static_cast<State*>(req->user_ctx);
     const bool leaves_the_catalog = !catalog_is_built_in(position);
+    // A schedule not read yet may name it.
+    if (leaves_the_catalog && !schedule_is_read()) {
+        return portal_send_status(req, "503 Service Unavailable", "The schedule could not be read yet, and may use this effect: ask again");
+    }
     if (leaves_the_catalog && is_scheduled(id)) {
         return portal_send_status(req, "409 Conflict", "The schedule uses this effect");
+    }
+    const Named named = leaves_the_catalog ? playlist_saved_names(id) : Named::No;
+    if (named == Named::Unreadable) {
+        return portal_send_status(req, "503 Service Unavailable", "The playlist could not be read, and may use this effect: ask again");
+    }
+    if (named == Named::Yes) {
+        return portal_send_status(req, "409 Conflict", "The playlist uses this effect");
     }
     // The file first: should that fail, nothing else has changed.
     const char* const problem = effect_store_delete(id);
@@ -385,7 +446,7 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
             state.select_first_favorite();
         }
     }
-    return send_effect_change(req, "{\"ok\":true}");
+    return send_catalog_change(req, "{\"ok\":true}");
 }
 
 esp_err_t portal_handle_effect_store(httpd_req_t* req) {

@@ -11,6 +11,9 @@
 
 #include <cJSON.h>
 
+#include <array>
+#include <atomic>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -23,6 +26,7 @@
 #include "esp_https_server.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "json_limits.h"
@@ -32,9 +36,12 @@
 #include "portal_auth.h"
 #include "portal_common.h"
 #include "portal_effects.h"
+#include "portal_events.h"
 #include "portal_info.h"
+#include "portal_playlist.h"
 #include "portal_settings.h"
 #include "portal_tls.h"
+#include "portal_watch.h"
 #include "portal_web.h"
 #include "trial_log.h"
 
@@ -47,7 +54,8 @@ constexpr int kReceiveTimeoutsAllowed = 3;  // Of the server's 5 s each.
 constexpr size_t kMaxRequestBytes = 192;
 constexpr uint32_t kServerStackBytes = 8192;  // Checking an update's signature runs here.
 constexpr uint32_t kSecureServerStackBytes = 11264;  // And a TLS handshake.
-constexpr uint16_t kMaxRoutes = 48;
+// The server's table of handlers, a few dozen bytes each, on both servers. Room for the playlist's.
+constexpr uint16_t kMaxRoutes = 56;
 // Below the screen's task: decrypting an upload would otherwise leave it no time to show one.
 constexpr UBaseType_t kServerPriority = 3;
 // Each TLS session costs RAM, and a browser opens several if it may.
@@ -68,6 +76,19 @@ struct Route {
 
 State* s_state = nullptr;
 httpd_handle_t s_plain_server = nullptr;
+
+// While a route has a request: its headers are in, and what it reads has limits of its own, which it
+// gives the watch; once it ends, the next request's headers are timed. See portal_watch.h.
+class Handling {
+public:
+    explicit Handling(httpd_req_t* req) : req_(req) { portal_watch_route_begins(req_); }
+    ~Handling() { portal_watch_route_ends(req_); }
+    Handling(const Handling&) = delete;
+    Handling& operator=(const Handling&) = delete;
+
+private:
+    httpd_req_t* req_;
+};
 const TlsIdentity* s_identity = nullptr;
 bool s_secure_running = false;
 constexpr uint32_t kTrialNetworkWaitMs = 20000;
@@ -108,6 +129,8 @@ esp_err_t handle_ota_set(httpd_req_t* req) {
         ESP_LOGW(TAG, "update failed: %s", problem);
         return portal_send_status(req, ota_problem_status(problem), problem);
     }
+    // All of it was read, so the connection may stay.
+    portal_mark_body_read(req);
     httpd_resp_set_type(req, "application/json");
     char reply[48];
     std::snprintf(reply, sizeof(reply), "{\"firmware\":%s,\"effects\":%s}", installed.firmware ? "true" : "false",
@@ -141,6 +164,7 @@ esp_err_t handle_about(httpd_req_t* req) {
 
 constexpr Route kRoutes[] = {
     {"/api/state", HTTP_GET, portal_handle_state, false},
+    {"/api/events", HTTP_GET, portal_handle_events, false},
     {"/api/state", HTTP_POST, portal_handle_mode_set, false},
     {"/api/info", HTTP_GET, portal_handle_info, false},
     {"/api/network/name", HTTP_POST, portal_handle_hostname_set, false},
@@ -162,6 +186,10 @@ constexpr Route kRoutes[] = {
     {"/api/wifi/scan", HTTP_POST, portal_handle_wifi_scan, false},
     {"/api/schedule", HTTP_GET, portal_handle_schedule_get, false},
     {"/api/schedule", HTTP_POST, portal_handle_schedule_set, false},
+    {"/api/schedule/timeline", HTTP_GET, portal_handle_schedule_timeline, false},
+    {"/api/playlist", HTTP_GET, portal_handle_playlist_get, false},
+    {"/api/playlist", HTTP_POST, portal_handle_playlist_set, false},
+    {"/api/playlist/play", HTTP_POST, portal_handle_playlist_play, false},
     {"/api/time", HTTP_GET, portal_handle_time_get, false},
     {"/api/time", HTTP_POST, portal_handle_time_set, false},
     {"/api/time/rtc", HTTP_POST, portal_handle_rtc_set, false},
@@ -182,6 +210,7 @@ constexpr Route kPublicRoutes[] = {
     {"/api/v1/pair/request", HTTP_POST, auth_handle_request, true},
     {"/api/v1/pair/wait", HTTP_POST, auth_handle_wait_for_token, true},
     {"/api/v1/state", HTTP_GET, portal_handle_state, false},
+    {"/api/v1/events", HTTP_GET, portal_handle_events, false},
     {"/api/v1/state", HTTP_POST, portal_handle_mode_set, false},
     {"/api/v1/power", HTTP_POST, portal_handle_power, false},
     {"/api/v1/effects", HTTP_GET, portal_handle_effects, false},
@@ -194,6 +223,10 @@ constexpr Route kPublicRoutes[] = {
     {"/api/v1/effects/store", HTTP_GET, portal_handle_effect_store, false},
     {"/api/v1/schedule", HTTP_GET, portal_handle_schedule_get, false},
     {"/api/v1/schedule", HTTP_POST, portal_handle_schedule_set, false},
+    {"/api/v1/schedule/timeline", HTTP_GET, portal_handle_schedule_timeline, false},
+    {"/api/v1/playlist", HTTP_GET, portal_handle_playlist_get, false},
+    {"/api/v1/playlist", HTTP_POST, portal_handle_playlist_set, false},
+    {"/api/v1/playlist/play", HTTP_POST, portal_handle_playlist_play, false},
     {"/api/v1/time", HTTP_GET, portal_handle_time_get, false},
     {"/api/v1/time", HTTP_POST, portal_handle_time_set, false},
     {"/api/v1/time/rtc", HTTP_POST, portal_handle_rtc_set, false},
@@ -227,13 +260,15 @@ bool must_use_https(httpd_req_t* req) {
 }
 
 esp_err_t redirect_to_https(httpd_req_t* req) {
+    // Nothing it sent is read here, whatever the answer: a body is the client's to send again, to HTTPS.
+    portal_mark_body_unread(req);
     char host[80] = "";
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
-        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "no host");
+        return portal_end_of_request(req, portal_send_err(req, HTTPD_400_BAD_REQUEST, "no host"));
     }
     const size_t name_length = auth_host_name_length(host);
     if (name_length == 0) {
-        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "bad host");
+        return portal_end_of_request(req, portal_send_err(req, HTTPD_400_BAD_REQUEST, "bad host"));
     }
     host[name_length] = '\0';
     // Static: the header keeps the pointer until the reply is out, and the plain server is one task.
@@ -244,7 +279,7 @@ esp_err_t redirect_to_https(httpd_req_t* req) {
     httpd_resp_set_status(req, "307 Temporary Redirect");
     httpd_resp_set_hdr(req, "Location", s_location);
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return httpd_resp_send(req, nullptr, 0);
+    return portal_end_of_request(req, httpd_resp_send(req, nullptr, 0));
 }
 
 esp_err_t redirect_within_network(httpd_req_t* req) {
@@ -254,9 +289,25 @@ esp_err_t redirect_within_network(httpd_req_t* req) {
     return httpd_resp_send(req, nullptr, 0);
 }
 
+// GET and DELETE take no body here, and one sent with them is refused unread before anything else: the
+// server would read the rest itself, in its own task, for as long as the sender takes to send it.
+bool refused_for_its_body(httpd_req_t* req, esp_err_t& sent) {
+    if (req->content_len == 0 || (req->method != HTTP_GET && req->method != HTTP_DELETE)) {
+        return false;
+    }
+    portal_mark_body_unread(req);
+    sent = portal_end_of_request(req, portal_send_err(req, HTTPD_400_BAD_REQUEST, "this request takes no body"));
+    return true;
+}
+
 // On the setup network any address someone types leads here, and a page under that name could not
 // use the API. Sending it to the portal's own address is also how a phone finds the portal.
 esp_err_t run_portal_file(httpd_req_t* req) {
+    const Handling handling(req);
+    esp_err_t refused = ESP_OK;
+    if (refused_for_its_body(req, refused)) {
+        return refused;
+    }
     if (must_use_https(req)) {
         return redirect_to_https(req);
     }
@@ -267,6 +318,13 @@ esp_err_t run_portal_file(httpd_req_t* req) {
 }
 
 esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
+    esp_err_t refused = ESP_OK;
+    if (refused_for_its_body(req, refused)) {
+        return refused;
+    }
+    // Unread until a reader took all of it: a handler that answers early, or reads none, as a scan does, has
+    // the connection closed, rather than the server read the rest for as long as it comes.
+    portal_mark_body_unread(req);
     if (route.handler != handle_trial_log && must_use_https(req)) {
         return redirect_to_https(req);
     }
@@ -274,25 +332,29 @@ esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
     // rest, an update's report among them, by sending a body slowly.
     const bool allowed = route.open ? auth_open_route_allows(req) : auth_allows(req);
     if (allowed && route.open) {
-        return route.handler(req);
+        return portal_end_of_request(req, route.handler(req));
     }
     if (!allowed) {
         httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-        return portal_send_status(req, "401 Unauthorized", "this browser is not paired");
+        // Refused before a byte of its body is read, which the server then never reads.
+        portal_mark_body_unread(req);
+        return portal_end_of_request(req, portal_send_status(req, "401 Unauthorized", "this browser is not paired"));
     }
     // The handlers share static buffers, as they were written for one server task.
     xSemaphoreTake(s_handler_lock, portMAX_DELAY);
     req->user_ctx = s_state;
     const esp_err_t result = route.handler(req);
     xSemaphoreGive(s_handler_lock);
-    return result;
+    return portal_end_of_request(req, result);
 }
 
 esp_err_t run_route(httpd_req_t* req) {
+    const Handling handling(req);
     return run_one_route(req, *static_cast<const Route*>(req->user_ctx));
 }
 
 esp_err_t run_public_route(httpd_req_t* req) {
+    const Handling handling(req);
     const size_t length = api_path_length(req->uri);
     bool known_path = false;
     for (const Route& route : kPublicRoutes) {
@@ -307,17 +369,22 @@ esp_err_t run_public_route(httpd_req_t* req) {
     if (must_use_https(req)) {
         return redirect_to_https(req);
     }
-    return known_path ? portal_send_status(req, "405 Method Not Allowed", "this route does not take that method")
-                      : portal_send_err(req, HTTPD_404_NOT_FOUND, "no such route");
+    // No route reads its body, which the server then never reads.
+    portal_mark_body_unread(req);
+    return portal_end_of_request(req, known_path ? portal_send_status(req, "405 Method Not Allowed", "this route does not take that method")
+                                                 : portal_send_err(req, HTTPD_404_NOT_FOUND, "no such route"));
 }
 
 // Phones test for a captive network by requesting known addresses. Answering those
 // with a redirect is what makes them open the portal by themselves.
 esp_err_t handle_not_found(httpd_req_t* req, httpd_err_code_t) {
+    const Handling handling(req);
+    // Nothing here reads a body, which the server then never reads either.
+    portal_mark_body_unread(req);
     if (must_use_https(req)) {
         return redirect_to_https(req);
     }
-    return redirect_within_network(req);
+    return portal_end_of_request(req, redirect_within_network(req));
 }
 
 esp_err_t register_routes(httpd_handle_t server) {
@@ -353,6 +420,8 @@ esp_err_t start_plain_server() {
     plain.ctrl_port = kPlainServerControlPort;
     plain.task_priority = kServerPriority;
     plain.lru_purge_enable = true;
+    plain.open_fn = portal_watch_open;
+    plain.close_fn = portal_watch_close;
     ESP_RETURN_ON_ERROR(httpd_start(&s_plain_server, &plain), TAG, "HTTP server");
     const esp_err_t routed = register_routes(s_plain_server);
     if (routed != ESP_OK) {
@@ -378,11 +447,16 @@ esp_err_t start_secure_server(State& state) {
     secure.httpd.ctrl_port = kSecureServerControlPort;
     secure.httpd.task_priority = kServerPriority;
     secure.httpd.lru_purge_enable = true;
+    // Kept by the HTTPS server and called once a session's handshake is done.
+    secure.httpd.open_fn = portal_watch_open;
+    secure.httpd.close_fn = portal_watch_close;
     httpd_handle_t server = nullptr;
     ESP_RETURN_ON_ERROR(httpd_ssl_start(&server, &secure), TAG, "HTTPS server");
     const esp_err_t routed = register_routes(server);
     if (routed != ESP_OK) {
         httpd_ssl_stop(server);
+    } else {
+        portal_watch_handshakes(server);
     }
     return routed;
 }
@@ -400,6 +474,9 @@ void let_the_log_out() {
 esp_err_t start_all(State& state) {
     s_state = &state;
     s_handler_lock = xSemaphoreCreateMutexStatic(&s_handler_lock_storage);
+    if (!portal_watch_start()) {
+        ESP_LOGE(TAG, "no task to watch the sessions: a request that does not come holds a server till its own timeouts");
+    }
     ESP_RETURN_ON_ERROR(network_start(state), TAG, "network");
     // Worked out once now, as two servers could both be first to ask, and get different boot ids.
     ota_boot_id();
@@ -465,6 +542,54 @@ esp_err_t portal_send_err(httpd_req_t* req, httpd_err_code_t error, const char* 
     }
 }
 
+namespace {
+
+// One request of each server at a time is marked, by its handle: the plain server and the secure one each
+// run their requests one after another, each in its own task.
+struct UnreadMark {
+    std::atomic<httpd_handle_t> server{nullptr};
+    std::atomic<httpd_req_t*> request{nullptr};
+};
+std::array<UnreadMark, 2> s_unread{};
+
+}  // namespace
+
+void portal_mark_body_unread(httpd_req_t* req) {
+    if (req->content_len == 0) {
+        return;
+    }
+    for (UnreadMark& mark : s_unread) {
+        httpd_handle_t expected = nullptr;
+        if (mark.server.load() == req->handle || mark.server.compare_exchange_strong(expected, req->handle)) {
+            mark.request.store(req);
+            return;
+        }
+    }
+}
+
+void portal_mark_body_read(httpd_req_t* req) {
+    for (UnreadMark& mark : s_unread) {
+        if (mark.server.load() == req->handle) {
+            httpd_req_t* expected = req;
+            mark.request.compare_exchange_strong(expected, nullptr);
+        }
+    }
+}
+
+esp_err_t portal_end_of_request(httpd_req_t* req, esp_err_t result) {
+    for (UnreadMark& mark : s_unread) {
+        if (mark.server.load() == req->handle) {
+            if (mark.request.exchange(nullptr) == req) {
+                return ESP_FAIL;
+            }
+        }
+    }
+    return result;
+}
+
+// A body sent a byte now and then never runs into the server's timeout: the whole of it has this.
+constexpr int64_t kBodyDeadlineUs = 10 * 1000 * 1000;
+
 bool portal_read_body(httpd_req_t* req, char* body, size_t limit) {
     if (req->content_len == 0) {
         portal_send_err(req, HTTPD_400_BAD_REQUEST, "bad body size");
@@ -472,12 +597,21 @@ bool portal_read_body(httpd_req_t* req, char* body, size_t limit) {
     }
     if (req->content_len > limit) {
         portal_send_status(req, "413 Content Too Large", "bad body size");
+        portal_mark_body_unread(req);
         return false;
     }
     body[req->content_len] = '\0';
     size_t received = 0;
     int timeouts = 0;
+    const int64_t started = esp_timer_get_time();
+    // The watch holds a read that blocks to it too, as one waiting on a TLS record can.
+    portal_watch_deadline(req, started + kBodyDeadlineUs);
     while (received < req->content_len) {
+        if (esp_timer_get_time() - started > kBodyDeadlineUs) {
+            portal_send_err(req, HTTPD_408_REQ_TIMEOUT, "body not received in time");
+            portal_mark_body_unread(req);
+            return false;
+        }
         const int chunk = httpd_req_recv(req, body + received, req->content_len - received);
         // The server answers one request at a time, so a client that announces a body and
         // never sends it must not hold the portal for good.
@@ -486,9 +620,24 @@ bool portal_read_body(httpd_req_t* req, char* body, size_t limit) {
         }
         if (chunk <= 0) {
             portal_send_err(req, HTTPD_400_BAD_REQUEST, "body not received");
+            portal_mark_body_unread(req);
             return false;
         }
         received += static_cast<size_t>(chunk);
+    }
+    portal_watch_deadline(req, 0);
+    portal_mark_body_read(req);
+    return true;
+}
+
+bool portal_read_text(httpd_req_t* req, char* body, size_t limit) {
+    if (!portal_read_body(req, body, limit)) {
+        return false;
+    }
+    // Read as a C string from here on, what follows a NUL would never be looked at.
+    if (!body_is_text(body, req->content_len)) {
+        portal_send_err(req, HTTPD_400_BAD_REQUEST, "the body holds a NUL byte");
+        return false;
     }
     return true;
 }
@@ -514,6 +663,8 @@ bool portal_https_running() {
 }
 
 bool start_portal(State& state) {
+    // Its failure leaves pages asking now and then, as they did before, and nothing else.
+    portal_events_start(state);
     const esp_err_t err = start_all(state);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "portal failed: %s", esp_err_to_name(err));

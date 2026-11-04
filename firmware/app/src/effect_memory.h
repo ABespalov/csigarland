@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "garland_state.h"
 
@@ -22,7 +23,7 @@ struct StoredSettings {
     uint8_t brightness_percent = 0;
     uint8_t speed_x4 = 0;
     char effect_id[33] = {};  // By id, so a change in the catalog cannot point it at another effect.
-    uint8_t playing = 0;
+    uint8_t playing = 0;  // 0 or 1, and nothing else, as 1.0.0 reads any other value as on.
     int64_t choice_epoch = 0;  // When this was chosen, 0 with no clock then.
 };
 
@@ -64,6 +65,23 @@ constexpr int64_t catch_up_first_minute(int64_t last_minute, int64_t now_minute,
     const int64_t oldest = now_minute - kMaxCatchUpMinutes + 1;
     const int64_t first = next > oldest ? next : oldest;
     return choice_minute <= now_minute && choice_minute >= first ? choice_minute + 1 : first;
+}
+
+// The moment a save of the settings, with the clock known, is dated by, now being the clock's reading.
+// An owner's choice by its own moment, owner_choice, -1 for none, as the save comes up to 10 s after it
+// and a step in between would else fall behind it at the next start; one made before the clock was known
+// as at first_known, which it outranks no step after. What a scheduled step did since the choice by now,
+// as the step is the newer: but for steps from minute wait_from on that wait for the playlist, -1 for none,
+// as just before the first of those, which the next start then still has to do.
+constexpr int64_t save_epoch(int64_t now, int64_t owner_choice, int64_t first_known, int64_t last_step, int64_t wait_from) {
+    if (owner_choice >= 0) {
+        const int64_t choice = owner_choice > first_known ? owner_choice : first_known;
+        if (choice >= last_step) {
+            return choice < now ? choice : now;
+        }
+    }
+    const int64_t before_waiting = wait_from * 60 - 1;
+    return wait_from >= 0 && before_waiting < now ? before_waiting : now;
 }
 
 // How long a failed save of that time waits to try again. Nothing else would write it while the
@@ -111,6 +129,7 @@ struct Remembered {
     uint8_t brightness_percent = 0;
     uint8_t speed_x4 = 0;
     bool playing = false;
+    bool playlist = false;  // Saved apart from the rest: see settings_save_playlist_playing.
 
     bool operator==(const Remembered&) const = default;
 };
@@ -134,7 +153,8 @@ public:
             waiting_ = true;
             candidate_ = current;
             since_ms_ = now_ms;
-            return current.playing != saved_.playing;
+            // As a playlist stopped, or started, at once too: a power cut must not bring back the other.
+            return current.playing != saved_.playing || current.playlist != saved_.playlist;
         }
         return now_ms - since_ms_ >= kMemorySaveDelayMs;
     }

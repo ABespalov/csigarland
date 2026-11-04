@@ -224,6 +224,10 @@ static void test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack(
     TEST_ASSERT_NULL(json_parse_body("{\"brightness\":25}garbage", 24));
     TEST_ASSERT_NULL(json_parse_body("{\"a\":1}{\"a\":2}", 14));
     TEST_ASSERT_NULL(json_parse_body("{\"a\":1}\0{\"a\":2}", 15));
+    // An effect's file is read as text all the way, as its routes take it: a NUL anywhere refuses it.
+    TEST_ASSERT_TRUE(body_is_text("{\"layers\":[]}", 13));
+    TEST_ASSERT_FALSE(body_is_text("{\"layers\":[]}\0garbage", 21));
+    TEST_ASSERT_FALSE(body_is_text("\0", 1));
 
     std::string deep;
     deep.append(4000, '[');
@@ -256,7 +260,7 @@ static void test_favourites_follow_uploads_by_id() {
     mask.set(0, true);
     mask.set(static_cast<size_t>(position), true);
     char text[kFavoritesTextBytes];
-    favorites_to_text(mask, text, sizeof(text));
+    TEST_ASSERT_TRUE(favorites_to_text(mask, text, sizeof(text)));
     const EffectMask read_back = favorites_from_text(text);
     TEST_ASSERT_TRUE(read_back.test(0));
     TEST_ASSERT_TRUE(read_back.test(static_cast<size_t>(position)));

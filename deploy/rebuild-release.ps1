@@ -112,18 +112,20 @@ if ($FirmwareManifest) {
         throw "This checkout is firmware $iniBase, and the release $($version.Base): check out the release's sources first."
     }
     $source = Get-csiGarlandSourceIdentity -RepoRoot $RepoRoot
-    if ($release.source_sha256 -and $source.source_sha256 -ne $release.source_sha256) {
+    # A manifest of 1.0.0 records its digest in an older form, which says nothing here: the files decide.
+    $comparable = $release.PSObject.Properties['source_format'] -and $release.source_format -eq $source.source_format
+    if ($comparable -and $source.source_sha256 -ne $release.source_sha256) {
         Write-Warning "The firmware sources here are not the ones the release records ($($source.source_sha256) against $($release.source_sha256)): expect them to differ."
     }
 
-    $saved = @{ Root = $env:CSIGARLAND_RELEASE_ROOT; Number = $env:CSIGARLAND_BUILD_NUMBER; Throwaway = $env:CSIGARLAND_THROWAWAY_SIGNING; Profile = $env:CSIGARLAND_PROFILE }
+    $saved = @{ Root = $env:CSIGARLAND_RELEASE_ROOT; Number = $env:CSIGARLAND_BUILD_NUMBER; Throwaway = $env:CSIGARLAND_THROWAWAY_SIGNING }
+    $environment = Get-csiGarlandFirmwareEnvironment -BuildProfile $version.Profile
     try {
         $env:CSIGARLAND_RELEASE_ROOT = [System.IO.Path]::GetFullPath($Root)
         $env:CSIGARLAND_BUILD_NUMBER = "$($version.Number)"
-        $env:CSIGARLAND_PROFILE = $version.Profile.ToLowerInvariant()
         Remove-Item Env:CSIGARLAND_THROWAWAY_SIGNING -ErrorAction SilentlyContinue
         Write-Host "Building firmware $($release.version) again."
-        & pio run -d $FirmwareDir -e esp32c6 2>&1 | ForEach-Object { $line = $_.ToString(); if ($line -match 'error|SUCCESS|FAILED|CSIGARLAND_VERSION') { Write-Host $line } }
+        & pio run -d $FirmwareDir -e $environment 2>&1 | ForEach-Object { $line = $_.ToString(); if ($line -match 'error|SUCCESS|FAILED|CSIGARLAND_VERSION') { Write-Host $line } }
         if ($LASTEXITCODE -ne 0) {
             throw "The firmware's build failed with exit code $LASTEXITCODE."
         }
@@ -131,9 +133,8 @@ if ($FirmwareManifest) {
         $env:CSIGARLAND_RELEASE_ROOT = $saved.Root
         $env:CSIGARLAND_BUILD_NUMBER = $saved.Number
         $env:CSIGARLAND_THROWAWAY_SIGNING = $saved.Throwaway
-        $env:CSIGARLAND_PROFILE = $saved.Profile
     }
-    $all = (Show-Verdict -What 'firmware image' -Made (Get-Sha256 (Join-Path $FirmwareDir '.pio\build\esp32c6\firmware.bin')) -Released $release.image_sha256) -and $all
+    $all = (Show-Verdict -What 'firmware image' -Made (Get-Sha256 (Join-Path $FirmwareDir ".pio\build\$environment\firmware.bin")) -Released $release.image_sha256) -and $all
     $all = (Show-Verdict -What 'effects pack' -Made (Get-Sha256 (Join-Path $FirmwareDir 'generated\effects.pack')) -Released $release.pack_sha256) -and $all
 }
 

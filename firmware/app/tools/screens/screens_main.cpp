@@ -86,6 +86,17 @@ struct Picture {
 
 const Picture kPictures[] = {
     {"playing", ScreenId::Playing, [](State&) {}},
+    // The longest title there is: the last of a full playlist.
+    {"playing-playlist", ScreenId::Playing, [](State& state) {
+         state.set_effect_count(kMaxPlaylistEffects);
+         uint16_t effects[kMaxPlaylistEffects];
+         for (uint16_t i = 0; i < kMaxPlaylistEffects; ++i) {
+             effects[i] = i;
+         }
+         state.set_playlist(effects, kMaxPlaylistEffects, kPlaylistDwellDefaultSeconds);
+         state.play_playlist(true);
+         state.advance_playlist(0, kMaxPlaylistEffects - 1, state.snapshot().playlist_mark);
+     }},
     {"standby", ScreenId::Standby, [](State& state) {
          state.set_power(false);
          state.set_action_soon(false);

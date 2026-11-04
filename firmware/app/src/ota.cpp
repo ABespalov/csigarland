@@ -18,6 +18,7 @@
 #include "esp_app_desc.h"
 #include "esp_image_format.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_ota_ops.h"
 #include "esp_random.h"
 #include "esp_system.h"
@@ -27,8 +28,10 @@
 #include "mbedtls/pk.h"
 #include "mbedtls/x509_crt.h"
 #include "ota_logic.h"
+#include "portal_watch.h"
 #include "ota_root_certificate.h"
 #include "psa/crypto.h"
+#include "scheduler.h"
 
 namespace garland {
 namespace {
@@ -38,6 +41,7 @@ const char* const TAG = "ota";
 constexpr size_t kChunkBytes = 1460;
 constexpr int kReceiveTimeoutsAllowed = 3;
 constexpr uint32_t kRestartDelayMs = 1500;
+constexpr uint32_t kRestartSaveWaitMs = 3000;
 constexpr int kConfirmAttempts = 5;
 constexpr uint32_t kConfirmRetryMs = 5000;
 constexpr uint32_t kTaskStackBytes = 3072;
@@ -45,12 +49,32 @@ constexpr size_t kDigestBytes = kOtaDigestBytes;
 constexpr int kLightingWaitMs = 1500;  // Longer than a probe, the longest it is ever busy.
 constexpr int kLightingWaitStepMs = 5;
 
-std::atomic<bool> s_restarting{false};
+// Which one of the two may go on: an update being received, or a restart. Taken whole, so one never
+// begins while the other does, as a renewal of the certificate could restart the garland halfway through
+// an update.
+// Reserved is a restart taken and not yet asked for, which only its taker gives back; Restarting is asked.
+enum class Turn : uint8_t { Free, Receiving, Reserved, Restarting };
+std::atomic<Turn> s_turn{Turn::Free};
+
+// A file sent a byte now and then never runs into the server's timeout: its header and certificate have
+// 15 s, and the whole of it a minute and as long again as it takes at 8 KB/s, well past what the slowest
+// Wi-Fi it works over needs.
+constexpr int64_t kUploadHeaderUs = 15 * 1000 * 1000;
+constexpr int64_t kUploadBaseUs = 60 * 1000 * 1000;
+constexpr int64_t kUploadUsPerByte = 1000 * 1000 / (8 * 1024);
+int64_t s_upload_deadline_us = 0;  // The server handles one request at a time.
+
+bool upload_overdue() {
+    return esp_timer_get_time() > s_upload_deadline_us;
+}
 
 bool read_exact(httpd_req_t* req, uint8_t* out, size_t length) {
     size_t received = 0;
     int timeouts = 0;
     while (received < length) {
+        if (upload_overdue()) {
+            return false;
+        }
         const int chunk = httpd_req_recv(req, reinterpret_cast<char*>(out) + received, length - received);
         if (chunk == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= kReceiveTimeoutsAllowed) {
             continue;
@@ -142,6 +166,10 @@ const char* receive_part(httpd_req_t* req, uint32_t bytes, const std::array<uint
     size_t written = 0;
     int timeouts = 0;
     while (written < bytes) {
+        if (upload_overdue()) {
+            psa_hash_abort(&hash);
+            return "the connection was lost: the file came too slowly";
+        }
         const size_t wanted = std::min<size_t>(s_chunk.size(), bytes - written);
         const int chunk = httpd_req_recv(req, reinterpret_cast<char*>(s_chunk.data()), wanted);
         if (chunk == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= kReceiveTimeoutsAllowed) {
@@ -251,12 +279,19 @@ void wait_for_lighting(const State& state) {
 
 const char* install(httpd_req_t* req, State& state, OtaInstalled& installed) {
     static std::array<uint8_t, kOtaHeaderBytes> s_header;
-    if (req->content_len < s_header.size() || !read_exact(req, s_header.data(), s_header.size())) {
-        return "not a csiGarland update file";
-    }
     const esp_partition_t* slot = esp_ota_get_next_update_partition(nullptr);
     if (slot == nullptr) {
         return "no update slot: this board needs one flash over USB first";
+    }
+    // By the length it says it has, before a byte is read: one no garland could take is refused at once.
+    if (req->content_len > uint64_t{kOtaHeaderBytes} + kOtaMaxCertificateBytes + pack_store_capacity() + slot->size) {
+        return "the update file is larger than this garland takes";
+    }
+    s_upload_deadline_us = esp_timer_get_time() + kUploadHeaderUs;
+    // And a read that blocks, as on a TLS record, is held to it by the watch.
+    portal_watch_deadline(req, s_upload_deadline_us);
+    if (req->content_len < s_header.size() || !read_exact(req, s_header.data(), s_header.size())) {
+        return "not a csiGarland update file";
     }
     OtaHeader header;
     const char* problem =
@@ -267,6 +302,8 @@ const char* install(httpd_req_t* req, State& state, OtaInstalled& installed) {
     if (problem != nullptr) {
         return problem;
     }
+    s_upload_deadline_us = esp_timer_get_time() + kUploadBaseUs + static_cast<int64_t>(req->content_len) * kUploadUsPerByte;
+    portal_watch_deadline(req, s_upload_deadline_us);
     // A restart now would count against the new firmware, and any update ends in one.
     if (ota_on_trial()) {
         return "the running firmware is still on trial: try again in a minute";
@@ -312,9 +349,19 @@ const char* install(httpd_req_t* req, State& state, OtaInstalled& installed) {
     return nullptr;
 }
 
-void restart_task(void*) {
-    vTaskDelay(pdMS_TO_TICKS(kRestartDelayMs));
+// What is chosen up to now is saved first, as an Off of the countdown during an update. Waited for a
+// little, as a restart that cannot wait for ever must still come: what was installed stands either way.
+void restart_after_saving() {
+    if (!scheduler_saved_before_restart(kRestartSaveWaitMs)) {
+        ESP_LOGW(TAG, "restarting with the last change of the settings not saved; what was installed stands");
+    }
     esp_restart();
+}
+
+void restart_task(void*) {
+    scheduler_save_before_restart();
+    vTaskDelay(pdMS_TO_TICKS(kRestartDelayMs));
+    restart_after_saving();
 }
 
 // From the start of a trial until the flash has been seen to hold its end, whatever it says meanwhile.
@@ -376,25 +423,41 @@ void go_back_now() {
 }  // namespace
 
 const char* ota_receive(httpd_req_t* req, State& state, OtaInstalled& installed) {
-    // A second update in that moment would start by erasing the slot the first has just written.
-    if (s_restarting.load()) {
+    // A second update in that moment would start by erasing the slot the first has just written, and a
+    // restart under way would cut this one short.
+    Turn free = Turn::Free;
+    if (!s_turn.compare_exchange_strong(free, Turn::Receiving)) {
         return "the garland is restarting: send this again after that";
     }
     const char* const problem = install(req, state, installed);
+    portal_watch_deadline(req, 0);
     if (problem != nullptr) {
         // The screen stays on the update message only when a restart follows.
         state.set_update_percent(kNoUpdate);
+        s_turn.store(Turn::Free);
     }
     return problem;
 }
 
 void ota_restart_soon() {
-    s_restarting.store(true);
+    s_turn.store(Turn::Restarting);
     if (xTaskCreate(restart_task, "ota_restart", kTaskStackBytes, nullptr, tskIDLE_PRIORITY + 1, nullptr) != pdPASS) {
         // Whatever needed the restart is done and answered, and the screen says one is coming.
-        ESP_LOGE(TAG, "no task to wait in: restarting now");
-        esp_restart();
+        ESP_LOGE(TAG, "no task to wait in: restarting once the settings are saved");
+        scheduler_save_before_restart();
+        restart_after_saving();
     }
+}
+
+bool ota_reserve_restart() {
+    Turn free = Turn::Free;
+    return s_turn.compare_exchange_strong(free, Turn::Reserved);
+}
+
+// Only a reservation still unused: a restart asked for meanwhile, by a new name or domain saved, stands.
+void ota_release_restart() {
+    Turn reserved = Turn::Reserved;
+    s_turn.compare_exchange_strong(reserved, Turn::Free);
 }
 
 size_t ota_slot_bytes() {

@@ -29,12 +29,21 @@ const char* csg_algorithm_name(int index);
 int csg_figurine_count(void);
 const char* csg_figurine_name(int index);
 void csg_reset(void);
-// The frame at time_ms, at a brightness of 1 to 100 percent, as the garland would send it.
-void csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rgb, int count);
+// The frame at time_ms, at a brightness of 1 to 100 percent, as the garland would send it. Returns the
+// current the firmware's model says it draws, in mA, before the limit holds it back.
+uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rgb, int count);
 // A run apart from the preview: a renderer of its own from a fixed seed, and the loaded file drawn
 // on it at full brightness.
 void csg_run_start(void);
 void csg_run_render(uint32_t time_ms, uint8_t* rgb, int count);
+// The current a frame of the run draws at a brightness, as csg_render says it, drawing nothing.
+uint32_t csg_run_current(uint32_t time_ms, int brightness_percent, int count);
+// What a chain of count LEDs draws all dark, by the firmware's model: what no brightness scales.
+uint32_t csg_idle_current(int count);
+// The firmware's gain for a brightness in percent, of 65536 at full.
+uint32_t csg_brightness_gain(int brightness_percent);
+// The firmware's limit, CSIGARLAND_POWER_LIMIT_MA, as the cgo flags give it.
+#define CSG_POWER_LIMIT_MA CSIGARLAND_POWER_LIMIT_MA
 
 #ifdef __cplusplus
 }

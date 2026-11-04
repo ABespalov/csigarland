@@ -53,6 +53,7 @@ const (
 	queueLength  = 64
 	requestLimit = 30 * time.Second
 	pollEvery    = 3 * time.Second
+	aboutEvery   = time.Minute // With no stream: see refreshState.
 	logPollEvery = 2 * time.Second
 	windowWidth  = unit.Dp(1040)
 	windowHeight = unit.Dp(860)
@@ -120,8 +121,19 @@ type App struct {
 	journalUnseen int
 	journalButton widget.Clickable
 
-	about api.About
-	state api.State
+	about   api.About
+	state   api.State
+	pushing bool // A stream of the garland's state is open: see listen.
+	// A state is to be asked for though a stream is open, as one pushed was passed over: see rereadState.
+	// Kept until a state is taken, through a request that failed.
+	mustRead bool
+	// Counts the states taken from the stream: one asked for before the count moved is older news.
+	pushes int
+	// What the garland says of itself is to be asked for again, as after a stream opened again, until it is.
+	aboutStale bool
+	aboutAt    time.Time // When About was last asked for by refreshState.
+	stateAt    time.Time // When the garland's state last came, pushed or asked for.
+	trialImage string    // The image last seen on trial, see takeAbout.
 
 	connect  connectPage
 	effects  effectsPage
@@ -339,6 +351,7 @@ func (a *App) disconnect() {
 	a.endConnection()
 	a.connection, a.endConnection = context.WithCancel(a.lifetime)
 	a.connected = false
+	a.pushing = false
 	if a.client != nil {
 		a.client.Close()
 		a.client = nil
@@ -417,6 +430,7 @@ func (a *App) useClient(client *api.Client) {
 	a.online = stateChecking
 	a.open(a.page)
 	a.lookForUpdate()
+	a.listen()
 }
 
 func (a *App) refreshAbout() {
@@ -424,7 +438,7 @@ func (a *App) refreshAbout() {
 		about, err := client.About(ctx)
 		return func() {
 			if err == nil {
-				a.about = about
+				a.takeAbout(about)
 			}
 		}, err
 	})
@@ -494,10 +508,20 @@ func (a *App) refreshState() {
 	if a.effects.sending || a.client == nil || a.stateAsked {
 		return
 	}
+	// What a stream brings need not be asked for, but what is said of a firmware on trial, or what a
+	// change of the window's own may have missed while it was on its way: see rereadState.
+	if a.pushing && !a.mustRead && !a.aboutStale && a.about.Version != "" && !a.about.OnTrial {
+		return
+	}
 	a.stateAsked = true
-	changes := a.effects.changes
-	// What comes with a restart or a confirmation, and nothing else tells of them.
-	wantAbout := a.about.Version == "" || a.about.OnTrial
+	changes, pushes := a.effects.changes, a.pushes
+	// What comes with a restart or a confirmation, and nothing else tells of them. With no stream, as
+	// with both of the garland's taken by others, now and then too: an update sent from elsewhere
+	// restarts it with nothing else to say so.
+	wantAbout := a.about.Version == "" || a.about.OnTrial || a.aboutStale || (!a.pushing && time.Since(a.aboutAt) >= aboutEvery)
+	if wantAbout {
+		a.aboutAt = time.Now()
+	}
 	a.background(func(ctx context.Context, client *api.Client) (func(), error) {
 		state, err := client.State(ctx)
 		var about api.About
@@ -507,19 +531,70 @@ func (a *App) refreshState() {
 		}
 		return func() {
 			a.stateAsked = false
-			// Asked before a change made since, or with one on its way, so it could only take that back.
-			if err == nil && changes == a.effects.changes && a.effects.commands == 0 {
+			// Asked before a change made since, or with one on its way, so it could only take that back:
+			// the next look asks again, as a state pushed meanwhile may have been passed over too. A state
+			// pushed and taken since is newer, and says all there is.
+			switch {
+			case err != nil:
+			case pushes != a.pushes:
+			case changes == a.effects.changes && a.effects.commands == 0:
+				a.mustRead = false
 				a.takeState(state)
+			default:
+				a.mustRead = true
 			}
 			if aboutErr == nil {
-				a.about = about
+				a.takeAbout(about)
 			}
 		}, err
 	})
 }
 
+// takeAbout keeps what the garland says of itself, and while its firmware is on trial says in the footer
+// when it confirms itself: after a restart the update's own watch is gone, or never ran here.
+func (a *App) takeAbout(about api.About) {
+	was := a.about.OnTrial
+	// Another firmware may have routes the one before had not, as 1.1.0's day of 1.0.0: asked again.
+	if about.Image != a.about.Image {
+		a.schedule.timelineNone = false
+	}
+	if about.OnTrial {
+		// The image on trial, so that the end of the trial can be told apart: the same image confirmed,
+		// or another, the one before, gone back to.
+		a.trialImage = about.Image
+	}
+	a.about = about
+	a.aboutStale = false
+	if a.firmware.busy {
+		return
+	}
+	switch {
+	case about.OnTrial:
+		a.progress(TrialText(about.TrialLeft))
+	case was && a.trialImage != "" && about.Image != a.trialImage:
+		a.reportError(fmt.Errorf("the new firmware did not confirm itself: the garland went back to %s", about.Version))
+		a.trialImage = ""
+	case was:
+		a.report("The new firmware confirmed itself.")
+		a.trialImage = ""
+	}
+}
+
+// TrialText says how long a firmware on trial has before it confirms itself.
+func TrialText(left int) string {
+	if left <= 0 {
+		return "The firmware is on trial: it confirms itself any moment now..."
+	}
+	return fmt.Sprintf("The firmware is on trial: it confirms itself within %d s...", left)
+}
+
 func (a *App) takeState(state api.State) {
+	// A change of the power since the day was read is a step done, or a choice: the day is read again.
+	if state.Power != a.state.Power {
+		a.schedule.timelineTried = time.Time{}
+	}
 	a.state = state
+	a.stateAt = time.Now()
 	a.effects.markActive(state.Effect)
 }
 

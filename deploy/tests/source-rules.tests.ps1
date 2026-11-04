@@ -267,6 +267,13 @@ foreach ($name in @('cJSON.c', 'cJSON.h')) {
     }
 }
 
+# The site's Russian pages are made from its English ones, and are held to what they would make now.
+try {
+    & (Join-Path $PSScriptRoot '..\site-pages.ps1') -Check 6>$null | Out-Null
+} catch {
+    $problems.Add("site/ru: $($_.Exception.Message)")
+}
+
 if ($problems.Count -gt 0) {
     $problems | ForEach-Object { Write-Host $_ }
     throw "$($problems.Count) source rule problems."

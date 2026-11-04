@@ -8,7 +8,7 @@ A fresh clone has no keys. A build fails until you make them, and it does not ma
 pwsh -File deploy\new-signing-certificate.ps1
 ```
 
-That needs ESP-IDF's Python. On a new machine the script first makes a test build, which installs it, as a build for real stops at the missing keys before it gets that far. See sections 3 and 4 of [Building](../docs/guides/build-and-flash.md).
+That needs a Python with the `cryptography` version `firmware/app/scripts/ota_signing.py` pins, and no build first. The script takes the first that holds it of: the Python `pio` runs from, as `pio system info` names it, or found beside `pio.exe` or one folder above; PlatformIO's own in `~/.platformio/penv`; ESP-IDF's environments there, newest first. With none, it installs the pinned version into PlatformIO's own, never into another Python. With PlatformIO installed by `pip`, into a virtual environment of the project's or for the user, install the two together, `pip install platformio cryptography` in the versions [Building](../docs/guides/build-and-flash.md) names in its section 1, and nothing else is needed. Sections 3 and 4 there say the rest.
 
 | File | What it is | Where it belongs |
 |---|---|---|

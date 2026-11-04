@@ -41,6 +41,27 @@ inline constexpr char kPageEffects[] = R"html(
     </p>
     <p class="s" id="upload-status" role="status"></p>
   </details>
+  <details id="playlist-box">
+    <summary id="playlist-title">Playlist</summary>
+    <div id="playlist-editor">
+    <p class="m">Plays these effects in turn, each for its time, one giving way to the next. Choosing a single effect, here or by a button, stops it. The fade between effects holds for every change of effect.</p>
+    <ol id="playlist"></ol>
+    <p class="r">
+      <select id="playlist-choice" aria-label="Effect to add to the playlist"></select>
+      <button data-g="add" type="button" class="q" id="playlist-add">Add</button>
+    </p>
+    <label for="playlist-dwell">Each effect plays, seconds</label>
+    <input type="number" id="playlist-dwell" min="10" max="3600" value="60">
+    <label for="playlist-fade">Fade from one effect to the next, ms</label>
+    <input type="number" id="playlist-fade" min="0" max="5000" step="100" value="1000">
+    <p class="r">
+      <button data-g="save" type="button" id="playlist-save">Save playlist</button>
+      <button data-g="play" type="button" class="q" id="playlist-play">Play the playlist</button>
+    </p>
+    </div>
+    <p class="s" id="playlist-status" role="status"></p>
+    <p class="r"><button data-g="restore" type="button" class="q" id="playlist-read" hidden>Read the playlist again</button></p>
+  </details>
   <details id="planned-box" hidden>
     <summary class="m" id="planned-title"></summary>
     <ul class="p" id="planned"></ul>
@@ -83,6 +104,16 @@ inline constexpr char kPageEffects[] = R"html(
       list.append(item);
     }
     showNow();
+    showPlaylist();
+  }
+
+  /* A list from the garland marks what played when it was made, which a state heard since may have
+     changed: the state heard is newer, unless a choice of this page's is still on its way. */
+  function takeEffects(data) {
+    if (garland !== null && !effectBeingSent) {
+      for (const effect of data.effects) effect.active = effect.id === garland.effect;
+    }
+    showEffects(data);
   }
 
   // The state as last heard, which a button on the garland can change at any time.
@@ -92,7 +123,8 @@ inline constexpr char kPageEffects[] = R"html(
     if (garland === null) return;
     const favorites = effectList.filter((effect) => effect.favorite).length;
     $('now-effects').textContent = `${effectList.length}, ${favorites} in favourites`;
-    $('now-mode').textContent = garland.power ? 'On' : 'Off';
+    $('now-mode').textContent = (garland.power ? 'On' : 'Off') + (garland.playlist ? `, playlist ${garland.playlist_at}/${garland.playlist_size}` : '');
+    glyph($('playlist-play'), garland.playlist ? 'close' : 'play', garland.playlist ? 'Stop the playlist' : 'Play the playlist', undefined, true);
     $('now-effect').textContent = garland.effect_name;
     $('now-brightness-text').textContent = `${garland.brightness}%`;
     $('now-speed-text').textContent = `${garland.speed}x`;
@@ -106,7 +138,12 @@ inline constexpr char kPageEffects[] = R"html(
   let heldSlider = null;
   let wantedMode = null;
   let modeBeingSent = false;
-  let modeChanges = 0;
+  // Moves with every change made here and every state pushed: a state asked for before it is older news.
+  let nowChanges = 0;
+  /* The state is to be asked for though the stream is open: one pushed was passed over while a change of
+     this page's was on its way, whose answer may be older, or the page's own change wants reading back.
+     Kept until a look succeeds, through a hidden tab and a failed request. */
+  let mustRead = false;
 
   // As with effects: one request out, and the next carries the latest, however fast the slider
   // moves. The garland keeps up as it goes, and saves once it has settled.
@@ -115,7 +152,7 @@ inline constexpr char kPageEffects[] = R"html(
     garland = { ...garland, ...change };
     showNow();
     wantedMode = { ...wantedMode, ...change };
-    modeChanges++;
+    nowChanges++;
     if (modeBeingSent) return;
     modeBeingSent = true;
     let failed = false;
@@ -123,15 +160,16 @@ inline constexpr char kPageEffects[] = R"html(
       const next = wantedMode;
       wantedMode = null;
       try {
-        const answer = await request('/api/state', next);
+        const answer = await request('/api/state', next, deadline(10000));
         if (wantedMode === null) garland = answer;
       } catch (error) {
         failed = true;
-        report('effects-status', error.message, true);
+        report('effects-status', failureText(error), true);
       }
     }
     modeBeingSent = false;
-    if (failed) refreshNow();
+    if (failed) mustRead = true;
+    if (mustRead) refreshNow();
     else showNow();
   }
 
@@ -142,13 +180,25 @@ inline constexpr char kPageEffects[] = R"html(
   addEventListener('pointerup', () => { heldSlider = null; });
   addEventListener('pointercancel', () => { heldSlider = null; });
 
+  /* Asks for the state while there is no stream, or while mustRead says the stream's may have been
+     passed over, as it says each change only once. */
   async function refreshNow() {
     if (document.hidden || effectBeingSent || modeBeingSent) return;
-    const changesBefore = modeChanges;
+    if (!mustRead && pushed !== null && pushed.readyState === EventSource.OPEN) return;
+    const changesBefore = nowChanges;
     try {
       const heard = await request('/api/state');
-      // Asked before a change that has been made since, so it can only take that back.
-      if (changesBefore !== modeChanges) return;
+      // Asked before a change made or pushed since, so it can only take that back: the next look asks again.
+      if (changesBefore !== nowChanges) return;
+      mustRead = false;
+      takeNow(heard);
+    } catch (error) {
+      // The next look may do better, and the list below says what is wrong.
+    }
+  }
+
+  // What the garland says it does now, asked for or pushed.
+  function takeNow(heard) {
       garland = heard;
       const active = effectList.find((effect) => effect.active);
       // One not in the list, as a file previewed, marks none, and no look need draw the list again.
@@ -159,10 +209,55 @@ inline constexpr char kPageEffects[] = R"html(
       } else {
         showNow();
       }
-    } catch (error) {
-      // The next look may do better, and the list below says what is wrong.
-    }
   }
+
+  /* Pushed by the garland as it changes. While the stream is open the page asks nothing; when it is
+     not, as with a garland of 1.0.0 or two streams open elsewhere, it asks every few seconds. */
+  let pushed = null;
+  /* The garland says it is there every 15 s: a stream with nothing heard for 45 s has fallen silent,
+     and is closed, so the page asks as with none, and opens another a while later. */
+  const SILENT_MS = 45000;
+  const REOPEN_MS = 60000;
+  /* A stream the garland refused, as with two open elsewhere, ends closed, and the browser does not try
+     again by itself: the page does, waiting longer each time, up to five minutes. */
+  const REFUSED_FIRST_MS = 10000;
+  let refusedWait = REFUSED_FIRST_MS;
+  let heardAt = 0;
+  function openStream() {
+    if (!window.EventSource) return;
+    heardAt = Date.now();
+    pushed = new EventSource('/api/events');
+    pushed.addEventListener('open', () => { refusedWait = REFUSED_FIRST_MS; });
+    pushed.addEventListener('alive', () => { heardAt = Date.now(); });
+    pushed.addEventListener('state', (event) => {
+      heardAt = Date.now();
+      if (effectBeingSent || modeBeingSent) {
+        mustRead = true;
+        return;
+      }
+      try {
+        const heard = JSON.parse(event.data);
+        nowChanges++;
+        takeNow(heard);
+      } catch (error) {
+        // A word the page cannot read is passed over: the next one, or a look, does better.
+      }
+    });
+  }
+  openStream();
+  setInterval(() => {
+    if (pushed !== null && pushed.readyState === EventSource.CLOSED) {
+      pushed = null;
+      setTimeout(openStream, refusedWait);
+      refusedWait = Math.min(refusedWait * 2, 300000);
+      return;
+    }
+    if (pushed === null || pushed.readyState !== EventSource.OPEN || Date.now() - heardAt < SILENT_MS) return;
+    pushed.close();
+    pushed = null;
+    refreshNow();
+    setTimeout(openStream, REOPEN_MS);
+  }, 5000);
 
   function effectRow(effect) {
       const row = document.createElement('li');
@@ -223,6 +318,7 @@ inline constexpr char kPageEffects[] = R"html(
       const file = await chosenFile();
       await send('/api/effects/preview', 'POST', await file.text());
       report('upload-status', `Playing ${file.name}. Nothing is saved; choose another effect to end it.`, false);
+      mustRead = true;
       refreshNow();
       for (const effect of effectList) effect.active = false;
       showEffects({ effects: effectList });
@@ -247,7 +343,7 @@ inline constexpr char kPageEffects[] = R"html(
   let uploadLimit = 8192;
 
   function loadEffects() {
-    request('/api/effects').then(showEffects).catch((error) => report('effects-status', error.message, true));
+    request('/api/effects').then(takeEffects).catch((error) => report('effects-status', error.message, true));
     request('/api/effects/store').then((store) => {
       uploadLimit = store.max_file_bytes;
       $('upload-save').disabled = !store.available;
@@ -282,19 +378,21 @@ inline constexpr char kPageEffects[] = R"html(
     for (const effect of effectList) effect.active = effect.id === id;
     showEffects({ effects: effectList });
     wantedEffect = id;
+    nowChanges++;
     if (effectBeingSent) return;
     effectBeingSent = true;
     while (wantedEffect !== null) {
       const next = wantedEffect;
       wantedEffect = null;
       try {
-        await request('/api/effect', { id: next });
+        await request('/api/effect', { id: next }, deadline(10000));
       } catch (error) {
-        report('effects-status', error.message, true);
-        request('/api/effects').then(showEffects).catch(() => {});
+        report('effects-status', failureText(error), true);
+        request('/api/effects').then(takeEffects).catch(() => {});
       }
     }
     effectBeingSent = false;
+    mustRead = true;
     refreshNow();
   }
 
@@ -317,9 +415,101 @@ inline constexpr char kPageEffects[] = R"html(
     $('planned-box').hidden = false;
   }
 
+  /* Playlist: edited here, and sent whole with Save. */
+  let playlist = { effects: [], dwell: 60, cross_fade: 1000, max: 16 };
+
+  function showPlaylist() {
+    const names = Object.fromEntries(effectList.map((effect) => [effect.id, effect.name]));
+    $('playlist-title').textContent = `Playlist (${playlist.effects.length} of ${playlist.max})`;
+    $('playlist').replaceChildren(...playlist.effects.map((id, index) => {
+      const row = document.createElement('li');
+      row.className = 'x';
+      const name = document.createElement('span');
+      name.className = 'n';
+      /* One this garland lacks is kept by its id, and played once it is here again. */
+      name.textContent = names[id] || `${id} (not on this garland)`;
+      row.append(name, glyphButton('trash', 'Remove', `Remove ${names[id] || id} from the playlist`, 'z', () => {
+        playlist.effects.splice(index, 1);
+        showPlaylist();
+      }));
+      return row;
+    }));
+    /* What the owner picked stays picked while it can still be added, however often the list is drawn. */
+    const picked = $('playlist-choice').value;
+    $('playlist-choice').replaceChildren(...effectList.filter((effect) => !playlist.effects.includes(effect.id)).map((effect) => {
+      const option = document.createElement('option');
+      option.value = effect.id;
+      option.textContent = effect.name;
+      return option;
+    }));
+    if ([...$('playlist-choice').options].some((option) => option.value === picked)) $('playlist-choice').value = picked;
+    $('playlist-add').disabled = playlist.effects.length >= playlist.max || $('playlist-choice').options.length === 0;
+  }
+
+  /* The editor is out of reach until the garland's list has come: an edit made before it would be lost
+     to it, or saved over it. Its title, what went wrong and the way to read it again stay in reach. */
+  let playlistRead = false;
+
+  function takePlaylist(data) {
+    playlist = data;
+    playlistRead = true;
+    $('playlist-editor').inert = false;
+    $('playlist-read').hidden = true;
+    $('playlist-dwell').value = data.dwell;
+    $('playlist-fade').value = data.cross_fade;
+    showPlaylist();
+  }
+
+  $('playlist-add').addEventListener('click', () => {
+    if ($('playlist-choice').value) playlist.effects.push($('playlist-choice').value);
+    showPlaylist();
+  });
+  $('playlist-save').addEventListener('click', async () => {
+    report('playlist-status', '', false);
+    if (!$('playlist-dwell').reportValidity() || !$('playlist-fade').reportValidity()) return;
+    /* Out of reach while it is sent: its answer is the list as sent, and replaces the editor's. With the
+       revision it was read with, so a list another page or program saved since is not written over. */
+    $('playlist-editor').inert = true;
+    try {
+      takePlaylist(await request('/api/playlist', { effects: playlist.effects, dwell: Number($('playlist-dwell').value), cross_fade: Number($('playlist-fade').value), revision: playlist.revision }));
+      report('playlist-status', 'Playlist saved.', false);
+    } catch (error) {
+      report('playlist-status', `Could not save: ${error.message}`, true);
+      $('playlist-read').hidden = false;
+    } finally {
+      $('playlist-editor').inert = !playlistRead;
+    }
+  });
+  /* Reading it again puts the garland's list in place of what is in the editor. */
+  function readPlaylist() {
+    $('playlist-editor').inert = true;
+    $('playlist-read').hidden = true;
+    request('/api/playlist').then(takePlaylist).catch((error) => {
+      report('playlist-status', error.message, true);
+      $('playlist-read').hidden = false;
+      $('playlist-editor').inert = !playlistRead;
+    });
+  }
+  $('playlist-read').addEventListener('click', () => {
+    report('playlist-status', '', false);
+    readPlaylist();
+  });
+  $('playlist-play').addEventListener('click', async () => {
+    report('playlist-status', '', false);
+    try {
+      /* Whether it plays, and nothing of the editor's list, which may hold what is not saved yet. */
+      playlist.playing = (await request('/api/playlist/play', { play: !(garland && garland.playlist) })).playing;
+      mustRead = true;
+      refreshNow();
+    } catch (error) {
+      report('playlist-status', error.message, true);
+    }
+  });
+
   const NOW_POLL_MS = 5000;
 
   loadEffects();
+  readPlaylist();
   refreshNow();
   setInterval(refreshNow, NOW_POLL_MS);
   request('/api/effects/planned').then(showPlanned).catch(() => {});

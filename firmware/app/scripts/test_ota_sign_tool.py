@@ -184,6 +184,15 @@ def main() -> None:
         print(f"{'ok' if same else 'FAILED'}: two signings of the same parts are the same file")
         failed += [] if same else ["deterministic signing"]
         failed += verdict("a file the tool signed", signed[0], True)
+
+        # Held to the root the image trusts: the folder's own signs, another is refused and writes nothing.
+        root_sha = hashlib.sha256(x509.load_pem_x509_certificate((folder / "ota-root-ca.local.crt").read_bytes()).public_bytes(serialization.Encoding.DER)).hexdigest()
+        held = Path(scratch) / "held.ota"
+        refused = Path(scratch) / "refused.ota"
+        took = run_tool("sign", str(folder), str(pack_path), str(image_path), str(held), root_sha).returncode == 0
+        refuses = run_tool("sign", str(folder), str(pack_path), str(image_path), str(refused), "00" * 32).returncode != 0 and not refused.exists()
+        print(f"{'ok' if took and refuses else 'FAILED'}: signing is held to the root the image trusts")
+        failed += [] if took and refuses else ["the image's root"]
     if failed:
         raise SystemExit(f"{len(failed)} cases went wrong.")
     print("verify judges every case as the garland does.")

@@ -111,7 +111,7 @@ refresh `THIRD_PARTY_NOTICES.md` with `deploy/new-third-party-notices.ps1`.
 | File | Purpose |
 |---|---|
 | `README.md` | Repository entry point; no hardcoded component versions |
-| `CHANGELOG.md` | Public history of what changed for an owner |
+| `CHANGELOG.md` | What a release changed for an owner, against the release before it only |
 | `CONTRIBUTING.md` | Setting up, checking and proposing a change; points here for the rules |
 | `SECURITY.md` | Reporting a security problem; its accepted limits follow `docs/architecture.md` |
 | `docs/architecture.md` | How the firmware works, the portal API, the accepted risks |
@@ -207,7 +207,8 @@ Never place secrets, keys or real passwords in tracked documents or examples.
 
 The firmware build comes first, as the host tests use the cJSON it brings in.
 
-1. `pio run -d firmware/app -e esp32c6`
+1. `pio run -d firmware/app -e esp32c6 --disable-auto-clean`: the flag keeps the objects through a
+   change of `platformio.ini` or of the list of sources, see `docs/guides/build-and-flash.md`.
 2. `pio test -d firmware/app -e native`
 3. `pwsh -File deploy\tests\source-rules.tests.ps1`
 4. `pwsh -File deploy\tests\sensitive-data.tests.ps1`

@@ -32,15 +32,16 @@ struct Binding {
     Action down;
     Action click;
     Action long_press;
+    Action double_click;  // Only EFFECT has one: two quick clicks of the others do nothing, as before.
 };
 
 constexpr Binding kBindings[] = {
     {CSIGARLAND_BUTTON_RED_GPIO, [](State& s) { s.button_down(ButtonId::Power); }, [](State& s) { s.click_power(); },
-     [](State& s) { s.long_press_power(static_cast<uint32_t>(esp_timer_get_time() / 1000)); }},
+     [](State& s) { s.long_press_power(static_cast<uint32_t>(esp_timer_get_time() / 1000)); }, nullptr},
     {CSIGARLAND_BUTTON_WHITE_GPIO, [](State& s) { s.button_down(ButtonId::Effect); },
-     [](State& s) { s.click_effect(); }, [](State& s) { s.long_press_effect(); }},
+     [](State& s) { s.click_effect(); }, [](State& s) { s.long_press_effect(); }, [](State& s) { s.double_click_effect(); }},
     {CSIGARLAND_BUTTON_SPEED_GPIO, [](State& s) { s.button_down(ButtonId::Speed); },
-     [](State& s) { s.click_speed(); }, [](State& s) { s.long_press_speed(); }},
+     [](State& s) { s.click_speed(); }, [](State& s) { s.long_press_speed(); }, nullptr},
 };
 
 // Callback arguments live here so they outlast start_buttons().
@@ -55,6 +56,7 @@ constexpr size_t kBindingCount = sizeof(kBindings) / sizeof(kBindings[0]);
 CallbackArg s_down_args[kBindingCount];
 CallbackArg s_click_args[kBindingCount];
 CallbackArg s_long_args[kBindingCount];
+CallbackArg s_double_args[kBindingCount];
 
 // POWER and SPEED together answer a browser's request, and held on forget every browser. None
 // of the presses that make up the pair does what it would alone, up to the next fresh press,
@@ -101,7 +103,8 @@ void on_long_hold(void*, void*) {
     }
 }
 
-esp_err_t add_button(const Binding& binding, CallbackArg& down_arg, CallbackArg& click_arg, CallbackArg& long_arg) {
+esp_err_t add_button(const Binding& binding, CallbackArg& down_arg, CallbackArg& click_arg, CallbackArg& long_arg,
+                     CallbackArg& double_arg) {
     const button_config_t config = {
         .long_press_time = kLongPressMs,
         .short_press_time = 0,
@@ -123,6 +126,11 @@ esp_err_t add_button(const Binding& binding, CallbackArg& down_arg, CallbackArg&
                         TAG, "long press %d", binding.gpio);
     ESP_RETURN_ON_ERROR(iot_button_register_cb(button, BUTTON_LONG_PRESS_HOLD, nullptr, on_long_hold, nullptr), TAG,
                         "hold %d", binding.gpio);
+    // The component tells a double click apart from a click, and a click only once no second press came.
+    if (binding.double_click != nullptr) {
+        ESP_RETURN_ON_ERROR(iot_button_register_cb(button, BUTTON_DOUBLE_CLICK, nullptr, on_button_event, &double_arg), TAG,
+                            "double click %d", binding.gpio);
+    }
     return ESP_OK;
 }
 
@@ -134,7 +142,9 @@ bool start_buttons(State& state) {
         s_down_args[i] = CallbackArg{&state, kBindings[i].down, true, false};
         s_click_args[i] = CallbackArg{&state, kBindings[i].click, false, true};
         s_long_args[i] = CallbackArg{&state, kBindings[i].long_press, false, false};
-        const esp_err_t err = add_button(kBindings[i], s_down_args[i], s_click_args[i], s_long_args[i]);
+        // A click as far as a waiting request goes: it refuses it.
+        s_double_args[i] = CallbackArg{&state, kBindings[i].double_click, false, true};
+        const esp_err_t err = add_button(kBindings[i], s_down_args[i], s_click_args[i], s_long_args[i], s_double_args[i]);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "button on GPIO %d failed: %s", kBindings[i].gpio, esp_err_to_name(err));
             all_started = false;

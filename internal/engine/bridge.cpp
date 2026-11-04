@@ -9,6 +9,7 @@
  * The firmware's own sources, included rather than copied, as cgo builds only what is in its folder.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <iterator>
@@ -116,7 +117,7 @@ extern "C" void csg_run_render(uint32_t time_ms, uint8_t* rgb, int count) {
     }
 }
 
-extern "C" void csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rgb, int count) {
+extern "C" uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rgb, int count) {
     if (count > kMaxLeds) {
         count = kMaxLeds;
     }
@@ -133,4 +134,35 @@ extern "C" void csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rg
         rgb[i * 3 + 1] = to_screen(s_frame[i].g, s_lit[i].g, screen_gain);
         rgb[i * 3 + 2] = to_screen(s_frame[i].b, s_lit[i].b, screen_gain);
     }
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds));
+}
+
+// The firmware's own model of what a frame of the run draws at a brightness, before its limit holds it back.
+extern "C" uint32_t csg_run_current(uint32_t time_ms, int brightness_percent, int count) {
+    if (!s_runner) {
+        return 0;
+    }
+    if (count > kMaxLeds) {
+        count = kMaxLeds;
+    }
+    const auto leds = static_cast<size_t>(count);
+    s_runner->render(s_effect, time_ms, std::span<garland::Rgb>(s_frame, leds));
+    const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
+    garland::apply_brightness(std::span<const garland::Rgb>(s_frame, leds), garland::brightness_gain(percent), std::span<garland::RgbQ8>(s_lit, leds));
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds));
+}
+
+// The firmware's gain for a brightness, of kFullBrightnessGain: what a current at 100% is scaled by.
+extern "C" uint32_t csg_brightness_gain(int brightness_percent) {
+    const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
+    return garland::brightness_gain(percent);
+}
+
+// What a chain of count LEDs draws all dark: the part of the current no brightness scales.
+extern "C" uint32_t csg_idle_current(int count) {
+    if (count > kMaxLeds) {
+        count = kMaxLeds;
+    }
+    std::fill(s_lit, s_lit + count, garland::RgbQ8{});
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, static_cast<size_t>(count)));
 }

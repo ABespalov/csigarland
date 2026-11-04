@@ -79,7 +79,9 @@ func Parse(body []byte) (Catalog, error) {
 	if err := decoder.Decode(&read); err != nil {
 		return Catalog{}, fmt.Errorf("the catalog is not valid: %w", err)
 	}
-	if decoder.More() {
+	// Nothing but space after it: More says no before a closing bracket too, which is no end of the file.
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return Catalog{}, errors.New("the catalog is not valid: something follows it")
 	}
 	if read.Format != Format {
@@ -182,8 +184,21 @@ func compareVersions(a, b string) int {
 	return slices.Compare(versionParts(a), versionParts(b))
 }
 
-// Newer says whether version a is newer than b. A version that is not four numbers is older than any.
+// HoldsVersion says whether an update file, read, is what entry names: firmware, of just that version.
+func HoldsVersion(entry Entry, hasFirmware bool, version string) error {
+	if !hasFirmware {
+		return fmt.Errorf("%s holds no firmware, where the catalog names firmware %s: it was not taken", entry.File, entry.Version)
+	}
+	if version != entry.Version {
+		return fmt.Errorf("%s holds firmware %s, where the catalog names %s: it was not taken", entry.File, version, entry.Version)
+	}
+	return nil
+}
+
+// Newer says whether version a is newer than b. A Dev build counts as its number, as Offer has it, and a
+// version that is not four numbers is older than any.
 func Newer(a, b string) bool {
+	a, b = strings.TrimSuffix(a, DevSuffix), strings.TrimSuffix(b, DevSuffix)
 	return versionParts(a) != nil && compareVersions(a, b) > 0
 }
 

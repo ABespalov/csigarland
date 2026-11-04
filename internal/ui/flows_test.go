@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -106,7 +107,7 @@ func TestAnUpdatesLastWordsReachTheWindowAfterItsWorkerHasEnded(t *testing.T) {
 			a.client = client
 			a.firmware.file = []byte("update")
 			a.firmware.update = file
-			a.firmware.send(a)
+			a.firmware.send(a, "")
 			select {
 			case <-a.firmware.session.Done():
 			case <-time.After(20 * time.Second):
@@ -130,7 +131,7 @@ func TestLeavingDuringAnUpdateDropsWhatItSays(t *testing.T) {
 	a := sceneApp(t, PageFirmware)
 	a.client = client
 	a.firmware.file = []byte("update")
-	a.firmware.send(a)
+	a.firmware.send(a, "")
 	session := a.firmware.session
 	a.client = nil
 	a.disconnect()
@@ -374,6 +375,204 @@ func TestAStateReadWhileACommandGoesDoesNotTakeItBack(t *testing.T) {
 	a.takeState(before)
 	if a.effects.find("comet").Active || !a.effects.find(sceneEffect).Active {
 		t.Fatal("the marks stayed wrong")
+	}
+}
+
+// A state pushed while a command goes is passed over, and asked for again once the commands are through,
+// though the stream is open: the command's answer may be older than it.
+func TestAStatePushedWhileACommandGoesIsAskedForAfterIt(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	asked := api.State{Effect: "comet"}
+	var abouts atomic.Int32
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/about") {
+			abouts.Add(1)
+			answer(t, w, api.About{Version: "1.1.0.103"})
+			return
+		}
+		answer(t, w, asked)
+	})
+	a.about.Version = "known"
+	a.pushing = false
+	a.effects.commands = 1
+	a.takePushed(a.client, api.State{Effect: "pushed"})
+	if a.state.Effect == "pushed" || !a.mustRead {
+		t.Fatalf("effect %q, must read %v", a.state.Effect, a.mustRead)
+	}
+	a.effects.commands = 0
+	a.refreshState()
+	deadline := time.Now().Add(5 * time.Second)
+	for (a.stateAsked || abouts.Load() == 0) && time.Now().Before(deadline) {
+		a.drain()
+		time.Sleep(time.Millisecond)
+	}
+	if a.state.Effect != "comet" {
+		t.Fatalf("effect %q after the commands", a.state.Effect)
+	}
+	// The stream opened again, as after a restart: what the garland says of itself is asked for.
+	if abouts.Load() == 0 {
+		t.Fatal("About was not asked for once the stream opened")
+	}
+}
+
+// A state asked for, whose answer comes after a pushed one was taken, is older news and is dropped; and the
+// need to read again outlives a request that failed.
+func TestAStateAskedBeforeAPushIsDropped(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	release := make(chan struct{})
+	var failing atomic.Bool
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		if failing.Load() {
+			http.Error(w, "busy", http.StatusServiceUnavailable)
+			return
+		}
+		<-release
+		answer(t, w, api.State{Effect: "older"})
+	})
+	a.about.Version = "known"
+	a.pushing, a.mustRead = true, true
+	a.refreshState()
+	a.takePushed(a.client, api.State{Effect: "pushed"})
+	close(release)
+	untilTrue(t, a, func() bool { return !a.stateAsked })
+	if a.state.Effect != "pushed" {
+		t.Fatalf("effect %q after the late answer", a.state.Effect)
+	}
+	failing.Store(true)
+	a.mustRead = true
+	a.refreshState()
+	untilTrue(t, a, func() bool { return !a.stateAsked })
+	if !a.mustRead {
+		t.Fatal("a failed request ended the need to read again")
+	}
+}
+
+// A reading of the playlist that comes while the owner edits it leaves the edit, and a Refresh of an editor
+// holding none shows the list as the garland has it now.
+func TestAPlaylistReadLeavesAnEdit(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	var effects atomic.Value
+	effects.Store([]string{"aurora"})
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		answer(t, w, api.Playlist{Effects: effects.Load().([]string), Dwell: 60, CrossFade: 1000, Max: 16})
+	})
+	c := &a.effects.playlist
+	c.read, c.saved, c.list = false, api.Playlist{}, api.Playlist{}
+	a.effects.loadPlaylist(a)
+	a.effects.loadPlaylist(a)
+	untilTrue(t, a, func() bool { return !c.loading })
+	if !c.read || len(c.list.Effects) != 1 {
+		t.Fatalf("%+v", c.list)
+	}
+	effects.Store([]string{"candle", "aurora"})
+	c.list.Effects = append(c.list.Effects, "fireplace")
+	a.effects.loadPlaylist(a)
+	untilTrue(t, a, func() bool { return !c.loading })
+	if len(c.list.Effects) != 2 || c.list.Effects[1] != "fireplace" {
+		t.Fatalf("the edit was replaced: %+v", c.list.Effects)
+	}
+	c.list.Effects = slices.Clone(c.saved.Effects)
+	a.effects.loadPlaylist(a)
+	untilTrue(t, a, func() bool { return !c.loading })
+	if !slices.Equal(c.list.Effects, []string{"candle", "aurora"}) {
+		t.Fatalf("a Refresh kept the old list: %+v", c.list.Effects)
+	}
+}
+
+// A reading of the playlist begun before a save, and answered after it, is older than the save's own
+// answer, and does not take its place.
+func TestAPlaylistReadFromBeforeASaveIsLeft(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	reading := make(chan struct{})
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-reading:
+		case <-r.Context().Done():
+			return
+		}
+		answer(t, w, api.Playlist{Effects: []string{"aurora"}, Dwell: 60, CrossFade: 1000, Max: 16})
+	})
+	c := &a.effects.playlist
+	c.take(api.Playlist{Effects: []string{"aurora"}, Dwell: 60, CrossFade: 1000, Max: 16})
+	a.effects.loadPlaylist(a)
+	// A save of candle that ended while the reading was on its way, as its answer leaves the card.
+	c.sent++
+	c.take(api.Playlist{Effects: []string{"candle"}, Dwell: 60, CrossFade: 1000, Max: 16})
+	close(reading)
+	untilTrue(t, a, func() bool { return !c.loading })
+	if !slices.Equal(c.list.Effects, []string{"candle"}) {
+		t.Fatalf("the save was taken back: %+v", c.list.Effects)
+	}
+}
+
+// A list saved from this editor after another page or program saved one is refused by the garland, and the
+// editor then shows the list as it is, so nothing done there is written over unseen.
+func TestAPlaylistSavedElsewhereIsNotWrittenOver(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	var sent atomic.Value
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			sent.Store(body)
+			w.WriteHeader(http.StatusConflict)
+			answer(t, w, map[string]string{"error": "conflict", "message": "The playlist was changed elsewhere: read it again"})
+			return
+		}
+		answer(t, w, api.Playlist{Effects: []string{"aurora", "candle"}, Dwell: 60, CrossFade: 1000, Max: 16, Revision: 5})
+	})
+	c := &a.effects.playlist
+	c.take(api.Playlist{Effects: []string{"aurora"}, Dwell: 60, CrossFade: 1000, Max: 16, Revision: 4})
+	c.list.Dwell = 90
+	revision := c.saved.Revision
+	effects, dwell, fade := slices.Clone(c.list.Effects), c.list.Dwell, c.list.CrossFade
+	a.effects.sendPlaylist(a, func(ctx context.Context, client *api.Client) (api.Playlist, error) {
+		return client.SavePlaylist(ctx, effects, dwell, fade, revision)
+	}, "Playlist saved.", false)
+	untilTrue(t, a, func() bool { return !c.sending })
+	body, _ := sent.Load().(map[string]any)
+	if body["revision"] != float64(4) {
+		t.Fatalf("sent %v", body)
+	}
+	if !slices.Equal(c.list.Effects, []string{"aurora", "candle"}) || c.saved.Revision != 5 || !a.failed {
+		t.Fatalf("list %+v, revision %d, failed %v", c.list.Effects, c.saved.Revision, a.failed)
+	}
+}
+
+// Stop goes by what the garland plays, and Play by the list it holds, never by a draft not saved.
+func TestPlayAndStopGoByTheGarland(t *testing.T) {
+	var c playlistCard
+	c.take(api.Playlist{Effects: []string{"aurora"}, Max: 16})
+	c.list.Effects = nil
+	if !c.canPlay(true) {
+		t.Fatal("an emptied draft keeps a playing list from stopping")
+	}
+	c.take(api.Playlist{Max: 16})
+	c.list.Effects = []string{"aurora"}
+	if c.canPlay(false) {
+		t.Fatal("a draft not saved can be played")
+	}
+}
+
+// A slider's change the garland refused is read back, though the stream is open: it sends nothing for
+// what did not change.
+func TestARefusedSliderIsReadBack(t *testing.T) {
+	a := sceneApp(t, PageEffects)
+	var reads atomic.Int32
+	a.client = stubGarland(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			http.Error(w, "no", http.StatusServiceUnavailable)
+			return
+		}
+		reads.Add(1)
+		answer(t, w, api.State{Effect: "aurora", Brightness: 50})
+	})
+	a.about.Version = "known"
+	a.pushing = true
+	a.effects.change(a, "brightness", 80)
+	untilTrue(t, a, func() bool { return !a.effects.sending && !a.stateAsked && reads.Load() > 0 })
+	if a.state.Brightness != 50 {
+		t.Fatalf("brightness %d after a refusal", a.state.Brightness)
 	}
 }
 

@@ -152,7 +152,14 @@ esp_err_t portal_handle_wifi_scan(httpd_req_t* req) {
     return send_json(req, root.get());
 }
 
+static esp_err_t send_schedule_unread(httpd_req_t* req) {
+    return portal_send_status(req, "503 Service Unavailable", "The schedule could not be read yet: the garland tries again every minute");
+}
+
 esp_err_t portal_handle_schedule_get(httpd_req_t* req) {
+    if (!schedule_is_read()) {
+        return send_schedule_unread(req);
+    }
     static ScheduleEntry s_entries[kMaxScheduleEntries];
     const size_t count = schedule_copy(s_entries);
     const JsonPtr root(cJSON_CreateObject());
@@ -162,9 +169,16 @@ esp_err_t portal_handle_schedule_get(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
     }
     cJSON_AddItemToObject(root.get(), "entries", entries);
+    // New after 1.0.0: the effects the actions name that this garland lacks.
+    cJSON* missing = schedule_missing_json(s_entries, count);
+    if (missing == nullptr || !cJSON_AddItemToObject(root.get(), "missing", missing)) {
+        cJSON_Delete(missing);
+        return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+    }
     cJSON_AddNumberToObject(root.get(), "max", kMaxScheduleEntries);
     cJSON_AddNumberToObject(root.get(), "revision", schedule_revision());
-    portal_add_next_action(root.get());
+    cJSON_AddNumberToObject(root.get(), "schema", kScheduleSchema);
+    portal_add_next_action(root.get(), *static_cast<const State*>(req->user_ctx));
     return send_json(req, root.get());
 }
 
@@ -178,17 +192,30 @@ esp_err_t portal_handle_schedule_set(httpd_req_t* req) {
     if (root == nullptr) {
         return ESP_OK;
     }
+    if (!schedule_is_read()) {
+        return send_schedule_unread(req);
+    }
     const cJSON* revision = cJSON_GetObjectItemCaseSensitive(root.get(), "revision");
     if (cJSON_IsNumber(revision) && revision->valuedouble != static_cast<double>(schedule_revision())) {
         return portal_send_status(req, "409 Conflict", "The schedule was changed elsewhere. It has been read again: make your change once more");
     }
     static ScheduleEntry s_entries[kMaxScheduleEntries];
+    static ScheduleEntry s_held[kMaxScheduleEntries];
+    const size_t held = schedule_copy(s_held);
+    // A client of 1.0.0 sends the list as it read it, without the steps it does not know.
+    const cJSON* schema = cJSON_GetObjectItemCaseSensitive(root.get(), "schema");
+    if ((!cJSON_IsNumber(schema) || schema->valueint < kScheduleSchema) && schedule_has_newer_steps(s_held, held)) {
+        return portal_send_status(req, "409 Conflict", "The schedule holds steps this program does not know: update it, or change the schedule on the portal");
+    }
     size_t count = 0;
     const char* error = nullptr;
-    if (!schedule_from_json(cJSON_GetObjectItemCaseSensitive(root.get(), "entries"), s_entries, count, error)) {
+    if (!schedule_from_json(cJSON_GetObjectItemCaseSensitive(root.get(), "entries"), s_entries, count, error, s_held, held)) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, error);
     }
     const esp_err_t err = schedule_replace(s_entries, count);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_schedule_unread(req);
+    }
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "saving the schedule failed: %s", esp_err_to_name(err));
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save");

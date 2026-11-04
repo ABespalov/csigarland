@@ -58,6 +58,12 @@ static void test_only_the_setup_networks_own_clients_count_as_on_it() {
     TEST_ASSERT_FALSE(auth_is_setup_client(portal, ipv4_in_memory(10, 0, 0, 7), portal));
     // And the home address, whoever asks.
     TEST_ASSERT_FALSE(auth_is_setup_client(ipv4_in_memory(192, 168, 1, 9), ipv4_in_memory(192, 168, 4, 2), portal));
+    // Only while the setup network is up, and a home network of the same /24 never passes for it.
+    TEST_ASSERT_TRUE(auth_setup_network_applies(true, ipv4_in_memory(192, 168, 1, 9), portal));
+    TEST_ASSERT_TRUE(auth_setup_network_applies(true, 0, portal));
+    TEST_ASSERT_FALSE(auth_setup_network_applies(false, 0, portal));
+    TEST_ASSERT_FALSE(auth_setup_network_applies(true, ipv4_in_memory(192, 168, 4, 1), portal));
+    TEST_ASSERT_FALSE(auth_setup_network_applies(true, ipv4_in_memory(192, 168, 4, 30), portal));
 }
 
 static void test_a_page_may_send_to_the_setup_network_only_from_its_own_address() {

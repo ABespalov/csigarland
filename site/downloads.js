@@ -9,6 +9,40 @@
 
 'use strict';
 
+const DOWNLOADS_RU = {
+  products: {
+    'firmware': {
+      name: 'Обновление прошивки и пакета эффектов',
+      about: 'Файл обновления для гирлянды с релизной прошивкой, подписанный корневым ключом проекта: устанавливается через вкладку Firmware веб-портала или из каталога в настольной утилите.'
+    },
+    'utility': {
+      name: 'Утилита csiGarland',
+      about: 'Программа для компьютера: управление гирляндой, настройка эффектов с живым предпросмотром, установка обновлений и просмотр системного лога.'
+    },
+    'root-certificate': {
+      name: 'Корневой сертификат релиза',
+      about: 'Для воспроизводимой пересборки релиза из исходников и побайтовой сверки.'
+    }
+  },
+  platforms: {
+    'Any': 'Любая платформа'
+  },
+  released: (day) => `выпуск ${day}`,
+  notes: 'Описание изменений',
+  download: 'Скачать',
+  notYet: 'В разработке',
+  updated: (day) => `Обновлено ${day}.`,
+  fallbackPrefix: 'Не удалось загрузить список файлов. Все сборки доступны в ',
+  fallbackLink: 'GitHub Releases'
+};
+
+let cachedManifest = null;
+let loadFailed = false;
+
+function isRussian() {
+  return document.documentElement.lang === 'ru';
+}
+
 function element(tag, className, text) {
   const made = document.createElement(tag);
   if (className) made.className = className;
@@ -16,37 +50,118 @@ function element(tag, className, text) {
   return made;
 }
 
-function artifactCard(artifact) {
-  const card = element('div', 'download' + (artifact.available ? '' : ' unavailable'));
-  card.append(element('h3', '', artifact.name));
-  const meta = [artifact.platform, artifact.version, artifact.size].filter(Boolean).join(' · ');
-  card.append(element('p', 'meta', artifact.available ? meta : `${artifact.platform}: not yet`));
-  // Only an https link the manifest names: an artifact without one is shown, not linked.
-  if (artifact.available && typeof artifact.url === 'string' && artifact.url.startsWith('https://')) {
-    const link = element('a', 'button button-primary', 'Download');
-    link.href = artifact.url;
-    link.rel = 'noopener noreferrer';
-    card.append(link);
+// Only an https link the manifest names: anything without one is shown, not linked.
+function safeLink(url) {
+  return typeof url === 'string' && url.startsWith('https://') ? url : null;
+}
+
+// Newest first: by the day it was released, then by its version, number by number.
+function newerFirst(a, b) {
+  const day = String(b.released || '').localeCompare(String(a.released || ''));
+  if (day !== 0) return day;
+  const parts = (build) => String(build.version || '').split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const left = parts(a);
+  const right = parts(b);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    if ((right[i] || 0) !== (left[i] || 0)) return (right[i] || 0) - (left[i] || 0);
   }
-  if (artifact.available && artifact.sha256) card.append(element('p', 'hash', `SHA-256 ${artifact.sha256}`));
+  return 0;
+}
+
+// One release of a product for one platform: its version, when it was released, its notes, its file.
+function releaseRow(build, ru) {
+  const row = element('div', 'download');
+  const releasedText = build.released
+    ? (ru ? DOWNLOADS_RU.released(build.released) : `released ${build.released}`)
+    : '';
+  const meta = element('p', 'meta', [build.version, releasedText, build.size].filter(Boolean).join(' · '));
+  const notes = safeLink(build.notes);
+  if (notes) {
+    const link = element('a', '', ru ? DOWNLOADS_RU.notes : 'Release notes');
+    link.href = notes;
+    link.rel = 'noopener noreferrer';
+    meta.append(' · ', link);
+  }
+  row.append(meta);
+  const url = safeLink(build.url);
+  if (url) {
+    const download = element('a', 'button button-primary', ru ? DOWNLOADS_RU.download : 'Download');
+    download.href = url;
+    download.rel = 'noopener noreferrer';
+    row.append(download);
+  }
+  if (build.sha256) row.append(element('p', 'hash', `SHA-256 ${build.sha256}`));
+  return row;
+}
+
+// A platform of a product, with its releases newest first, or "Not yet" when it has none.
+function platformBlock(platform, builds, ru) {
+  const released = builds.filter((build) => build.available).sort(newerFirst);
+  const block = element('div', 'platform' + (released.length ? '' : ' unavailable'));
+  const title = ru && DOWNLOADS_RU.platforms[platform] ? DOWNLOADS_RU.platforms[platform] : platform;
+  block.append(element('h4', '', title));
+  if (released.length === 0) {
+    block.append(element('p', 'meta', ru ? DOWNLOADS_RU.notYet : 'Not yet'));
+    return block;
+  }
+  block.append(...released.map((build) => releaseRow(build, ru)));
+  return block;
+}
+
+// A product, such as the utility, with a block for each platform it is, or will be, built for, in the
+// order the manifest first names them.
+function productCard(product, ru) {
+  const card = element('section', 'product');
+  const translated = ru && product.id && DOWNLOADS_RU.products[product.id];
+  card.append(element('h3', '', translated ? translated.name : product.name));
+  const about = translated ? translated.about : product.about;
+  if (about) card.append(element('p', 'about', about));
+  const platforms = new Map();
+  for (const build of product.builds || []) {
+    if (!platforms.has(build.platform)) platforms.set(build.platform, []);
+    platforms.get(build.platform).push(build);
+  }
+  const blocks = element('div', 'builds');
+  blocks.replaceChildren(...[...platforms].map(([platform, builds]) => platformBlock(platform, builds, ru)));
+  card.append(blocks);
   return card;
 }
 
-async function showDownloads() {
+function renderDownloads() {
   const target = document.getElementById('downloads');
-  try {
-    const response = await fetch('downloads/manifest.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(response.statusText);
-    const manifest = await response.json();
-    target.replaceChildren(...manifest.artifacts.map(artifactCard));
-    document.getElementById('downloads-updated').textContent = manifest.updated ? `Updated ${manifest.updated}.` : '';
-  } catch (error) {
-    const fallback = element('p', '', 'The list could not be read. Every file is on ');
-    const link = element('a', '', 'GitHub Releases');
+  if (!target) return;
+  const ru = isRussian();
+  if (loadFailed) {
+    const fallback = element('p', '', ru ? DOWNLOADS_RU.fallbackPrefix : 'The list could not be read. Every file is on ');
+    const link = element('a', '', ru ? DOWNLOADS_RU.fallbackLink : 'GitHub Releases');
     link.href = 'https://github.com/ABespalov/csigarland/releases';
     fallback.append(link, '.');
     target.replaceChildren(fallback);
+    return;
   }
+  if (!cachedManifest) return;
+  target.replaceChildren(...cachedManifest.products.map((product) => productCard(product, ru)));
+  const updated = document.getElementById('downloads-updated');
+  if (updated) {
+    updated.textContent = cachedManifest.updated
+      ? (ru ? DOWNLOADS_RU.updated(cachedManifest.updated) : `Updated ${cachedManifest.updated}.`)
+      : '';
+  }
+}
+
+async function showDownloads() {
+  try {
+    // From the site's root, as the Russian page under ru/ reads the same list.
+    const response = await fetch('/downloads/manifest.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(response.statusText);
+    const manifest = await response.json();
+    if (!Array.isArray(manifest.products)) throw new Error('not a list of products');
+    cachedManifest = manifest;
+    loadFailed = false;
+  } catch (_) {
+    loadFailed = true;
+  }
+  renderDownloads();
 }
 
 showDownloads();

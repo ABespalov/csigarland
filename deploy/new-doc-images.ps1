@@ -25,7 +25,7 @@
 #requires -Version 7.2
 
 param(
-    [string]$Version = '1.0.0.27',
+    [string]$Version = '1.1.0.113',
     [switch]$ScreensOnly,
     [switch]$PortalOnly,
     [switch]$UtilityOnly
@@ -38,12 +38,18 @@ $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $FirmwareDir = Join-Path $RepoRoot 'firmware\app'
 $ScratchDir = Join-Path $RepoRoot 'temp\doc-images'
 $ScreenSize = 240
-$ScreenScale = 2
+$ScreenScale = 1
 $PortalWidth = 480
-$StubPort = 8765
+# A port nothing else holds, as a site served for a look, say, may hold any fixed one.
+$StubPort = & {
+    $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $probe.Start()
+    try { $probe.LocalEndpoint.Port } finally { $probe.Stop() }
+}
 # Picture name, and the page with what to press on it first.
 $PortalPages = @(
     @('effects', '/'),
+    @('effects-short', '/?rows=3'),
     @('schedule', '/schedule'),
     @('device', '/device'),
     @('network', '/network'),
@@ -133,6 +139,7 @@ function Invoke-Browser {
 function New-PortalPictures {
     $target = Join-Path $RepoRoot 'docs\images\portal'
     New-Item -ItemType Directory -Path $target, $ScratchDir -Force | Out-Null
+    $env:CSIGARLAND_STUB_SHOTS = '1'
     $stub = Start-Process -FilePath $Python -ArgumentList (ConvertTo-NativeCommandLine -Arguments @((Join-Path $PSScriptRoot 'portal_stub.py'), $StubPort, $Version)) -PassThru -WindowStyle Hidden
     try {
         # Until it answers, rather than a guess at how long it takes to start.
@@ -152,7 +159,7 @@ function New-PortalPictures {
             $name, $page = $entry
             $picture = Join-Path $target "$name.png"
             $url = "http://127.0.0.1:$StubPort$page"
-            $path = $page.Split('?')[0]
+            $path = $page -replace '\?press=[^&]*$', ''
             # Once to learn its height, and once at that height.
             Invoke-Browser -Url $url -Picture $picture -Height 900
             $heights = Invoke-RestMethod -Uri "http://127.0.0.1:$StubPort/stub/heights"

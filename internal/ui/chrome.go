@@ -287,11 +287,20 @@ func (a *App) railFact(name, value string) layout.Widget {
 	}
 }
 
-func (a *App) railPower() layout.Widget {
-	words := "Off"
-	if a.state.Power {
-		words = a.state.EffectName
+// PlayingText is what the rail says plays: Off, the effect, or where the playlist stands and its effect.
+func PlayingText(state api.State) string {
+	switch {
+	case !state.Power:
+		return "Off"
+	case state.Playlist && state.PlaylistAt > 0:
+		return fmt.Sprintf("Playlist %d/%d (%s)", state.PlaylistAt, state.PlaylistSize, state.EffectName)
+	default:
+		return state.EffectName
 	}
+}
+
+func (a *App) railPower() layout.Widget {
+	words := PlayingText(a.state)
 	return func(gtx C) D {
 		if a.state.Power && a.state.EffectName == "" {
 			return D{}

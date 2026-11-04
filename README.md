@@ -18,7 +18,7 @@
 
 </div>
 
-> **Status: not released yet.** The firmware builds and passes its host tests, and much of it runs on a prototype. What has been seen working on real hardware and what has not is listed in the [roadmap](docs/stubs/ROADMAP.md), and the measurements still to make are in the [to-do list](docs/stubs/TODO.md). No build is published on [Releases](https://github.com/ABespalov/csigarland/releases) yet.
+> **Status: 1.1.0 is released** (firmware 1.1.0.113, utility 1.1.0.37), with playlists, fades, backup and restore, the schedule on a timeline and push updates. The firmware's update file and the utility for Windows are on [Releases](https://github.com/ABespalov/csigarland/releases) and the [site](https://garland.csilab.am/downloads.html), each built again to the byte from its tag. What has been seen working on real hardware and what has not is listed in the [roadmap](docs/stubs/ROADMAP.md), and the measurements still to make are in the [to-do list](docs/stubs/TODO.md).
 
 ## What It Is
 
@@ -28,7 +28,7 @@ Each figurine is a hollow shell of translucent PETG with one addressable LED ins
 * **154 effects from 98 algorithms,** in eight groups, from the eight modes of a classic garland controller to fireworks and aurora. They live in a pack of their own, and you can [write your own](docs/guides/effects.md#6-effect-file) as small JSON files and upload up to 32.
 * **A web portal over HTTPS,** served by the garland itself: play and pick favourites, set brightness and speed, keep a schedule of up to 32 actions, join your Wi-Fi.
 * **No passwords.** A browser asks for access, the browser and the screen show the same code, and you press two buttons on the garland.
-* **Safe updates over Wi-Fi.** Every update is signed under your own root key. A new firmware proves itself on its first start, and the board goes back to the previous one if it does not.
+* **Safe updates over Wi-Fi.** Released firmware is ready to download and install from the portal or the utility, signed under the project's root; a fork signs its own under its own. A new firmware proves itself on its first start, and the board goes back to the previous one if it does not.
 * **Careful with power.** Software holds the LEDs to 1400 mA of the 2000 mA supply, and in standby a MOSFET cuts their power rail.
 
 ## See It
@@ -89,7 +89,7 @@ The screen then shows the setup network and its password. Join it, and the porta
 pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 ```
 
-**Why there is no ready-made firmware to download for your board:** a board takes updates signed under the root its firmware holds, so a build of your own, under your own keys, is what keeps your garland updatable by you.
+**Released firmware and your board:** every release has its firmware ready, as an update file on [Downloads](https://garland.csilab.am/downloads.html) and in the utility's catalog, signed under the project's root: a garland whose firmware is a release installs it from the portal's Firmware page or the utility, with nothing to build. A board only ever takes updates signed under the root its firmware holds, so a board you build and first flash with your own keys takes your own builds, and stays updatable by you alone. [Building a Release Again](docs/guides/rebuild.md) shows that a release's files are what its sources make.
 
 ## Documents
 

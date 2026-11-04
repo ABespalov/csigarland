@@ -8,7 +8,6 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -56,9 +55,9 @@ func (p *firmwarePage) fetchCatalog(a *App) {
 	}
 	c.fetching = true
 	a.progress("Reading the catalog of releases...")
-	client, address := c.client(), c.url()
+	client, address, connection := c.client(), c.url(), a.connection
 	go func() {
-		read, err := catalog.Fetch(context.Background(), client, address)
+		read, err := catalog.Fetch(connection, client, address)
 		a.post(func() {
 			c.fetching = false
 			if err != nil {
@@ -82,12 +81,21 @@ func (p *firmwarePage) download(a *App, entry catalog.Entry, install bool) {
 	c.fetching = true
 	a.progress(fmt.Sprintf("Downloading %s...", entry.File))
 	client := c.client()
-	garland := a.client
+	garland, connection := a.client, a.connection
+	// A file chosen while this comes down, or the file dialog only opened, is the owner's latest word,
+	// and this one then neither replaces it nor goes to the garland.
+	p.choice++
+	choice := p.choice
 	go func() {
-		data, err := catalog.Download(a.connection, client, entry)
+		data, err := catalog.Download(connection, client, entry)
 		var update api.UpdateFile
 		if err == nil {
 			update, err = api.ParseUpdate(data)
+		}
+		// The file is the catalog's by its SHA-256, which says nothing of what it holds: one whose firmware
+		// is not the version the row names, signed as it may be, would install another, an older among them.
+		if err == nil {
+			err = catalog.HoldsVersion(entry, update.HasFirmware, update.Version)
 		}
 		a.post(func() {
 			// For a garland since left, whose page this no longer is.
@@ -95,6 +103,10 @@ func (p *firmwarePage) download(a *App, entry catalog.Entry, install bool) {
 				return
 			}
 			c.fetching = false
+			if choice != p.choice {
+				a.report(fmt.Sprintf("Downloaded %s, and left it, as a file was being chosen here meanwhile.", entry.File))
+				return
+			}
 			if err != nil {
 				a.reportError(err)
 				return
@@ -105,8 +117,9 @@ func (p *firmwarePage) download(a *App, entry catalog.Entry, install bool) {
 			p.update = update
 			p.contents = UpdateText(update) + " Downloaded from the catalog, and its SHA-256 is the catalog's."
 			a.report(fmt.Sprintf("Downloaded %s.", entry.File))
+			// Sent as the offer was made: unless the garland runs this, or newer, by now, as send reads it.
 			if install && a.connected && !p.busy {
-				p.send(a)
+				p.send(a, entry.Version)
 			}
 		})
 	}()

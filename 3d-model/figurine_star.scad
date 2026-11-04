@@ -193,6 +193,23 @@ module magen_david_3d(r=21.0, th=7.5, z0=28.0) {
     }
 }
 
+// Inner cavity of one faceted triangle: the same bipyramid with every face moved inward by
+// `wall`. A face leans alpha = atan(th / (r/2)) from the star plane, so its edge line moves
+// in by wall / sin(alpha) and the apex by wall / cos(alpha).
+module tri_cavity(r, th, wall, rot=0, z0=28.0) {
+    alpha = atan(th / (r / 2));
+    r_in  = r - 2 * wall / sin(alpha);
+    th_in = th - wall / cos(alpha);
+    hull() {
+        translate([0, 0, z0])
+            rotate([90, 0, 0])
+                linear_extrude(height=0.02, center=true)
+                    polygon(tri_2d(r_in, rot));
+        translate([0, th_in, z0]) sphere(r=0.05, $fn=8);
+        translate([0, -th_in, z0]) sphere(r=0.05, $fn=8);
+    }
+}
+
 // =============================================================================
 // SUB-MODULE: Magen David Diffuser Cap (Print Ready, Sealed Plafond)
 // =============================================================================
@@ -200,6 +217,7 @@ module magen_david_cap() {
     r_tri = 21.0;
     th_apex = 7.5;
     z0 = 28.0;
+    star_wall = 1.2;  // shell thickness normal to the facets (~3 perimeters in plan)
 
     color(c_cap)
     difference() {
@@ -254,10 +272,22 @@ module magen_david_cap() {
         translate([0, 0, neck_h])
             cylinder(r1=2.8, r2=1.8, h=16.5, $fn=24);
 
-        // 4. Central optical diffusion chamber (wide internal cavity inside star heart)
-        translate([0, 0, z0])
-            scale([1.1, 0.55, 1.0])
-                sphere(r=8.0, $fn=32);
+        // 4. Hollow star: an even shell (star_wall) that follows every facet. The former
+        //    ellipsoid chamber had near-flat floor and roof, and with 0% infill the solid
+        //    rays left random voids; both printed as floating walls that showed through the
+        //    translucent PETG near the centre. All facets lean 54-73 degrees, so this cavity
+        //    has no flat ceilings.
+        tri_cavity(r=r_tri, th=th_apex, wall=star_wall, rot=90, z0=z0);
+        tri_cavity(r=r_tri, th=th_apex, wall=star_wall, rot=270, z0=z0);
+
+        // 5. Hollow neck loft: the same shell inside the collar-to-ray blend
+        hull() {
+            translate([0, 0, 6.6])
+                cylinder(r=base_od/2 - 1.4 - star_wall, h=0.1, $fn=64);
+            translate([0, 0, 14.5])
+                scale([(4.5 * 1.15 - star_wall) / 4.5, (4.5 * 0.65 - star_wall) / 4.5, (4.5 - star_wall) / 4.5])
+                    sphere(r=4.5, $fn=32);
+        }
     }
 }
 

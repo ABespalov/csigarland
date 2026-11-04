@@ -80,13 +80,30 @@ func TestACatalogThatCannotBeTrustedIsRefused(t *testing.T) {
 		"not a version":    catalogJSON(Entry{Version: "latest", File: good.File, URL: good.URL, SHA256: good.SHA256, Bytes: 100}),
 		"an unknown field": strings.Replace(catalogJSON(good), `"format"`, `"extra":1,"format"`, 1),
 		"trailing bytes":   catalogJSON(good) + "{}",
+		"a bracket after":  catalogJSON(good) + "]",
+		"a brace after":    catalogJSON(good) + "}",
 	} {
 		if _, err := Parse([]byte(body)); err == nil {
 			t.Errorf("%s was taken", name)
 		}
 	}
-	if _, err := Parse([]byte(catalogJSON(good))); err != nil {
+	if _, err := Parse([]byte(catalogJSON(good) + "\n \n")); err != nil {
 		t.Errorf("a good catalog: %v", err)
+	}
+}
+
+// A file the catalog names is taken only if it holds firmware of the version its row names: a signed one
+// of another, an older among them, would install that.
+func TestADownloadHoldsTheVersionItsRowNames(t *testing.T) {
+	entry := Entry{Version: "1.1.0.107", File: "csigarland-1.1.0.107.ota"}
+	if err := HoldsVersion(entry, true, "1.1.0.107"); err != nil {
+		t.Errorf("the right file: %v", err)
+	}
+	if err := HoldsVersion(entry, true, "1.0.0.102"); err == nil {
+		t.Error("an older firmware under a newer row was taken")
+	}
+	if err := HoldsVersion(entry, false, ""); err == nil {
+		t.Error("effects alone under a row of firmware were taken")
 	}
 }
 
@@ -97,6 +114,12 @@ func TestVersionsCompareAsNumbers(t *testing.T) {
 }
 
 // A garland is offered the newest release only when it is newer than what it runs, a Dev build by its number.
+func TestADevBuildIsItsNumberWhereverVersionsAreCompared(t *testing.T) {
+	if Newer("1.0.0.27", "1.0.0.27-dev") || !Newer("1.0.0.28", "1.0.0.27-dev") || Newer("1.0.0.26", "1.0.0.27-dev") {
+		t.Fatal("a Dev build was not taken as its number")
+	}
+}
+
 func TestOnlyANewerReleaseIsOffered(t *testing.T) {
 	read := Catalog{Format: Format, Firmware: []Entry{{Version: "1.0.0.102"}, {Version: "1.0.0.101"}}}
 	cases := []struct {

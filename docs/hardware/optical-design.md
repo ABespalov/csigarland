@@ -6,7 +6,7 @@ WS2812B 5mm SMD LEDs are point light sources. Without proper diffusion, the bare
 
 For a warm, cozy holiday aesthetic, csiGarland uses **soft volumetric diffusion** with translucent PETG:
 * The figurines, in the 50 mm height class (45.7–49.0 mm), are printed completely **hollow (0% infill)**.
-* Wall thickness is **1.40–1.50 mm** at least: 3 perimeter loops with a 0.4 mm nozzle.
+* Wall thickness is **1.40–1.50 mm** at least: 3 perimeter loops with a 0.4 mm nozzle. The star is the exception, an even **1.20 mm** shell normal to its facets: see [Diffusers](diffusers.md#2-3d-faceted-magen-david).
 * Light bounces internally and exits evenly across the entire surface of the figurine.
 * Finished weight per cap is about **6.7 grams** (214 g for 32 caps, Bambu Studio's estimate).
 
@@ -20,7 +20,7 @@ The ready project, and the full list of its settings, is in [`3d-model/README.md
 |---|---|---|
 | **Material** | Bambu Translucent PETG | Excellent light transmission with soft tint |
 | **Nozzle Temperature** | 245 °C | The `Bambu PETG Translucent` preset the print project uses |
-| **Wall Loops** | 3 | At least 1.40 mm: sturdy, and still translucent |
+| **Wall Loops** | 3 | At least 1.40 mm, the star's 1.20 mm shell apart: sturdy, and still translucent |
 | **Sparse Infill** | 0% | Completely hollow interior for maximum internal light bounce |
 | **Top Shell Layers** | 6 | Clean closure on pointed ornaments (stars, trees, icicles) |
 | **Bottom Shell Layers** | 3–4 | Solid base for snap-fit attachment |
@@ -34,7 +34,7 @@ The ready project, and the full list of its settings, is in [`3d-model/README.md
 
 ### 3.1 Multi-Stage Internal Diffusion Chambers
 To prevent the central beam of the WS2812B from burning a bright spot on the collar or tip while keeping all overhangs self-supporting:
-* Each cap uses a staged internal light cavity tailored to its outer silhouette: a lower clearance and entry cone above the LED socket ($r_1 = 4.2\text{–}5.5\text{ mm}$, or an $\varnothing 8.8\text{ mm}$ pocket with a $45^\circ$ conical transition in the narrow-neck star and gingerbread caps) leads into a central diffusion chamber that follows the figurine's body while maintaining $\ge 1.40\text{–}1.50\text{ mm}$ walls everywhere.
+* Each cap uses a staged internal light cavity tailored to its outer silhouette: a lower clearance and entry cone above the LED socket ($r_1 = 4.2\text{–}5.5\text{ mm}$, or an $\varnothing 8.8\text{ mm}$ pocket with a $45^\circ$ conical transition in the narrow-neck star and gingerbread caps) leads into a central diffusion chamber that follows the figurine's body while maintaining $\ge 1.40\text{–}1.50\text{ mm}$ walls everywhere, but in the star, whose cavity follows its facets in an even $1.20\text{ mm}$ shell.
 * Sloped internal ceilings ($\le 45^\circ$ from vertical) and faceted or domed upper chambers scatter the upward LED beam across the side perimeters without requiring internal print supports.
 
 ### 3.2 "Frosted Glass" via Bambu Studio Fuzzy Skin

@@ -9,14 +9,16 @@ Three buttons below the screen. A long press is 0.8 s.
 | Button | Click | Long press |
 |---|---|---|
 | **POWER** (red) | In standby: turns on at the remembered brightness, 50 % at first. When on: steps brightness 10, 25, 50, 75, 100, 10 % | When on: counts down 5 s on the screen, then turns off |
-| **EFFECT** (white) | When on: the next favourite effect | When on: the first favourite |
+| **EFFECT** (white) | When on: the next favourite effect. **Double click:** the first favourite | When on, with a playlist set: starts the playlist, or stops it and keeps what plays |
 | **SPEED** (blue or black) | When on: steps speed 0.25x, 0.5x, 0.75x, 1x, 1.5x, 2x, 3x, 0.25x | When on: back to 1x |
 
 * **Any button** cancels the countdown, or wakes the screen from a screensaver. That press does nothing else.
 * **POWER and SPEED together** answer a browser's request for access, see [Pairing](#4-pairing-a-browser). **Held for 10 s,** they forget every paired browser, for a lost phone. A hold that has just answered a request forgets nothing.
 * **While a request for access waits,** a click of any button but that pair refuses the request instead of doing what it would.
 
-The effect, brightness, speed and whether it was playing all survive a power cut. Turning on or off is saved at once, and the rest once it has stayed unchanged for 10 seconds.
+The light fades in over 0.8 s when the garland turns on, and out over 0.8 s before it goes dark, however it was turned on or off. A press that turns it on again on its way to dark brings it back up from there.
+
+The effect, brightness, speed, whether it was playing and whether the playlist was playing all survive a power cut. Turning on or off is saved at once, and the rest once it has stayed unchanged for 10 seconds.
 
 ## 2. Connecting
 
@@ -94,7 +96,7 @@ The colour says what is going on:
 | Colour | Means | Screens |
 |---|---|---|
 | Grey | Nothing is happening | Standby |
-| Blue | Running, and all is well | Playing: the effect, brightness, speed, LED count, which reads `!30` if a new length could not be set and 30 are still in use |
+| Blue | Running, and all is well | Playing: the effect, brightness, speed, LED count, which reads `!30` if a new length could not be set and 30 are still in use. While the playlist plays, the title says where it stands, `Playing 3/12`, in a smaller font |
 | Amber | You have something to do, or must not interfere | No LEDs, setup network, power-off countdown, update under way, access request, making keys |
 | Green | An operation finished well | Update installed |
 
@@ -110,6 +112,8 @@ The footer shows the portal's address. In the LED count, `N` is set by hand, `~N
 
 <img src="../images/screens/standby-action-soon.png" width="200" alt="Standby screen with the clock glyph white"><br>Standby with a scheduled action within a day: the clock glyph at the top right is white.
 
+<img src="../images/screens/playing-playlist.png" width="200" alt="Playing screen with the playlist's place in the title"><br>Playing the playlist: where it stands, here the last of 16.
+
 The pictures come from the firmware's own drawing code with sample data. The version, address and password on yours differ.
 
 ## 8. Portal Pages
@@ -122,10 +126,11 @@ Every page has the same header, with the firmware version on the right. Colours 
 
 <img src="../images/portal/effects.png" width="360" alt="The Effects page">
 
-* **Now** shows on or off and the effect, and follows the buttons within a few seconds. Its sliders set the brightness, from 1 to 100 %, and the speed, from 0.25x to 5x in steps of 0.25, and the garland follows as you move them. While the garland is off they do not turn it on: it shows them at the next turn on. From a speed the slider set, the SPEED button goes to its next step up, or to 0.25x from 3x or more. The choice is saved once it has stayed unchanged for 10 seconds.
+* **Now** shows on or off and the effect, and follows the buttons at once, as the garland pushes each change; if it cannot, with two pages or programs following it already, it asks every few seconds. Its sliders set the brightness, from 1 to 100 %, and the speed, from 0.25x to 5x in steps of 0.25, and the garland follows as you move them. While the garland is off they do not turn it on: it shows them at the next turn on. From a speed the slider set, the SPEED button goes to its next step up, or to 0.25x from 3x or more. The choice is saved once it has stayed unchanged for 10 seconds.
 * **Effects** lists all of them in eight groups, then **Uploaded**, which holds what you added from files, a file replacing a built-in effect among them, and is there even while empty. A group opens by itself if it holds a favourite or what is playing, and Uploaded whenever it holds anything. A title such as `Classic Garland (8 of 16)` says how many of its effects are favourites.
 * **The tick** puts an effect in the EFFECT button's cycle. At least one must stay ticked.
 * **Play** starts any effect, ticked or not, and turns the garland on. **Active** marks what plays. After a non-favourite, the button goes on with the next favourite.
+* **Playlist** plays up to 16 effects in turn, each for 10 s to an hour, with a fade from one to the next of 0 to 5 s. Add effects from the list under it, remove one with its bin, and **Save playlist**; **Play the playlist** turns the garland on at its first effect, and **Stop the playlist** keeps what plays. Choosing a single effect, here, by the EFFECT button or by a scheduled action, stops it too. The fade holds for every change of effect, not the playlist's alone. An uploaded effect in the playlist cannot be deleted until it is taken out. One the garland lacks, as after an update of the effects, stays in the list marked "not on this garland", and plays again once it is back.
 * **Add an effect from a file** takes a file in [the effect format](effects.md#6-effect-file). **Preview** plays it without saving, until another effect is chosen. **Save** keeps it, up to 32, and the file's name is its id. A file named as a built-in effect replaces it until you press **Restore**; one of your own has **Delete**.
 
 ### Schedule
@@ -134,8 +139,9 @@ Every page has the same header, with the firmware version on the right. Colours 
 
 <img src="../images/portal/schedule.png" width="360" alt="The Schedule page">
 
-* **Schedule** says what is due next and the garland's time. Actions wait until the clock is set. They go by local time, so in a zone with clock changes, an action in the hour repeated in autumn runs twice, and one in the hour skipped in spring does not run that day.
-* **Actions:** up to 32, each with a time, days of the week, and either **Turn off**, or steps: turn on, brightness 1-100 %, speed, start an effect. Nothing can go with off, and starting an effect also turns the garland on.
+* **The next 24 hours** starts with the garland's time. Actions wait until the clock is set. They go by local time, so in a zone with clock changes, an action in the hour repeated in autumn runs twice, and one in the hour skipped in spring does not run that day.
+* **The next 24 hours** draws, from now, when the garland is lit as the actions leave it, with a mark at each action due, amber where actions meet in one minute, and lists them. Where they meet, the later in the list win, step by step.
+* **Actions:** up to 32, each with a time, days of the week, and either **Turn off**, or steps: turn on, which can rise from dark over a minute, brightness 1-100 %, speed, start an effect or start the playlist. Nothing can go with off, and starting an effect or the playlist also turns the garland on; a playlist left empty then starts nothing. A rise is for a garland turned on from dark: one already lit stays as it is.
 * **Time zone:** the first browser to open the portal sets it from its own. Change it here if that is wrong.
 * **Clock module:** appears if one is fitted. It can be set from the device you are on, from the internet, or by hand. The next answer from the internet overrules a time set here.
 
@@ -194,7 +200,7 @@ There is no power switch on a page: that is on the buttons and the schedule, tho
 
 ## 10. Updates
 
-You need an update file from whoever built your firmware, signed under the same root. See [Building](build-and-flash.md).
+A garland takes an update file signed under the root its firmware holds. **The published releases** are on the [Downloads](https://garland.csilab.am/downloads.html) page and in the utility's catalog, signed under the project's root, for a garland whose firmware is a release. A garland you built and flashed with keys of your own takes your own builds: see [Building](build-and-flash.md).
 
 **From the portal:** the [Firmware page](#firmware).
 
@@ -207,7 +213,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | Add | Sends |
 |---|---|
 | Nothing | A new build: firmware and effects |
-| `-NoBuild` | The last build, with no new build number |
+| `-NoBuild` | The last build, with no new build number. With both a Release and a Dev build on the computer, add `-BuildProfile Release` or `-BuildProfile Dev` to say which. A build whose firmware is not of that profile and of this checkout's version, such as one left from 1.0.0, is refused: send it with `-File` if it is meant |
 | `-FirmwareOnly` | Firmware. The effects on the garland stay |
 | `-EffectsOnly` | Only the effects, with no build |
 | `-File <path>` | That file as it is |

@@ -33,7 +33,7 @@ This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects
 ### 1.4 Figurine Envelopes
 * **Overall Height:** 45.7–49.0 mm (50 mm height class).
 * **Collar Diameter:** Ø17.60 mm, flush with the base mount flange.
-* **Wall Thickness:** minimum 1.40–1.50 mm (3–4 perimeter loops with a 0.4 mm nozzle).
+* **Wall Thickness:** minimum 1.40–1.50 mm (3–4 perimeter loops with a 0.4 mm nozzle), but for the star: an even 1.20 mm shell normal to its facets (`star_wall` in `figurine_star.scad`), about 3 perimeters in plan.
 
 ---
 

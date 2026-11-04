@@ -117,6 +117,43 @@ static void test_an_unreadable_identity_is_not_made_again() {
     TEST_ASSERT_TRUE(tls_may_make_identity(StoredRead::Missing));
     TEST_ASSERT_TRUE(tls_may_make_identity(StoredRead::Loaded));
     TEST_ASSERT_FALSE(tls_may_make_identity(StoredRead::Unreadable));
+    // A domain that could not be read keeps the root as well, though the identity was read.
+    TEST_ASSERT_TRUE(tls_may_make_identity(StoredRead::Loaded, StoredRead::Missing));
+    TEST_ASSERT_TRUE(tls_may_make_identity(StoredRead::Loaded, StoredRead::Loaded));
+    TEST_ASSERT_FALSE(tls_may_make_identity(StoredRead::Loaded, StoredRead::Unreadable));
+    TEST_ASSERT_FALSE(tls_may_make_identity(StoredRead::Unreadable, StoredRead::Loaded));
+}
+
+// A stream holds while its client stays paired with that token, in its days: forgetting it, pairing
+// another in its place, or its days running out each end it.
+static void test_a_grant_holds_only_while_its_client_does() {
+    AuthDevices devices{};
+    devices[2].in_use = true;
+    devices[2].hash.fill(7);
+    devices[2].expires_epoch = 2000;
+    AuthGrant grant;
+    grant.slot = 2;
+    grant.hash.fill(7);
+    TEST_ASSERT_TRUE(auth_grant_holds(devices, grant, 1000));
+    TEST_ASSERT_FALSE(auth_grant_holds(devices, grant, 2000));
+    devices[2].hash.fill(8);
+    TEST_ASSERT_FALSE(auth_grant_holds(devices, grant, 1000));
+    devices[2] = AuthDevice{};
+    TEST_ASSERT_FALSE(auth_grant_holds(devices, grant, 1000));
+    grant.slot = -1;
+    TEST_ASSERT_FALSE(auth_grant_holds(devices, grant, 1000));
+}
+
+// A key is given up only when reading it shows it can never serve: running out of memory reading a
+// sound key keeps every key as saved.
+static void test_only_a_broken_key_is_replaced() {
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Sound, KeyCheck::Sound) == TlsRecovery::Retry);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Broken, KeyCheck::Sound) == TlsRecovery::NewKeys);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Sound, KeyCheck::Broken) == TlsRecovery::NewPortalKey);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Broken, KeyCheck::Broken) == TlsRecovery::NewKeys);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Unknown, KeyCheck::Sound) == TlsRecovery::Keep);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Sound, KeyCheck::Unknown) == TlsRecovery::Keep);
+    TEST_ASSERT_TRUE(tls_recovery(KeyCheck::Broken, KeyCheck::Unknown) == TlsRecovery::Keep);
 }
 // A client counts down from what the garland says, rounded up, and through a wrap of its clock.
 static void test_a_trial_says_how_long_it_has_left() {
@@ -159,5 +196,7 @@ static void run_api_tests() {
     RUN_TEST(test_a_trial_ends_only_on_what_the_flash_says);
     RUN_TEST(test_a_trial_says_how_long_it_has_left);
     RUN_TEST(test_an_unreadable_identity_is_not_made_again);
+    RUN_TEST(test_only_a_broken_key_is_replaced);
+    RUN_TEST(test_a_grant_holds_only_while_its_client_does);
     RUN_TEST(test_the_name_constraints_are_those_the_client_was_tried_with);
 }

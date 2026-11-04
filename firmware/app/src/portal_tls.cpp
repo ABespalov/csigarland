@@ -15,12 +15,14 @@
 #include "portal_tls.h"
 
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <ctime>
 
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mbedtls/oid.h"
@@ -82,6 +84,40 @@ bool make_key(char (&pem)[kTlsKeyBytes]) {
 
 bool load_key(const char* pem, mbedtls_pk_context& pk) {
     return passed(mbedtls_pk_parse_key(&pk, reinterpret_cast<const unsigned char*>(pem), std::strlen(pem) + 1, nullptr, 0), "reading a key");
+}
+
+// Whether what the server is given would serve: the portal's certificate reads, and its key reads and is
+// the one the certificate names. The server takes them as they are, and reads them only at a handshake,
+// so one that cannot serve would leave HTTPS up in name, the home network sent to it, and every handshake
+// failing. Out of memory says nothing of them either way: they are kept, and not served this start.
+enum class Serves : uint8_t { Yes, No, Unknown };
+Serves identity_serves(const TlsIdentity& identity) {
+    psa_crypto_init();
+    mbedtls_x509_crt certificate;
+    mbedtls_x509_crt_init(&certificate);
+    mbedtls_pk_context key;
+    mbedtls_pk_init(&key);
+    const int read_certificate = mbedtls_x509_crt_parse(&certificate, reinterpret_cast<const unsigned char*>(identity.certificate),
+                                                        std::strlen(identity.certificate) + 1);
+    const int read_key = read_certificate == 0 ? mbedtls_pk_parse_key(&key, reinterpret_cast<const unsigned char*>(identity.key),
+                                                                      std::strlen(identity.key) + 1, nullptr, 0)
+                                               : 0;
+    const int paired = read_certificate == 0 && read_key == 0 ? mbedtls_pk_check_pair(&certificate.pk, &key) : 0;
+    mbedtls_pk_free(&key);
+    mbedtls_x509_crt_free(&certificate);
+    const auto short_of_memory = [](int result) {
+        return result == MBEDTLS_ERR_X509_ALLOC_FAILED || result == MBEDTLS_ERR_PK_ALLOC_FAILED || result == MBEDTLS_ERR_PEM_ALLOC_FAILED ||
+               result == MBEDTLS_ERR_ASN1_ALLOC_FAILED || result == PSA_ERROR_INSUFFICIENT_MEMORY;
+    };
+    if (short_of_memory(read_certificate) || short_of_memory(read_key) || short_of_memory(paired)) {
+        return Serves::Unknown;
+    }
+    if (read_certificate != 0 || read_key != 0 || paired != 0) {
+        ESP_LOGE(TAG, "the saved certificate cannot serve: -0x%04x -0x%04x -0x%04x", static_cast<unsigned>(-read_certificate),
+                 static_cast<unsigned>(-read_key), static_cast<unsigned>(-paired));
+        return Serves::No;
+    }
+    return Serves::Yes;
 }
 
 // What every certificate has. The caller adds what makes it a root or a portal's.
@@ -259,31 +295,64 @@ bool make_what_is_missing() {
     return !tls_certificate_is_stale(s_identity, s_wanted_names, s_now_epoch) || make_portal_certificate();
 }
 
-// A saved key that mbedTLS takes, or none: what failed was then the making, not the key.
-bool key_is_sound(const char* pem) {
+// A saved key that mbedTLS takes, or none: what failed was then the making, not the key. Running out
+// of memory while reading it says nothing of the key, and never counts against it. Nor does the bare
+// MBEDTLS_ERR_PK_KEY_INVALID_FORMAT, which mbedTLS returns whatever stopped the public point's import,
+// out of key slots or memory among it: a key whose bytes are bad comes back with what in them is, an
+// ASN.1 or PEM code beside it. Read three times, as what runs short may be free a moment later.
+KeyCheck check_key(const char* pem) {
     if (pem[0] == '\0') {
-        return true;
+        return KeyCheck::Sound;
     }
-    mbedtls_pk_context pk;
-    mbedtls_pk_init(&pk);
-    const bool sound = load_key(pem, pk);
-    mbedtls_pk_free(&pk);
-    return sound;
+    int result = 0;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        result = mbedtls_pk_parse_key(&pk, reinterpret_cast<const unsigned char*>(pem), std::strlen(pem) + 1, nullptr, 0);
+        mbedtls_pk_free(&pk);
+        if (result == 0) {
+            return KeyCheck::Sound;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    const bool resources = result == MBEDTLS_ERR_PK_ALLOC_FAILED || result == MBEDTLS_ERR_PEM_ALLOC_FAILED ||
+                           result == MBEDTLS_ERR_ASN1_ALLOC_FAILED || result == PSA_ERROR_INSUFFICIENT_MEMORY ||
+                           result == PSA_ERROR_INSUFFICIENT_STORAGE || result == MBEDTLS_ERR_PK_KEY_INVALID_FORMAT ||
+                           result == MBEDTLS_ERR_PK_INVALID_PUBKEY;
+    ESP_LOGE(TAG, "reading a key: -0x%04x", static_cast<unsigned>(-result));
+    return resources ? KeyCheck::Unknown : KeyCheck::Broken;
 }
 
 void maker_task(void*) {
     psa_crypto_init();
     bool good = make_what_is_missing();
-    if (!good && key_is_sound(s_identity.root_key) && key_is_sound(s_identity.key)) {
-        // Sound keys are never given up for a failure that may pass: once more, and if that fails
-        // too, nothing is saved, and HTTP stays for an update.
-        ESP_LOGE(TAG, "could not make certificates with the saved keys, trying once more");
-        good = make_what_is_missing();
-    } else if (!good) {
-        // A key that cannot be read could never serve.
-        ESP_LOGE(TAG, "a saved key cannot be read, so this board makes new keys");
-        s_identity = TlsIdentity{};
-        good = make_what_is_missing();
+    if (!good) {
+        switch (tls_recovery(check_key(s_identity.root_key), check_key(s_identity.key))) {
+            case TlsRecovery::Retry:
+                // Sound keys are never given up for a failure that may pass: once more, and if that
+                // fails too, nothing is saved, and HTTP stays for an update.
+                ESP_LOGE(TAG, "could not make certificates with the saved keys, trying once more");
+                good = make_what_is_missing();
+                break;
+            case TlsRecovery::NewPortalKey:
+                // The root stays, and with it every browser's trust: only the portal's key is made again,
+                // and its certificate under the same root.
+                ESP_LOGE(TAG, "the saved portal key cannot be read, so this board makes a new one under its root");
+                s_identity.key[0] = '\0';
+                s_identity.certificate[0] = '\0';
+                good = make_what_is_missing();
+                break;
+            case TlsRecovery::NewKeys:
+                // A key that cannot be read could never serve.
+                ESP_LOGE(TAG, "the saved root key cannot be read, so this board makes new keys");
+                s_identity = TlsIdentity{};
+                good = make_what_is_missing();
+                break;
+            case TlsRecovery::Keep:
+                // Nothing is known against the keys: they stay saved, and a later start tries again.
+                ESP_LOGE(TAG, "out of memory reading the saved keys: they are kept, and HTTP stays for an update");
+                break;
+        }
     }
     if (good) {
         const esp_err_t err = settings_save_tls(s_identity);
@@ -307,6 +376,16 @@ void maker_task(void*) {
 
 // The moment by which a certificate made now counts: never before the sources' date, so one made
 // just now can never be thought to start too late, and restart for that again and again.
+// Set once what the portal's HTTPS is made from has all been read and this start's making of certificates
+// is over, made or failed, so that a renewal is weighed on what came of it: a time sync while the maker
+// still runs would weigh the certificate it is about to replace, and restart for it.
+std::atomic<bool> s_configured{false};
+// When this start's making of certificates failed, in microseconds of uptime, or -1: a renewal that the
+// time sync asks for would restart into the same failure, and every restart cuts short the time plain
+// HTTP has to take an update in. One is let through only every kRenewAfterFailureUs.
+std::atomic<int64_t> s_failed_at_us{-1};
+constexpr int64_t kRenewAfterFailureUs = 6LL * 3600 * 1000 * 1000;
+
 int64_t soonest_start(int64_t now_epoch) {
     const int64_t built = tls_epoch_from_build_date(CSIGARLAND_SOURCE_DATE);
     return now_epoch > built ? now_epoch : built;
@@ -319,7 +398,13 @@ const TlsIdentity* portal_tls_identity_loaded() {
 }
 
 bool portal_tls_renewal_due(int64_t now_epoch) {
-    return portal_tls_identity_loaded() != nullptr && rtc_epoch_is_valid(now_epoch) &&
+    // Only once the keys and the domain were both read: names worked out from no domain would find any
+    // certificate stale, and restart for it at every time sync, while HTTP is all there is to update by.
+    const int64_t failed_at = s_failed_at_us.load();
+    if (failed_at >= 0 && esp_timer_get_time() - failed_at < kRenewAfterFailureUs) {
+        return false;
+    }
+    return s_configured.load() && portal_tls_identity_loaded() != nullptr && rtc_epoch_is_valid(now_epoch) &&
            (tls_root_is_stale(s_identity, s_domain, now_epoch) || tls_certificate_is_stale(s_identity, s_wanted_names, now_epoch) ||
             tls_starts_after(s_starts, soonest_start(now_epoch)));
 }
@@ -335,18 +420,23 @@ bool portal_tls_prepare_renewal(int64_t now_epoch) {
 }
 
 const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
+    s_configured.store(false);
     StoredRead read = settings_load_tls(s_identity);
     for (int attempt = 1; attempt < kReadAttempts && read == StoredRead::Unreadable; ++attempt) {
         vTaskDelay(pdMS_TO_TICKS(kReadRetryMs));
         read = settings_load_tls(s_identity);
     }
-    if (!tls_may_make_identity(read)) {
+    StoredRead domain = settings_load_tls_domain(s_domain, sizeof(s_domain));
+    for (int attempt = 1; attempt < kReadAttempts && domain == StoredRead::Unreadable; ++attempt) {
+        vTaskDelay(pdMS_TO_TICKS(kReadRetryMs));
+        domain = settings_load_tls_domain(s_domain, sizeof(s_domain));
+    }
+    if (!tls_may_make_identity(read, domain)) {
         // What is saved stays as it is, and the portal goes on over HTTP until a start reads it.
-        ESP_LOGE(TAG, "the saved keys could not be read: no HTTPS this start, and they are kept");
+        ESP_LOGE(TAG, "the saved keys or domain could not be read: no HTTPS this start, and they are kept");
         return nullptr;
     }
     settings_load_tls_starts(s_starts);
-    settings_load_tls_domain(s_domain, sizeof(s_domain));
     tls_wanted_names(hostname, s_domain, CSIGARLAND_PORTAL_IP, s_wanted_names);
 
     const int64_t built = tls_epoch_from_build_date(CSIGARLAND_SOURCE_DATE);
@@ -355,8 +445,23 @@ const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
     const int64_t known = time_is_synced() && rtc_epoch_is_valid(now) ? now : settings_load_last_epoch();
     s_now_epoch = known > built ? known : built;
     tls_drop_ruled_out(s_identity, s_starts, s_now_epoch);
-    if (s_identity.root_key[0] != '\0' && s_identity.key[0] != '\0' && !tls_root_is_stale(s_identity, s_domain, s_now_epoch) &&
-        !tls_certificate_is_stale(s_identity, s_wanted_names, s_now_epoch)) {
+    // A certificate that cannot serve is made again, under the keys kept, or the keys are judged as a
+    // failed making judges them: HTTPS goes up only on one that serves, and plain HTTP stays otherwise.
+    const Serves serves = s_identity.certificate[0] != '\0' ? identity_serves(s_identity) : Serves::No;
+    if (serves == Serves::Unknown) {
+        // Not known to serve, and not known not to: kept as saved, and plain HTTP stays this start, as an
+        // HTTPS that failed every handshake would leave the home network nothing to update by.
+        ESP_LOGE(TAG, "out of memory checking the saved certificate: it is kept, and HTTP stays for an update");
+        s_failed_at_us.store(esp_timer_get_time());
+        s_configured.store(true);
+        return nullptr;
+    }
+    if (serves == Serves::No) {
+        s_identity.certificate[0] = '\0';
+    }
+    if (s_identity.root_key[0] != '\0' && s_identity.key[0] != '\0' && s_identity.certificate[0] != '\0' &&
+        !tls_root_is_stale(s_identity, s_domain, s_now_epoch) && !tls_certificate_is_stale(s_identity, s_wanted_names, s_now_epoch)) {
+        s_configured.store(true);
         return &s_identity;
     }
     s_waiting_task = xTaskGetCurrentTaskHandle();
@@ -367,7 +472,13 @@ const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
     state.set_making_key(false);
-    return created == pdPASS && s_made ? &s_identity : nullptr;
+    if (created != pdPASS || !s_made) {
+        s_failed_at_us.store(esp_timer_get_time());
+        s_configured.store(true);
+        return nullptr;
+    }
+    s_configured.store(true);
+    return &s_identity;
 }
 
 }  // namespace garland

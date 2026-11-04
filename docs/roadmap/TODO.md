@@ -6,16 +6,16 @@ Work that is agreed and not done. Milestones, and what is left to see working on
 
 One Go + Gio code base for all of them. Where it stands is in [its status](utility-progress.md).
 
-- [x] **Public API.** A branch of its own, `/api/v1/`, apart from the portal's private `/api/`, as [described](../stubs/PUBLIC-API.md). Not yet seen working on a board.
-- [ ] **Desktop utility: Windows written and not yet tried on a garland, then Linux (Ubuntu), then macOS:**
+- [x] **Public API.** A branch of its own, `/api/v1/`, apart from the portal's private `/api/`, as [described](../stubs/PUBLIC-API.md), seen working on a board through the utility.
+- [ ] **Desktop utility: Windows written and seen working against the owner's garland, then Linux (Ubuntu), then macOS:**
   - [x] Tune effects and preview them, both in the utility itself and on the garland.
   - [x] Control the garland, repeating what the portal does: playing and favourites, brightness and speed, uploads, the schedule and clock, LED count and screen, network and certificate, updates, and the browsers that have access.
   - [x] Receive the garland's log and show it, as a sealed unit has no USB to read one from.
-  - [ ] See all of it working against a real garland, as listed in [its status](utility-progress.md).
+  - [x] See all of it working against a real garland, as listed in [its status](utility-progress.md).
   - [ ] Ubuntu: Secret Service, a file dialog, and CI with the window's development headers.
   - [ ] macOS: Keychain and a file dialog.
 - [ ] **Android and iOS applications** repeating the utility, on the same Go + Gio code.
-- [ ] **Notices for the utility's own binary.** Its engine links MinGW's C++ runtime statically, which `deploy/new-third-party-notices.ps1` does not yet list from the compiler that built it: list what the chosen `.exe` holds before it is passed on.
+- [x] **Notices for the utility's own binary.** `deploy/new-third-party-notices.ps1` names Go's library and the compiler's libraries the `.exe` links statically, by the groups `deploy/build-utility.ps1` holds its link map to. The compiler ships no licence texts, so those of winpthreads and of mingw-w64's runtime, from mingw-w64 v14.0.0, which WinLibs GCC 16.1.0 r2 is built on, are kept in `deploy/licences/`.
 - [x] **Guide.** [The utility's guide](../guides/utility.md), and the principles of tuning in [section 14 of the Effects Guide](../guides/effects.md#14-the-settings-utility).
 
 Settled:

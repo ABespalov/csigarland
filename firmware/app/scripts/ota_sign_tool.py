@@ -192,10 +192,14 @@ def part_digest(part: bytes) -> bytes:
     return hashlib.sha256(part).digest() if part else bytes(32)
 
 
-def sign(folder: Path, pack_path: str, image_path: str, out_path: Path) -> None:
+# expected_root, if given, is the SHA-256 of the root the image trusts: the root read here, and the chain
+# checked against it, have to be that one, or what is signed would be refused by the image it goes with.
+def sign(folder: Path, pack_path: str, image_path: str, out_path: Path, expected_root: str = "") -> None:
     key = serialization.load_pem_private_key((folder / SIGNING_KEY).read_bytes(), password=None)
     certificate = load_certificate(folder / SIGNING_CERTIFICATE)
     root = load_certificate(folder / ROOT_CERTIFICATE)
+    if expected_root and root.fingerprint(hashes.SHA256()).hex() != expected_root.lower():
+        raise SystemExit(f"The root in {folder} is not the one the image trusts ({expected_root}): it changed while this built. Build again.")
     der_certificate = certificate.public_bytes(serialization.Encoding.DER)
     if len(der_certificate) > MAX_CERTIFICATE_BYTES:
         raise SystemExit(f"The signing certificate is {len(der_certificate)} bytes; an update holds {MAX_CERTIFICATE_BYTES}.")
@@ -332,8 +336,8 @@ def main() -> None:
         root_header(Path(args[1]), Path(args[2]))
     elif command == "verify" and len(args) == 3:
         verify(Path(args[1]), Path(args[2]))
-    elif command == "sign" and len(args) == 5:
-        sign(Path(args[1]), args[2], args[3], Path(args[4]))
+    elif command == "sign" and len(args) in (5, 6):
+        sign(Path(args[1]), args[2], args[3], Path(args[4]), args[5] if len(args) == 6 else "")
     else:
         raise SystemExit("usage: see the top of this file")
 

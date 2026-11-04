@@ -11,28 +11,34 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>csiGarland — color your weekdays</title>
-  <meta name="description" content="csiGarland is an open-source garland of 32 LEDs in 3D-printed figurines, run by an ESP32-C6 with its own screen, buttons, schedule and web portal, and a companion utility.">
+  <title data-i18n="index.meta.title">csiGarland — color your weekdays</title>
+  <meta name="description" data-i18n-content="index.meta.desc" content="csiGarland is an open-source garland of 32 LEDs in 3D-printed figurines, run by an ESP32-C6 with its own screen, buttons, schedule and web portal, and a companion utility.">
   <link rel="canonical" href="https://garland.csilab.am/">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <meta property="og:title" content="csiGarland — color your weekdays">
-  <meta property="og:description" content="A garland of 3D-printed figurines that plays 154 effects, keeps a schedule, and needs no cloud.">
+  <meta property="og:title" data-i18n-content="index.meta.title" content="csiGarland — color your weekdays">
+  <meta property="og:description" data-i18n-content="index.og.desc" content="A garland of 3D-printed figurines that plays 154 effects, keeps a schedule, and needs no cloud.">
   <meta property="og:url" content="https://garland.csilab.am/">
   <meta property="og:type" content="website">
   <link rel="stylesheet" href="styles.css">
+  <script src="lang.js"></script>
+  <script src="site.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Skip to content</a>
   <header class="site-header">
     <div class="site-header-inner">
-      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
-      <nav class="nav" aria-label="Primary">
-        <a href="index.html" aria-current="page">Product</a>
-        <a href="roadmap.html">Roadmap</a>
-        <a href="documents.html">Documents</a>
-        <a href="downloads.html">Downloads</a>
-        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      <a class="brand" href="index.html" aria-label="csiGarland home" data-i18n-aria="nav.home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary" data-i18n-aria="nav.primary">
+        <a href="index.html" aria-current="page" data-i18n="nav.product">Product</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">Roadmap</a>
+        <a href="documents.html" data-i18n="nav.documents">Documents</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Source</a>
       </nav>
+      <a class="lang-switch" id="lang-switch" href="ru/" hreflang="ru" lang="ru" aria-label="Русская версия" title="Русская версия">RU</a>
     </div>
   </header>
 
@@ -40,85 +46,96 @@
     <section class="section">
       <div class="hero">
         <div>
-          <p class="eyebrow">Open-source holiday lighting</p>
-          <h1>Any day can be a holiday.</h1>
-          <p class="lead">csiGarland is a garland of 32 LEDs, each inside a 3D-printed translucent figurine, run by a small controller with its own screen and three buttons. It plays 154 effects, keeps a weekly schedule, and has a web portal and a desktop utility. It needs no cloud and no account: everything works on the garland, with or without a network.</p>
+          <p class="eyebrow" data-i18n="index.hero.eyebrow">Open-source holiday lighting</p>
+          <h1 data-i18n="index.hero.title">Any day can be a holiday.</h1>
+          <p class="lead" data-i18n="index.hero.lead">csiGarland is a garland of 32 LEDs, each inside a 3D-printed translucent figurine, run by a small controller with its own screen and three buttons. It plays 154 effects, keeps a weekly schedule, and has a web portal and a desktop utility. It needs no cloud and no account: everything works on the garland, with or without a network.</p>
           <div class="cta-row">
-            <a class="button button-primary" href="downloads.html">Download</a>
-            <a class="button" href="documents.html">Documents</a>
-            <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">View source</a>
+            <a class="button button-primary" href="downloads.html" data-i18n="index.hero.cta.download">Download</a>
+            <a class="button" href="documents.html" data-i18n="index.hero.cta.docs">Documents</a>
+            <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="index.hero.cta.source">View source</a>
           </div>
         </div>
         <figure>
-          <img class="shot" src="assets/garland-hanging.png" alt="Render of eight figurines hanging on the garland's cable">
+          <img class="shot" src="assets/garland-hanging.png" alt="Render of eight figurines hanging on the garland's cable" data-i18n-alt="index.hero.img.alt">
         </figure>
       </div>
-      <p class="note">The pictures here are renders of the 3D models and pictures drawn by the firmware's and utility's own code. Photographs follow with the first garland built.</p>
+      <p class="note" data-i18n="index.hero.note">The pictures here are renders of the 3D models and pictures drawn by the firmware's and utility's own code. Click or tap any picture to open and zoom it. Photographs follow with the first garland built.</p>
     </section>
 
     <section class="section">
-      <p class="eyebrow">What it does</p>
-      <h2>A garland that stands alone</h2>
+      <p class="eyebrow" data-i18n="index.features.eyebrow">What it does</p>
+      <h2 data-i18n="index.features.title">A garland that stands alone</h2>
       <div class="grid">
-        <div class="card"><h3>154 effects</h3><p>From candles and snowfall to chases and rainbows, in groups, from 101 algorithms in up to four layers. Favourites go on the EFFECT button, and your own effects upload from a file.</p></div>
-        <div class="card"><h3>Its own screen and buttons</h3><p>POWER, EFFECT and SPEED on the box, and a 1.3-inch screen that says what plays, how bright and how fast, and how many LEDs it found.</p></div>
-        <div class="card"><h3>A schedule</h3><p>Up to 32 actions a week: turn on, set brightness, speed or an effect, turn off. An optional clock module keeps the time through a power cut.</p></div>
-        <div class="card"><h3>Portal and utility</h3><p>A web portal on the garland itself, over HTTPS with its own certificate, and a desktop utility that tunes effects with a preview drawn by the firmware's own engine.</p></div>
-        <div class="card"><h3>Safe by design</h3><p>The LED rail is switched off in standby, and every frame is held to 1400 mA on a 2 A supply. No effect or setting goes around it.</p></div>
-        <div class="card"><h3>Updates you can check</h3><p>Firmware and effects update over Wi-Fi, signed under your own root, tried for a minute and kept only if they work. Every release builds again to the byte.</p></div>
+        <div class="card"><h3 data-i18n="index.f1.title">154 effects</h3><p data-i18n="index.f1.body">From candles and snowfall to chases and rainbows, in groups, from 98 algorithms in up to four layers. Favourites go on the EFFECT button, and your own effects upload from a file.</p></div>
+        <div class="card"><h3 data-i18n="index.f2.title">Its own screen and buttons</h3><p data-i18n="index.f2.body">POWER, EFFECT and SPEED on the box, and a 1.3-inch screen that says what plays, how bright and how fast, and how many LEDs it found.</p></div>
+        <div class="card"><h3 data-i18n="index.f3.title">A schedule</h3><p data-i18n="index.f3.body">Up to 32 actions a week: turn on, set brightness, speed or an effect, turn off. An optional clock module keeps the time through a power cut.</p></div>
+        <div class="card"><h3 data-i18n="index.f4.title">Portal and utility</h3><p data-i18n="index.f4.body">A web portal on the garland itself, over HTTPS with its own certificate, and a desktop utility that tunes effects with a preview drawn by the firmware's own engine.</p></div>
+        <div class="card"><h3 data-i18n="index.f5.title">Safe by design</h3><p data-i18n="index.f5.body">The LED rail is switched off in standby, and every frame is held to 1400 mA on a 2 A supply. No effect or setting goes around it.</p></div>
+        <div class="card"><h3 data-i18n="index.f6.title">Updates you can check</h3><p data-i18n="index.f6.body">Firmware and effects update over Wi-Fi, ready to download with every release and signed under the project's root, tried for a minute and kept only if they work. Every release builds again to the byte.</p></div>
       </div>
     </section>
 
     <section class="section">
-      <p class="eyebrow">The figurines</p>
-      <h2>Eight shapes, four of each</h2>
-      <p class="lead">Hollow caps of about 48 mm, printed in translucent PETG, snap onto base mounts that hold each LED and its wires. The light spreads through the whole shape.</p>
+      <p class="eyebrow" data-i18n="index.why.eyebrow">Why another garland</p>
+      <h2 data-i18n="index.why.title">Not a box from the shop, not a strip on a phone</h2>
+      <div class="grid">
+        <div class="card"><h3 data-i18n="index.w1.title">Shop garlands</h3><p data-i18n="index.w1.body">The same moulded caps on every shelf, eight blinking modes, and a controller that forgets your choice when unplugged. Here the shapes are printed, can be swapped, and the garland remembers what you chose.</p></div>
+        <div class="card"><h3 data-i18n="index.w2.title">WLED</h3><p data-i18n="index.w2.body">A fine choice for a strip run from a phone. csiGarland is built the other way round: around a board with its own colour screen and three buttons, so you never have to reach for the phone, and the network is an extra.</p></div>
+        <div class="card"><h3 data-i18n="index.w3.title">A sealed box</h3><p data-i18n="index.w3.body">Once closed, the control unit has no USB to reach. Every update arrives over Wi-Fi, signed, and goes back by itself if the new version does not prove itself.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow" data-i18n="index.figurines.eyebrow">The figurines</p>
+      <h2 data-i18n="index.figurines.title">Eight shapes, four of each</h2>
+      <p class="lead" data-i18n="index.figurines.lead">Hollow caps of about 48 mm, printed in translucent PETG, snap onto base mounts that hold each LED and its wires. The light spreads through the whole shape.</p>
       <div class="gallery">
-        <figure><img src="assets/figurine-tree.png" alt="Render of the tree figurine"><figcaption>Spiral pine</figcaption></figure>
-        <figure><img src="assets/figurine-star.png" alt="Render of the star figurine"><figcaption>Star</figcaption></figure>
-        <figure><img src="assets/figurine-icicle.png" alt="Render of the icicle figurine"><figcaption>Icicle cluster</figcaption></figure>
-        <figure><img src="assets/figurine-pinecone.png" alt="Render of the pinecone figurine"><figcaption>Pinecone</figcaption></figure>
-        <figure><img src="assets/figurine-bell.png" alt="Render of the bell figurine"><figcaption>Bell</figcaption></figure>
-        <figure><img src="assets/figurine-snowman.png" alt="Render of the snowman figurine"><figcaption>Snowman</figcaption></figure>
-        <figure><img src="assets/figurine-gingerbread.png" alt="Render of the gingerbread figurine"><figcaption>Gingerbread man</figcaption></figure>
-        <figure><img src="assets/figurine-lantern.png" alt="Render of the lantern figurine"><figcaption>Lantern</figcaption></figure>
+        <figure><img src="assets/figurine-tree.png" alt="Render of the tree figurine" data-i18n-alt="index.fig.tree.alt"><figcaption data-i18n="index.fig.tree">Spiral pine</figcaption></figure>
+        <figure><img src="assets/figurine-star.png" alt="Render of the star figurine" data-i18n-alt="index.fig.star.alt"><figcaption data-i18n="index.fig.star">Star</figcaption></figure>
+        <figure><img src="assets/figurine-icicle.png" alt="Render of the icicle figurine" data-i18n-alt="index.fig.icicle.alt"><figcaption data-i18n="index.fig.icicle">Icicle cluster</figcaption></figure>
+        <figure><img src="assets/figurine-pinecone.png" alt="Render of the pinecone figurine" data-i18n-alt="index.fig.pinecone.alt"><figcaption data-i18n="index.fig.pinecone">Pinecone</figcaption></figure>
+        <figure><img src="assets/figurine-bell.png" alt="Render of the bell figurine" data-i18n-alt="index.fig.bell.alt"><figcaption data-i18n="index.fig.bell">Bell</figcaption></figure>
+        <figure><img src="assets/figurine-snowman.png" alt="Render of the snowman figurine" data-i18n-alt="index.fig.snowman.alt"><figcaption data-i18n="index.fig.snowman">Snowman</figcaption></figure>
+        <figure><img src="assets/figurine-gingerbread.png" alt="Render of the gingerbread figurine" data-i18n-alt="index.fig.gingerbread.alt"><figcaption data-i18n="index.fig.gingerbread">Gingerbread man</figcaption></figure>
+        <figure><img src="assets/figurine-lantern.png" alt="Render of the lantern figurine" data-i18n-alt="index.fig.lantern.alt"><figcaption data-i18n="index.fig.lantern">Lantern</figcaption></figure>
       </div>
     </section>
 
     <section class="section">
-      <p class="eyebrow">The control unit</p>
-      <h2>One box: supply, controller, switch</h2>
+      <p class="eyebrow" data-i18n="index.control.eyebrow">The control unit</p>
+      <h2 data-i18n="index.control.title">One box: supply, controller, switch</h2>
       <div class="hero">
         <div>
-          <p>A Waveshare ESP32-C6 board with its screen, a Hi-Link 5 V 2 A supply, a MOSFET that gates the LED rail, and the three buttons, in a printed enclosure. The screen follows the csiPass design.</p>
+          <p data-i18n="index.control.body">A Waveshare ESP32-C6 board with its screen, a Hi-Link 5 V 2 A supply, a MOSFET that gates the LED rail, and the three buttons, in a printed enclosure. The screen follows the csiPass design.</p>
+          <p class="note danger" data-i18n="index.control.danger">The box takes mains voltage. Read Building the Hardware before you build one, and do not use the XT60H as a mains inlet: it has no approval for mains.</p>
           <div class="screens">
-            <img src="assets/screen-playing.png" alt="The screen while an effect plays">
-            <img src="assets/screen-standby.png" alt="The screen in standby">
-            <img src="assets/screen-access.png" alt="The screen asking to approve a browser">
-            <img src="assets/screen-update.png" alt="The screen while an update arrives">
+            <img src="assets/screen-playing.png" alt="The screen while an effect plays" data-i18n-alt="index.screen.playing">
+            <img src="assets/screen-standby.png" alt="The screen in standby" data-i18n-alt="index.screen.standby">
+            <img src="assets/screen-access.png" alt="The screen asking to approve a browser" data-i18n-alt="index.screen.access">
+            <img src="assets/screen-update.png" alt="The screen while an update arrives" data-i18n-alt="index.screen.update">
           </div>
         </div>
-        <figure><img class="shot" src="assets/enclosure.png" alt="Render of the control unit's enclosure"></figure>
+        <figure><img class="shot" src="assets/enclosure.png" alt="Render of the control unit's enclosure" data-i18n-alt="index.control.enclosure"></figure>
       </div>
     </section>
 
     <section class="section">
-      <p class="eyebrow">Portal and utility</p>
-      <h2>Control it from a browser or the desktop</h2>
-      <div class="gallery">
-        <figure><img class="shot" src="assets/portal-effects.png" alt="The portal's Effects page"><figcaption>The portal on the garland</figcaption></figure>
-        <figure><img class="shot" src="assets/utility-effects.png" alt="The utility's Effects page"><figcaption>The csiGarland utility</figcaption></figure>
-        <figure><img class="shot" src="assets/utility-tune.png" alt="Tuning an effect in the utility"><figcaption>Tune, with a preview from the firmware's engine</figcaption></figure>
-        <figure><img class="shot" src="assets/utility-firmware.png" alt="Updating firmware in the utility"><figcaption>Updates from the catalog of releases</figcaption></figure>
+      <p class="eyebrow" data-i18n="index.portal.eyebrow">Portal and utility</p>
+      <h2 data-i18n="index.portal.title">Control it from a browser or the desktop</h2>
+      <div class="gallery gallery-shots">
+        <figure><img class="shot" src="assets/portal-effects.png" alt="The portal's Effects page" data-i18n-alt="index.shot.portal.alt"><figcaption data-i18n="index.shot.portal">The portal on the garland</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-effects.png" alt="The utility's Effects page" data-i18n-alt="index.shot.utility.alt"><figcaption data-i18n="index.shot.utility">The csiGarland utility</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-tune.png" alt="Tuning an effect in the utility" data-i18n-alt="index.shot.tune.alt"><figcaption data-i18n="index.shot.tune">Tune, with a preview from the firmware's engine</figcaption></figure>
+        <figure><img class="shot" src="assets/utility-firmware.png" alt="Updating firmware in the utility" data-i18n-alt="index.shot.firmware.alt"><figcaption data-i18n="index.shot.firmware">Updates from the catalog of releases</figcaption></figure>
       </div>
     </section>
 
     <section class="section">
-      <p class="eyebrow">Open source</p>
-      <h2>Yours to build, check and change</h2>
-      <p class="lead">Firmware, utility, 3D models and documents are under the MIT License. A release builds again from its sources to the byte, so the file you install is the file the sources make.</p>
+      <p class="eyebrow" data-i18n="index.oss.eyebrow">Open source</p>
+      <h2 data-i18n="index.oss.title">Yours to build, check and change</h2>
+      <p class="lead" data-i18n="index.oss.lead">Firmware, utility, 3D models and documents are under the MIT License. A release builds again from its sources to the byte, so the file you install is the file the sources make.</p>
       <div class="cta-row">
-        <a class="button button-primary" href="documents.html">Read the documents</a>
+        <a class="button button-primary" href="documents.html" data-i18n="index.oss.cta.docs">Read the documents</a>
         <a class="button" href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">GitHub</a>
       </div>
     </section>
@@ -126,8 +143,8 @@
 
   <footer class="site-footer">
     <div class="section">
-      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
-      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer">Reporting a security problem</a>
+      <span data-i18n="footer.copy">csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security">Reporting a security problem</a>
     </div>
   </footer>
 </body>

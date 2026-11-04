@@ -29,7 +29,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "nvs.h"
 #include "ota.h"
+#include "playlist_resolver.h"
 #include "portal_tls.h"
 #include "rtc.h"
 #include "rtc_logic.h"
@@ -68,6 +70,33 @@ StaticSemaphore_t s_rtc_lock_storage;
 std::array<ScheduleEntry, kMaxScheduleEntries> s_entries{};
 size_t s_entry_count = 0;
 uint32_t s_schedule_revision = 0;
+// Whether the list above is the one NVS holds. Until it is, it is no empty list: nothing of it runs, the
+// portal shows and saves none of it, and it is read again every minute.
+std::atomic<bool> s_schedule_read{false};
+// The last minute the scheduler has done, for the timeline: a minute begun and not done yet is still ahead
+// of what the state says, and its step is still to come.
+std::atomic<int64_t> s_done_minute{-1};
+// The first time known since the start, and the moment of the last scheduled step done, both 0 for none:
+// what a save of the settings is dated by, see remember_settings.
+std::atomic<int64_t> s_first_known_epoch{0};
+std::atomic<int64_t> s_last_step_epoch{0};
+// The first minute whose step waits for the playlist to be read, -1 for none: a save of what the steps
+// before it did is dated just before it, so that a start in between still has it to do. See save_epoch.
+std::atomic<int64_t> s_steps_wait_from{-1};
+// A restart asked for, and what came of saving the settings ahead of it, see scheduler_save_before_restart.
+enum class RestartSave : uint8_t { None, Asked, Held, Failed };
+std::atomic<RestartSave> s_restart_save{RestartSave::None};
+// What was saved, as the scheduler last answered Held: a restart holds it to what is chosen at that moment.
+std::atomic<uint64_t> s_restart_held{0};
+// And the moment of the owner's last choice it was saved with: a choice since, the same value again among
+// them, is newer than what was saved.
+std::atomic<uint32_t> s_restart_held_choice{0};
+State* s_restart_state = nullptr;
+constexpr uint32_t kRestartSaveStepMs = 50;
+// What was remembered is there and could not be read at the start: nothing is saved over it until it is.
+std::atomic<bool> s_remembered_unread{false};
+constexpr uint32_t kRememberedRetryMs = 5000;
+constexpr uint32_t kScheduleRetryMs = 60000;
 SemaphoreHandle_t s_lock = nullptr;
 StaticSemaphore_t s_lock_storage;
 TaskHandle_t s_task = nullptr;
@@ -80,6 +109,8 @@ struct NextActionCache {
     bool found = false;
     int64_t action_minute = -1;
     ResolvedAction action;
+    // The catalog it was worked out with: an effect uploaded since may be one a step names.
+    uint16_t catalog = 0;
 };
 NextActionCache s_next;
 
@@ -111,10 +142,55 @@ void refresh_next_action(int64_t now_minute) {
     }
 }
 
-bool action_comes_soon(int64_t now_minute) {
+// As the summary tells it: a step that only starts an empty playlist does nothing, and is no action soon.
+// Worked out once a minute, or when the list or the playlist's having effects changes, as it is asked
+// every second and a walk past such steps can take a day of conversions.
+struct SoonCache {
+    int64_t minute = -1;  // -1 for nothing worked out, as after a change of zone or clock.
+    uint32_t revision = 0;
+    bool ready = false;
+    bool soon = false;
+};
+SoonCache s_seen;  // Under s_lock.
+
+// What the summary last told, for its minute, list, catalog and playlist: a walk past steps that only
+// start an empty playlist can take a week of conversions, and every page that asks would take it again.
+struct SummaryCache {
+    int64_t minute = -1;
+    uint32_t revision = 0;
+    bool ready = false;
+    int64_t action_minute = -1;
+    ResolvedAction action;
+};
+SummaryCache s_summary;  // Under s_lock; forgotten with the next action, see hold_to_catalog.
+
+// Under s_lock. Forgets what was worked out with another catalog.
+void hold_to_catalog(uint16_t catalog) {
+    if (s_next.catalog != catalog) {
+        s_next.catalog = catalog;
+        s_next.minute = -1;
+        s_seen.minute = -1;
+        s_summary.minute = -1;
+    }
+}
+
+bool action_comes_soon(int64_t now_minute, bool playlist_ready, uint16_t catalog) {
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    hold_to_catalog(catalog);
     refresh_next_action(now_minute);
-    const bool soon = action_is_soon(s_next.action_minute, now_minute);
+    if (s_seen.minute != now_minute || s_seen.revision != s_schedule_revision || s_seen.ready != playlist_ready) {
+        int64_t minute = s_next.found ? s_next.action_minute : -1;
+        if (minute >= 0 && !s_next.action.with_playlist(playlist_ready).does_something()) {
+            ResolvedAction action;
+            minute = next_doing_minute(s_entries.data(), s_entry_count, minute, now_minute + kActionSoonMinutes, to_local_minute, playlist_ready,
+                                       action);
+        }
+        s_seen.minute = now_minute;
+        s_seen.revision = s_schedule_revision;
+        s_seen.ready = playlist_ready;
+        s_seen.soon = action_is_soon(minute, now_minute);
+    }
+    const bool soon = s_seen.soon;
     xSemaphoreGive(s_lock);
     return soon;
 }
@@ -123,7 +199,10 @@ void forget_next_action() {
     if (s_lock != nullptr) {
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_next.minute = -1;
+        s_seen.minute = -1;
+        s_summary.minute = -1;
         xSemaphoreGive(s_lock);
+
     }
 }
 
@@ -213,21 +292,42 @@ ResolvedAction resolve_under_lock(int64_t first_minute, int64_t last_minute) {
 
 // As one change, so the lighting task never sees part of it, and only if the owner has chosen
 // nothing since this was worked out: that choice is newer than all of it.
-void apply(State& state, const ResolvedAction& action) {
-    if (!action.any) {
+void apply(State& state, const ResolvedAction& resolved) {
+    if (!resolved.any) {
         return;
     }
-    const int power = action.power == PowerStep::None ? -1 : action.power == PowerStep::On ? 1 : 0;
-    if (!state.apply_scheduled(action.brightness_percent, action.speed_x4, action.effect, power)) {
+    // A step starting the playlist with none to start is as if it were not: see merge_entry. Both tracks
+    // go, and apply_scheduled takes one by the list it reads once.
+    const auto order = [](PowerStep step) {
+        return step == PowerStep::None ? kPowerKeep : step == PowerStep::Rise ? kPowerRise : step == PowerStep::On ? kPowerOn : kPowerOff;
+    };
+    if (!state.apply_scheduled(resolved.brightness_percent, resolved.speed_x4, resolved.effect, order(resolved.power), resolved.playlist,
+                               resolved.effect_without_playlist, order(resolved.power_without_playlist))) {
         ESP_LOGI(TAG, "the owner chose while this was worked out, so it stands");
         return;
     }
-    ESP_LOGI(TAG, "applied: power=%d bright=%u speed=%u effect=%d", static_cast<int>(action.power),
-             action.brightness_percent, action.speed_x4, action.effect);
+    s_last_step_epoch.store(static_cast<int64_t>(std::time(nullptr)));
+    ESP_LOGI(TAG, "applied: power=%d bright=%u speed=%u effect=%d playlist=%d", static_cast<int>(resolved.power),
+             resolved.brightness_percent, resolved.speed_x4, resolved.effect, resolved.playlist ? 1 : 0);
 }
 
 Remembered remembered_from(const Snapshot& now, uint16_t effect) {
-    return Remembered{effect, now.brightness_percent, now.speed_x4, now.power_chosen};
+    return Remembered{effect, now.brightness_percent, now.speed_x4, now.power_chosen, now.playlist};
+}
+
+uint64_t pack_remembered(const Remembered& r) {
+    return uint64_t{r.effect} | uint64_t{r.brightness_percent} << 16 | uint64_t{r.speed_x4} << 24 | uint64_t{r.playing} << 32 |
+           uint64_t{r.playlist} << 33;
+}
+
+// Whether what is chosen now is what the scheduler last said it saved: an Off of the countdown after that
+// answer is not in it. The effect as the scheduler remembers it, which a preview or the playlist moving on
+// leaves as it was.
+bool restart_held_matches_now() {
+    const Snapshot now = s_restart_state->snapshot();
+    const uint64_t held = s_restart_held.load();
+    const uint16_t effect = !catalog_is_preview(now.effect) && !now.playlist ? now.effect : static_cast<uint16_t>(held & 0xFFFF);
+    return pack_remembered(remembered_from(now, effect)) == held && s_restart_state->owner_choice_ms() == s_restart_held_choice.load();
 }
 
 // A garland with no clock module may run for years on a certificate made from the build's date,
@@ -239,27 +339,78 @@ void renew_certificate_if_due(const State& state) {
     if (ota_on_trial() || state.snapshot().update_percent != kNoUpdate || !portal_tls_renewal_due(now)) {
         return;
     }
+    // An update being received has the garland first, and the next answer of NTP looks again.
+    if (!ota_reserve_restart()) {
+        return;
+    }
     ESP_LOGW(TAG, "the certificate is running out: restarting to renew it");
     if (portal_tls_prepare_renewal(now)) {
         ota_restart_soon();
+    } else {
+        ota_release_restart();
     }
 }
 
 // Here rather than where they change, as the buttons, portal and schedule all change them. A
 // preview is gone at the next start, so the effect before it stays the one to remember, and
 // everything else is saved as ever: above all a turn off.
+uint32_t uptime_ms();
+
+// The wall-clock second of the owner's last choice, from the uptime it was made at: right once the clock
+// is set, whenever the choice was made.
+int64_t epoch_of_last_choice(const State& state) {
+    const auto wall_ms = [] {
+        timeval now = {};
+        gettimeofday(&now, nullptr);
+        return static_cast<int64_t>(now.tv_sec) * 1000 + now.tv_usec / 1000;
+    };
+    return latest_wall_ms_of_uptime(state.owner_choice_ms(), uptime_ms, wall_ms) / 1000;
+}
+
+// The first time known since the start, taken the first time it is asked for with the clock set, by a
+// save as by the scheduler's own pass: a save dated by it before the pass took it would else go by 0.
+int64_t note_first_known_epoch() {
+    int64_t known = s_first_known_epoch.load();
+    if (known == 0) {
+        known = static_cast<int64_t>(std::time(nullptr));
+        s_first_known_epoch.store(known);
+    }
+    return known;
+}
+
 void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
+    // A save writes every field, and the ones not read yet would be lost to what the state holds.
+    if (s_remembered_unread.load()) {
+        return;
+    }
     const Snapshot now = state.snapshot();
-    if (!catalog_is_preview(now.effect)) {
+    // An effect the playlist moved on to is none of the owner's choosing: what is remembered, and when it
+    // was chosen, stay as they were when the playlist began, so that a scheduled step since still counts.
+    if (!catalog_is_preview(now.effect) && !now.playlist) {
         real_effect = now.effect;
     }
     const Remembered current = remembered_from(now, real_effect);
     const auto now_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
-    if (now.update_percent != kNoUpdate || !timer.should_save(current, now_ms)) {
+    // During an update nothing is saved, as it has the flash; once it is installed, or a restart is asked
+    // for, what is chosen is saved at once, as the countdown's Off that came during the update.
+    const bool restarting = now.update_percent == kUpdateRestarting || s_restart_save.load() != RestartSave::None;
+    if ((now.update_percent != kNoUpdate && !restarting) || !(restarting ? !timer.holds(current) : timer.should_save(current, now_ms))) {
         return;
     }
-    const int64_t chosen_at = s_synced.load() ? static_cast<int64_t>(std::time(nullptr)) : 0;
-    const esp_err_t err = settings_save_remembered(catalog_id(real_effect).c_str(), now.brightness_percent, now.speed_x4, now.power_chosen, chosen_at);
+    // When it was chosen, see save_epoch. The first time known is taken here if the pass has not yet.
+    int64_t chosen_at = 0;
+    if (s_synced.load()) {
+        const int64_t choice = state.owner_choice_ms() != 0 ? epoch_of_last_choice(state) : -1;
+        chosen_at = save_epoch(static_cast<int64_t>(std::time(nullptr)), choice, note_first_known_epoch(), s_last_step_epoch.load(),
+                               s_steps_wait_from.load());
+    }
+    // While the mark of playing waits, unread or read and waiting for the list to resume it, a save the
+    // owner or a step did not make about what plays, of the power, brightness or speed alone among them,
+    // keeps the mark there: written as stopped, it would end a playlist still to resume.
+    const bool unknown = playlist_mark_is_pending() && !state.owner_chose_play() && !state.scheduled_play();
+    const PlaylistMark mark = unknown ? PlaylistMark::AsSaved : now.playlist ? PlaylistMark::Playing : PlaylistMark::Stopped;
+    const esp_err_t err = settings_save_remembered(catalog_id(real_effect).c_str(), now.brightness_percent, now.speed_x4, now.power_chosen,
+                                                   chosen_at, mark);
     if (err == ESP_OK) {
         s_choice_epoch = chosen_at;
         timer.saved(current);
@@ -275,7 +426,9 @@ void give_the_choice_a_time(int64_t first_known_epoch) {
         ESP_LOGW(TAG, "reading the choice to give it a time failed");
         return;
     }
-    const esp_err_t err = settings_save_remembered(stored.effect_id, stored.brightness_percent, stored.speed_x4, stored.playing != 0, first_known_epoch);
+    // The playlist as it was saved with the value this replaces, read with it under one lock.
+    const esp_err_t err = settings_save_remembered(stored.effect_id, stored.brightness_percent, stored.speed_x4, stored.playing != 0, first_known_epoch,
+                                                   PlaylistMark::AsSaved);
     if (err == ESP_OK) {
         s_choice_epoch = first_known_epoch;
     } else {
@@ -287,21 +440,97 @@ uint32_t uptime_ms() {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
 }
 
+// What was remembered, read now that it can be: put on the state as at a start, unless the owner chose or a
+// step was done since, which are newer, and saves go on from it.
+void read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
+    StoredSettings remembered;
+    const esp_err_t read = settings_read_remembered(remembered);
+    if (read != ESP_OK && read != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "reading the remembered choice failed again: %s", esp_err_to_name(read));
+        return;
+    }
+    if (read == ESP_OK && state.owner_choice_ms() == 0 && s_last_step_epoch.load() == 0) {
+        remembered_apply(state, remembered);
+        playlist_restore_playing(state);
+        real_effect = state.snapshot().effect;
+        s_choice_epoch = remembered.choice_epoch;
+        timer = MemorySaveTimer(remembered_from(state.snapshot(), real_effect));
+        ESP_LOGI(TAG, "the remembered choice was read late, and taken");
+    } else if (read == ESP_ERR_NVS_NOT_FOUND) {
+        s_choice_epoch = kNoChoiceYet;
+    }
+    s_remembered_unread.store(false);
+}
+
 // A look round comes up to a second later, and a step can fall due in between, so it takes the
 // choice's own moment to tell which came first.
 int64_t minute_of_last_choice(const State& state) {
-    const auto wall_ms = [] {
-        timeval now = {};
-        gettimeofday(&now, nullptr);
-        return static_cast<int64_t>(now.tv_sec) * 1000 + now.tv_usec / 1000;
-    };
-    return latest_wall_ms_of_uptime(state.owner_choice_ms(), uptime_ms, wall_ms) / 60000;
+    return epoch_of_last_choice(state) / 60;
 }
 
 void wake_to_save() {
     if (s_task != nullptr) {
         xTaskNotifyGive(s_task);
     }
+}
+
+// The schedule from NVS into the list, tried three times: an empty list in its place would run nothing,
+// and be saved over. Once read, a mark of another list beside it is let go, see
+// settings_tidy_schedule_rises.
+bool load_schedule() {
+    static std::array<ScheduleEntry, kMaxScheduleEntries> s_read{};
+    size_t count = 0;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        const esp_err_t err = settings_read_schedule(s_read.data(), s_read.size(), count);
+        if (err == ESP_OK) {
+            // The marks first, while the portal still refuses to save: a save in between would have its
+            // own marks written over with those of the list read here.
+            const esp_err_t tidy = settings_tidy_schedule_rises();
+            if (tidy != ESP_OK) {
+                ESP_LOGW(TAG, "the rise marks were left as they are: %s", esp_err_to_name(tidy));
+            }
+            xSemaphoreTake(s_lock, portMAX_DELAY);
+            std::copy_n(s_read.begin(), count, s_entries.begin());
+            s_entry_count = count;
+            s_next.minute = -1;
+            ++s_schedule_revision;
+            s_schedule_read.store(true);
+            xSemaphoreGive(s_lock);
+            ESP_LOGI(TAG, "%u actions loaded", static_cast<unsigned>(count));
+            return true;
+        }
+        ESP_LOGW(TAG, "reading the schedule failed: %s", esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    ESP_LOGE(TAG, "the schedule could not be read: it is tried again every minute, and the portal holds it back until then");
+    return false;
+}
+
+// The first minute from first to last whose step starts the playlist while the list is not read yet, and
+// turns the garland on or leaves it, or -1: the minutes from it on wait for the list. One that turns it
+// off in the same minute is done now, as off, the start of the playlist with it lost: what it comes to is
+// known without the list. None waits while the list is read.
+int64_t first_minute_held_by_playlist(int64_t first, int64_t last) {
+    if (!playlist_is_stale()) {
+        return -1;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int64_t held = -1;
+    for (int64_t minute = first; minute <= last && held < 0; ++minute) {
+        const ResolvedAction action = resolve_minutes(s_entries.data(), s_entry_count, minute, minute, to_local_minute);
+        if (action.playlist && action.power != PowerStep::Off) {
+            held = minute;
+        }
+    }
+    xSemaphoreGive(s_lock);
+    return held;
+}
+
+// The minutes first to last done, but for a playlist not read yet, whose start nothing done now can stand
+// for: what they come to without it, as a minute turning off does.
+void apply_minutes(State& state, int64_t first, int64_t last) {
+    const ResolvedAction action = resolve_under_lock(first, last);
+    apply(state, playlist_is_stale() ? action.with_playlist(false) : action);
 }
 
 void scheduler_task(void* arg) {
@@ -316,14 +545,42 @@ void scheduler_task(void* arg) {
     uint32_t choice_time_tried_ms = 0;
     uint16_t real_effect = state.snapshot().effect;
     MemorySaveTimer memory_timer(remembered_from(state.snapshot(), real_effect));
+    uint32_t schedule_tried_ms = uptime_ms();
+    uint32_t remembered_tried_ms = uptime_ms();
+    // The start's replay, stopped before a step that waits for the playlist, goes on from there.
+    int64_t replay_from = -1;
+
     while (true) {
         // A turn on or off is saved right away, not at the next look round.
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPollMs));
+        playlist_retry_if_stale(state, uptime_ms());
+        if (s_remembered_unread.load() && uptime_ms() - remembered_tried_ms >= kRememberedRetryMs) {
+            remembered_tried_ms = uptime_ms();
+            read_remembered_late(state, memory_timer, real_effect);
+        }
+        if (!s_schedule_read.load() && uptime_ms() - schedule_tried_ms >= kScheduleRetryMs) {
+            schedule_tried_ms = uptime_ms();
+            load_schedule();
+        }
+        // Before the mark is taken: a choice after this is not in what this pass saves.
+        const uint32_t choice_seen = state.owner_choice_ms();
         if (state.take_owner_choice()) {
             choice_minute = minute_of_last_choice(state);
             memory_timer.note_choice();
         }
         remember_settings(state, memory_timer, real_effect);
+        // A restart waits for this, a little: see scheduler_saved_before_restart.
+        if (s_restart_save.load() != RestartSave::None) {
+            const Remembered held = remembered_from(state.snapshot(), real_effect);
+            if (memory_timer.holds(held)) {
+                // The value first: a restart that sees Held reads the value it is of, or a newer one.
+                s_restart_held.store(pack_remembered(held));
+                s_restart_held_choice.store(choice_seen);
+                s_restart_save.store(RestartSave::Held);
+            } else {
+                s_restart_save.store(RestartSave::Failed);
+            }
+        }
         if (s_ntp_arrived.exchange(false)) {
             if (rtc_present()) {
                 pass_ntp_time_to_rtc();
@@ -334,23 +591,64 @@ void scheduler_task(void* arg) {
             continue;
         }
         const int64_t now = now_in_minutes();
-        state.set_action_soon(action_comes_soon(now));
+        // The first time known since the start, whatever waits: a choice made with no clock counts as
+        // made then, and steps after it still come.
+        if (first_known_epoch == 0) {
+            first_known_epoch = note_first_known_epoch();
+        }
+
+        const Snapshot seen = state.snapshot();
+        state.set_action_soon(action_comes_soon(now, seen.playlist_size > 0, seen.catalog_revision));
+        // Nothing is done of a schedule not read yet. The minutes wait, and once it is read they are done
+        // as at a start, the owner's choices outranking the steps before them.
+        if (!s_schedule_read.load()) {
+            continue;
+        }
+        // The last minute done this pass: before a step starting a playlist not read yet, which would come
+        // to nothing and count as done, the minutes stop, and the rest wait for the list.
+        int64_t done = now;
         if (last_minute < 0) {
             // What the garland was left as has already come back, and outranks every step from
             // before it. Only those that came due with no power are still to do: without them it
-            // could stay dark until the next "on" comes around tomorrow. A choice still waiting to
-            // be saved is newer than all of them.
-            const bool chosen_just_now = !memory_timer.holds(remembered_from(state.snapshot(), real_effect));
-            const int64_t first = chosen_just_now ? -1 : replay_first_minute(s_choice_epoch, now);
+            // could stay dark until the next "on" comes around tomorrow. A choice saved with no clock
+            // counts as made at the first time known; one made since the start, saved or still waiting
+            // to be, is newer than the one saved, and the steps up to it yield to it.
+            // Once begun, the replay goes on from where it stopped, whatever its own steps saved meanwhile
+            // as the choice, which would put the bound past the steps still to do.
+            int64_t first = replay_from >= 0                ? replay_from
+                            : s_choice_epoch == 0           ? first_known_epoch / 60 + 1
+                                                            : replay_first_minute(s_choice_epoch, now);
+            // No more than the day the replay ever takes, a clock set late or corrected in between too.
             if (first >= 0) {
-                apply(state, resolve_under_lock(first, now));
+                first = std::max(first, now - kReplayMinutes + 1);
             }
-            first_known_epoch = static_cast<int64_t>(std::time(nullptr));
+            const int64_t chosen = state.owner_choice_ms() != 0 ? minute_of_last_choice(state) : -1;
+            if (first >= 0 && chosen >= first) {
+                first = chosen + 1;
+            }
+            const int64_t held = first >= 0 && first <= now ? first_minute_held_by_playlist(first, now) : -1;
+            s_steps_wait_from.store(held);
+            if (held >= 0) {
+                // Done up to the step that waits for the list, and the rest of the replay from it once it
+                // is read: caught up later instead, it would lose the day.
+                if (first < held) {
+                    apply_minutes(state, first, held - 1);
+                }
+                replay_from = held;
+                continue;
+            }
+            if (first >= 0 && first <= now) {
+                apply_minutes(state, first, now);
+            }
         } else if (now > last_minute) {
             const int64_t first = catch_up_first_minute(last_minute, now, choice_minute);
-            if (first <= now) {
-                apply(state, resolve_under_lock(first, now));
+            const int64_t held = first <= now ? first_minute_held_by_playlist(first, now) : -1;
+            s_steps_wait_from.store(held);
+            const int64_t until = held >= 0 ? held - 1 : now;
+            if (first <= until) {
+                apply_minutes(state, first, until);
             }
+            done = held >= 0 ? std::max(last_minute, held - 1) : now;
         }
         const bool holds = memory_timer.holds(remembered_from(state.snapshot(), real_effect));
         if (choice_time_is_due(s_choice_epoch, holds, tried_choice_time, uptime_ms() - choice_time_tried_ms)) {
@@ -359,10 +657,11 @@ void scheduler_task(void* arg) {
             give_the_choice_a_time(first_known_epoch);
         }
         // A clock that stepped back simply waits; nothing fires twice for it.
-        last_minute = last_minute < 0 ? now : std::max(last_minute, now);
+        last_minute = last_minute < 0 ? done : std::max(last_minute, done);
         if (now < last_minute - kMaxCatchUpMinutes) {
             last_minute = now;
         }
+        s_done_minute.store(last_minute);
     }
 }
 
@@ -511,36 +810,93 @@ bool time_format_clock(char* out, size_t out_size) {
     return std::strftime(out, out_size, "%H:%M:%S", &local) != 0;
 }
 
-bool start_scheduler(State& state) {
+void remembered_apply(State& state, const StoredSettings& remembered) {
+    const int index = catalog_find(remembered.effect_id);
+    if (index >= 0) {
+        state.set_effect(static_cast<uint16_t>(index));
+    }
+    if (remembered_brightness_is_valid(remembered.brightness_percent)) {
+        state.set_brightness(remembered.brightness_percent);
+    }
+    if (manual_speed_x4_is_valid(remembered.speed_x4)) {
+        state.set_speed(remembered.speed_x4);
+    }
+    state.set_power(remembered.playing != 0);
+}
+
+bool start_scheduler(State& state, int64_t choice_epoch, bool remembered_unread) {
+    s_remembered_unread.store(remembered_unread);
     s_lock = xSemaphoreCreateMutexStatic(&s_lock_storage);
-    s_entry_count = settings_load_schedule(s_entries.data(), s_entries.size());
-    ESP_LOGI(TAG, "%u actions loaded", static_cast<unsigned>(s_entry_count));
     // From anywhere, so that a page left open across a restart does not match by chance.
     s_schedule_revision = esp_random();
-    StoredSettings remembered;
-    s_choice_epoch = settings_load_remembered(remembered) ? remembered.choice_epoch : kNoChoiceYet;
+    load_schedule();
+    s_choice_epoch = choice_epoch;
+    s_restart_state = &state;
     return xTaskCreate(scheduler_task, "scheduler", kStackBytes, &state, kPriority, nullptr) == pdPASS;
 }
 
-bool schedule_next(char* when, size_t when_size, ResolvedAction& action) {
+
+bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool playlist_ready, uint16_t catalog) {
     if (!s_synced.load()) {
         return false;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    refresh_next_action(now_in_minutes());
-    const bool found = s_next.found;
-    const int64_t minute = s_next.action_minute;
-    if (found) {
-        action = s_next.action;
+    const int64_t now_minute = now_in_minutes();
+    hold_to_catalog(catalog);
+    refresh_next_action(now_minute);
+    if (s_summary.minute != now_minute || s_summary.revision != s_schedule_revision || s_summary.ready != playlist_ready) {
+        int64_t minute = s_next.found ? s_next.action_minute : -1;
+        ResolvedAction found;
+        if (minute >= 0) {
+            // As the step will come out, and as the timeline says it: see ResolvedAction::with_playlist. One
+            // that only starts an empty playlist does nothing, and the next that does is the one to tell.
+            found = s_next.action.with_playlist(playlist_ready);
+            if (!found.does_something()) {
+                // Within the week the summary speaks of, which next_action_minute walks too.
+                minute = next_doing_minute(s_entries.data(), s_entry_count, minute, now_minute + 7 * 1440, to_local_minute, playlist_ready,
+                                           found);
+            }
+        }
+        s_summary = SummaryCache{now_minute, s_schedule_revision, playlist_ready, minute, found};
     }
+    int64_t minute = s_summary.action_minute;
+    action = s_summary.action;
     xSemaphoreGive(s_lock);
-    if (!found) {
+    if (minute < 0) {
         return false;
     }
     const time_t seconds = static_cast<time_t>(minute * 60);
     tm local = {};
     localtime_r(&seconds, &local);
     return std::strftime(when, when_size, "%a %d %b, %H:%M", &local) != 0;
+}
+
+int schedule_timeline_now(TimelineEvent* out, size_t max_events, bool playlist_ready, int64_t* now_epoch) {
+    if (!s_schedule_read.load()) {
+        return -2;
+    }
+    if (!s_synced.load()) {
+        return -1;
+    }
+    // A copy, as the walk takes a day of conversions and nothing else should wait for it. Static, off
+    // the handler's stack: the portal runs one handler at a time.
+    static std::array<ScheduleEntry, kMaxScheduleEntries> entries{};
+    const size_t count = schedule_copy(entries.data());
+    // One reading of the clock for the walk and for the answer: NTP may move it in between.
+    const auto epoch = static_cast<int64_t>(std::time(nullptr));
+    if (now_epoch != nullptr) {
+        *now_epoch = epoch;
+    }
+    // From the last minute the scheduler has done, to a day from now: a minute begun and not done yet is
+    // still to come, as are the few it catches up after waiting, and one done before a clock stepped
+    // back is not to come again. Before its first pass, from the minute begun.
+    const int64_t now_minute = epoch / 60;
+    const int64_t done = s_done_minute.load();
+    // A clock stepped back further than the scheduler waits for is taken as it will take it at its next
+    // pass, from now, or the day would show empty until then.
+    const int64_t after = done < 0 || done > now_minute + kMaxCatchUpMinutes ? now_minute - 1 : std::max(done, now_minute - kMaxCatchUpMinutes);
+    return static_cast<int>(
+        schedule_timeline(entries.data(), count, after, to_local_minute, out, max_events, playlist_ready, now_minute + kTimelineMinutes));
 }
 
 size_t schedule_copy(ScheduleEntry* out) {
@@ -552,6 +908,10 @@ size_t schedule_copy(ScheduleEntry* out) {
 }
 
 esp_err_t schedule_replace(const ScheduleEntry* entries, size_t count) {
+    // A list not read yet is not replaced from a page that never saw it.
+    if (!s_schedule_read.load()) {
+        return ESP_ERR_INVALID_STATE;
+    }
     ESP_RETURN_ON_ERROR(settings_save_schedule(entries, count), TAG, "save");
     xSemaphoreTake(s_lock, portMAX_DELAY);
     std::copy_n(entries, count, s_entries.begin());
@@ -560,6 +920,43 @@ esp_err_t schedule_replace(const ScheduleEntry* entries, size_t count) {
     ++s_schedule_revision;
     xSemaphoreGive(s_lock);
     return ESP_OK;
+}
+
+void scheduler_save_before_restart() {
+    RestartSave none = RestartSave::None;
+    s_restart_save.compare_exchange_strong(none, RestartSave::Asked);
+    wake_to_save();
+}
+
+bool scheduler_saved_before_restart(uint32_t wait_ms) {
+    if (s_task == nullptr) {
+        // No scheduler, so nothing is remembered at all, and nothing is lost by the restart.
+        return true;
+    }
+    // Its own task would wait for itself, which saved what it had a moment ago.
+    if (xTaskGetCurrentTaskHandle() == s_task) {
+        return false;
+    }
+    for (uint32_t waited = 0;; waited += kRestartSaveStepMs) {
+        // Held of an earlier pass says nothing of a change since, so it counts only if it is what is chosen.
+        if (s_restart_save.load() == RestartSave::Held && restart_held_matches_now()) {
+            return true;
+        }
+        if (waited >= wait_ms) {
+            return false;
+        }
+        wake_to_save();
+        vTaskDelay(pdMS_TO_TICKS(kRestartSaveStepMs));
+    }
+}
+
+int64_t schedule_steps_done_until() {
+    const int64_t done = s_done_minute.load();
+    return done < 0 ? 0 : (done + 1) * 60;
+}
+
+bool schedule_is_read() {
+    return s_schedule_read.load();
 }
 
 uint32_t schedule_revision() {

@@ -15,7 +15,15 @@ From a clean fork of this repository to your own signed firmware on a board. Aft
 | Chrome or Edge | | Only for the document pictures |
 | A USB-C data cable | Not a charge-only one | Only for the first flash, and for recovery |
 
-The signing tool also needs the `cryptography` Python package, in the version `firmware/app/scripts/ota_signing.py` pins. The build takes the first of PlatformIO's Pythons and ESP-IDF's that holds exactly that version, and where none does, installs it with `pip` into PlatformIO's own, never into another Python, so there is nothing to do by hand. The scripts choose the same way, by `deploy/SigningPython.psm1`. A Python that has some other version is passed over, as the tool needs what that one has.
+The signing tool also needs the `cryptography` Python package, in the version `firmware/app/scripts/ota_signing.py` pins. The build takes the first of PlatformIO's Pythons and ESP-IDF's that holds exactly that version, and where none does, installs it with `pip` into PlatformIO's own installer environment, never into another Python. The scripts choose the same way, by `deploy/SigningPython.psm1`, taking the first that holds it of: the Python `pio` runs from, as `pio system info` names it, or found beside `pio.exe` or one folder above; PlatformIO's own in `~/.platformio/penv`; ESP-IDF's environments there, newest first. With none, they install it into PlatformIO's own, as the build does, and `publish-release.ps1 -WhatIf` installs nothing and says what is missing. A Python that has some other version is passed over, as the tool needs what that one has.
+
+PlatformIO installed with `pip` runs from that Python, which is not PlatformIO's own, and ESP-IDF's environment is made only later in the first build. So install the two together, as CI does, best into a virtual environment of the project's or with `pip install --user`, never into a Python other programs share:
+
+```bash
+pip install platformio==6.1.19 cryptography==44.0.3
+```
+
+With that, `deploy\new-signing-certificate.ps1` in section 4 needs no build before it.
 
 ## 2. Fork and Clone
 
@@ -155,39 +163,60 @@ The screen says `Making the HTTPS key` for that moment, then shows the setup net
 | `deploy\flash-device.ps1 -Port COMn` | Builds, flashes the firmware and effects over USB, and stays on the log. Settings and uploaded effects stay |
 | `deploy\flash-device.ps1 -Enroll -Port COMn` | Records that board as the one this repository may flash, and stops |
 | `deploy\flash-device.ps1 -DetectOnly` | Finds and checks the target as a flash would, and stops |
-| `deploy\flash-device.ps1 -BuildOnly` | Builds and checks, spending a build number. Needs no board |
+| `deploy\flash-device.ps1 -BuildOnly` | Builds and checks, spending a build number, which a build that fails or fails a check gives back. Needs no board |
 | `deploy\flash-device.ps1 -EffectsOnly -Port COMn` | Writes only the effects, with no build |
 | `deploy\flash-device.ps1 -FullClean` | Rebuilds every component first |
 | `deploy\flash-device.ps1 -NoMonitor` | Stops after flashing |
 | `deploy\monitor-device.ps1` | Attaches to the log, without flashing |
-| `deploy\ota-update.ps1 -Address <host>` | Builds and installs over Wi-Fi. See [Updates](user-guide.md#10-updates) |
-| `deploy\stage-assets.ps1` | Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices. Add `-NewBuild` to spend a new build number, and `-BuildProfile Dev` to stage a Dev build in place of a Release one |
-| `deploy\new-third-party-notices.ps1` | Writes `THIRD_PARTY_NOTICES.md` from what the last firmware build linked and the versions it and the Go program use, and fails on a library it cannot place. Run it after a build that changed a dependency or a setting that links more. `-Check` writes nothing and fails if the file differs, which CI and `stage-assets.ps1` do |
+| `deploy\ota-update.ps1 -Address <host>` | Builds and installs over Wi-Fi, then watches the garland restart and confirm the new firmware. An update that gets no answer at all, as when the connection drops while the garland restarts, may still have been installed, so it watches all the same and says what it finds. See [Updates](user-guide.md#10-updates) |
+| `deploy\stage-assets.ps1` | A build it makes and then cannot stage, for any check or a failed copy, gives its number back, and leaves nothing staged under it. Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices, whose digests the manifest records, as the next staging writes them again. It copies the build's files to a set of their own under `temp\` and checks that set, so a build meanwhile cannot mix two builds' files, and fetches the Go modules first, whose licences the notices hold. Add `-NewBuild` to spend a new build number, and `-BuildProfile Dev` to stage a Dev build in place of a Release one |
+| `deploy\new-third-party-notices.ps1` | Writes `THIRD_PARTY_NOTICES.md` from what the last firmware build linked and the versions it and the Go program use, and fails on a library it cannot place. Run it after a build that changed a dependency or a setting that links more. `-Check` writes nothing and fails if the file differs, which CI and `stage-assets.ps1` do `-UtilityOnly` checks the utility's part alone, with no firmware build, as `deploy\build-utility.ps1` does for its manifest |
 | `deploy\new-signing-certificate.ps1` | Section 4 |
 | `deploy\test-utility.ps1` | The checks of the Go code. Use it rather than plain `go test`, which could keep an effect engine compiled before the firmware last changed |
 | `deploy\build-utility.ps1`, `deploy\run.ps1` | Build [the utility](utility.md) into `assets/utility`; the second also starts it, and starts nothing if the build failed. `-NoRun` only builds, `-Force` spends a build number though nothing changed, and `-BuildProfile Dev` keeps the debug information |
 | `deploy\new-doc-images.ps1` | Makes the pictures of the screens, portal pages and utility in `docs/images`, from the firmware's own drawing code, its real pages and the utility's own window, with no device. Needs one firmware build first, and Chrome or Edge |
 | `deploy\site-assets.ps1` | Copies the renders and pictures the [public site](../../site/README.md) shows from `docs/images` |
+| `deploy\site-pages.ps1` | Makes the public site's Russian pages under `site/ru` from its English pages and `deploy/site-ru.json`; `-Check` says whether they are current |
 | `deploy\rebuild-release.ps1` | Builds a published release again in a copy of the sources, and compares it to the byte. See [Building a Release Again](rebuild.md) |
-| `deploy\publish-release.ps1` | Writes the site's downloads and firmware catalog for a staged release, and makes its GitHub Release once its tag is pushed |
+| `deploy\publish-release.ps1` | Makes the GitHub Release of a staged release, or adds to one, and writes the site's downloads and firmware catalog for it, to commit. See [Publishing a Release](#publishing-a-release) |
 | `deploy\tests\reproducible-build.tests.ps1` | Builds the firmware and the utility twice from copies of the sources, and compares what they make |
+
+### Publishing a Release
+
+`pwsh -File deploy\publish-release.ps1 -Release 1.1.0 -FirmwareVersion 1.1.0.113 -UtilityVersion 1.1.0.37` makes the GitHub Release of what `stage-assets.ps1` and `build-utility.ps1` left in `assets\`, once its tag, `v1.0.0`, is pushed, and then writes the site's `downloads\manifest.json` and `downloads\firmware-catalog-v1.json` for it, to commit.
+
+* **What it publishes.** `-Only Firmware` publishes the firmware with its root certificate, `-Only Utility` the utility, for the platform `-Platform` names as Go names it, `windows-amd64` by default; both by default. A platform is released only once `deploy/BuildVersion.psm1` names the compiler its releases are built with, so far Windows x64 alone. A release already on GitHub takes what a later run adds, as the utility for another platform.
+* **`-BuildNew`**, in place of the versions: builds what it publishes first, the firmware by `stage-assets.ps1 -NewBuild` and the utility by `build-utility.ps1 -Force`, the utility only for the computer it runs on, and releases the versions they say they built. Before either spends a number it checks both bases against the release, and, unless `-SiteOnly`, that the tag on GitHub is the one here and that the sources, the notices and the licence here are the tag's.
+* **What it checks.** What the tag holds is read from git as it stores it, with no checkout. Each file must be built from what the tag holds, by its sources' digest; the update file signed under the root published with it, its signed header naming the image, pack and root its manifest names; the notices and licence beside it those it was staged with and the tag holds; the catalog's count of effects the staged file's and the tag's. The utility must be built with the compiler [Building a Release Again](rebuild.md) names, `CC` and `CXX` as Go has them and with no arguments of their own, no `CGO_*FLAGS` but Go's own, x86-64 level `v1` on amd64, as a higher `GOAMD64` stops at start on an older processor, `GOWORK=off`, and no `GOFLAGS`, `GOEXPERIMENT` or `GOFIPS140` but off, `go env -w` included, all of which `build-utility.ps1` sets or records. The utility's source digest takes in `deploy/BuildVersion.psm1` with the script, as it sets the engine's flags.
+* **Files already released.** A file the release holds counts as sent only if its SHA-256 there, as GitHub keeps it or of its bytes read back, is the one here; one of other bytes is refused, never replaced, before the notes or the site change. The notes' table of files is written from the files the release holds, read again right before, and read back after: a run in another checkout that added a file keeps its line.
+* **The site.** The lists keep the releases before, newest first, and what the run does not publish as it was, the utility's platforms in the order Windows, Linux, macOS. Each build is dated as GitHub dates its own file, so a utility added days after its release has its own day, and the lists are sorted by those days before the firmware catalog is cut to its newest within 48 KB, as the utility of 1.0.0 reads 64 KB at most; the Downloads page keeps them all. The files are written whole beside the others, under names of the run's own, and then moved into place.
+* **Taking it up again.** `-SiteFromRelease` writes the site for a release already made on GitHub, as when a run stopped before writing it, once the release holds the staged files. `-SiteOnly` writes it to `temp\site-preview-<release>\` to look at, before the tag.
+* **What it leaves.** One run at a time in a checkout, under `temp\build-publish.lock`. `-WhatIf` writes nothing outside `temp\`, asks Go with `GOTOOLCHAIN=local`, so nothing is downloaded, and installs nothing into a Python, saying what is missing instead. What it uploads is a copy of the staged files, made before it checks them, so a staging meanwhile cannot change them; each run keeps its copies and the notes in `temp\` under a name of its own.
 
 ## 7. Versions
 
 A version is `CSIGARLAND_FIRMWARE_BASE` from [`platformio.ini`](../../firmware/app/platformio.ini) with a build number in it, such as `1.0.0.102`. The utility counts its own builds of the same base, so its numbers are not the firmware's.
 
-A build has one of two profiles, which `CSIGARLAND_PROFILE` picks for `pio run` and `-BuildProfile` for the deploy scripts:
+A build has one of two profiles, which the PlatformIO environment picks for `pio run` and `-BuildProfile` for the deploy scripts:
 
-| Profile | Debug information | Version | Default of |
-|---|---|---|---|
-| Release | None, in the firmware or the utility | `1.0.0.102` | `flash-device.ps1`, `ota-update.ps1`, `stage-assets.ps1`, `build-utility.ps1`, `run.ps1` |
-| Dev | ESP-IDF's, and the utility's symbols | `1.0.0.102-dev` | A plain `pio run` |
+| Profile | Environment | Debug information | Version | Default of |
+|---|---|---|---|---|
+| Release | `esp32c6-release` | None, in the firmware or the utility | `1.0.0.102` | `flash-device.ps1`, `ota-update.ps1`, `stage-assets.ps1`, `build-utility.ps1`, `run.ps1` |
+| Dev | `esp32c6` | ESP-IDF's, and the utility's symbols | `1.0.0.102-dev` | A plain `pio run` |
 
-Releases are Release builds. A Dev build is never published, and its `-dev` says so wherever its version shows. A last build of the other profile is not staged: `stage-assets.ps1` builds again.
+Releases are Release builds. A Dev build is never published, and its `-dev` says so wherever its version shows. Each profile builds in its own folder, `firmware/app/.pio/build/<environment>`, as its flags differ for every component of ESP-IDF: going from one to the other compiles nothing again that has not changed, and a last build of the other profile is never staged.
 
-Each build through `flash-device.ps1` spends a number from `firmware/app/.csigarland_build_counter`, which stays on your machine. Each clone therefore counts from its own start, and a lower number is not refused: signed older versions install, by design.
+**A build compiles only what changed.** PlatformIO deletes all of `.pio/build`, every environment's objects, when `platformio.ini` or the list of source files changes, and ESP-IDF then takes minutes to compile again. The deploy scripts build with `--disable-auto-clean`, and `firmware_build_version.py` does in its place what such a change needs: CMake configures each environment again, and only objects whose command changed are compiled. Add the flag to a `pio run` of your own for the same:
 
-Every build leaves three update files in `firmware/app/.pio/build/esp32c6`:
+```bash
+pio run -d firmware/app -e esp32c6 --disable-auto-clean
+```
+
+`flash-device.ps1 -FullClean` still compiles everything, should a build ever need it.
+
+Each build through `flash-device.ps1` spends a number from `firmware/app/.csigarland_build_counter`, which stays on your machine. A build that fails, is stopped, or fails a check after it gives its number back and leaves no image of it, so the next build takes the same number; so does a utility build, which is made and checked in a folder of its own under `temp\` and put in place only then, so a failed build of a number named again leaves the file there as it was, and whose counter is written once the file and its manifest are in place. One firmware build and one utility build of a checkout run at a time, each under a lock, `temp\build-firmware.lock` and `temp\build-utility.lock`, held from taking the number to giving it back: a second waits for none, and says so. `stage-assets.ps1` holds the firmware's for all its staging, `ota-update.ps1` from its build to the bytes it reads, and a write over USB until the last try of the write, not the log after it, so no build replaces the files they take in between. `ota-update.ps1 -EffectsOnly` makes its file under `temp\`, never in the build's `generated\`. A utility file of a number named again is put in place with its manifest, or both stay as they were, and a build whose sources changed while Go compiled them fails, spending no number. A staging with no Go, which cannot check the notices against what the build links, says so in its manifest, `notices_checked`, and no release takes it. The scripts find PlatformIO's packages and Pythons under `PLATFORMIO_CORE_DIR` when it is set, and a build alone, for staging or OTA, no longer asks for esptool. A Release firmware build refuses what PlatformIO would take into it from the environment, `PLATFORMIO_BUILD_FLAGS`, `PLATFORMIO_BUILD_SRC_FLAGS`, `PLATFORMIO_BUILD_UNFLAGS`, `PLATFORMIO_BUILD_SRC_FILTER`, `PLATFORMIO_EXTRA_SCRIPTS`, `PLATFORMIO_SRC_DIR`, `PLATFORMIO_INCLUDE_DIR`, `PLATFORMIO_LIB_DIR`, `PLATFORMIO_LIB_EXTRA_DIRS` and `PLATFORMIO_DEFAULT_ENVS`, and what ESP-IDF would, `SDKCONFIG_DEFAULTS` and `SDKCONFIG`, and its mark of a config made is of a format of its own, `made-from-defaults/2`, so one marked by a build before these checks is made again once, and runs the scripts `platformio.ini` lists for it alone. The utility's build takes `GOFLAGS`, `GOEXPERIMENT` and `GOFIPS140` as Go really has them, `go env -w` included, warns of any but off, and records them; a release takes none of them. An image that passed its checks keeps its number, whether or not it was written to a board. Each clone therefore counts from its own start, and a lower number is not refused: signed older versions install, by design.
+
+Every build leaves three update files in its environment's folder, `firmware/app/.pio/build/esp32c6-release` for Release:
 
 | File | Holds |
 |---|---|
@@ -222,12 +251,12 @@ A Dev build is not held to this: its debug information names the folders it was 
 | What you see | What to do |
 |---|---|
 | The build stops: no update certificate | Section 4, or `$env:CSIGARLAND_THROWAWAY_SIGNING = '1'` for a test |
-| The build could not install `cryptography` | It prints the `pip` command to try: run it, then build again |
+| The build could not install `cryptography`, or says the Python is not PlatformIO's to install into | It prints the `pip` command for the Python that runs PlatformIO: run it, then build again |
 | Host tests cannot find cJSON | Build the firmware first |
 | Could not install `pyserial` | ESP-IDF's Python on a new machine lacks it, and the first build adds it for esptool. Run the `pip` command it prints, then build again |
 | The script cannot find the board, or times out | Hold BOOT, tap RESET, release BOOT, and try again |
 | The script refuses the board | It is not the enrolled one. `-Enroll -Port COMn` records a new one, deliberately |
-| A setting in `sdkconfig.defaults` has no effect | The build remakes `firmware/app/sdkconfig.esp32c6` when the defaults change, by their digest in `generated/`. If it still has none, delete that file and build again |
+| A setting in `sdkconfig.defaults` has no effect | The build remakes `firmware/app/sdkconfig.<environment>` when the defaults change, by their digest in `generated/`. A Release build, `esp32c6-release`, also remakes one that differs from what it made from the defaults, as after an edit by hand: `scripts/sdkconfig_made.py` records it as made in the same build whose configure made it, before anything else can change it, `menuconfig` included, and every later build holds it to that digest, and to what its configure wrote to `config/sdkconfig.json`, so a published image holds only what the sources hold. If it still has none, delete that file and build again |
 | The board takes no OTA from your build | It holds another root. Flash it once over USB |
 | The update says the effects pack does not fit | The board has the earlier partition table, with 32 KB slots, which OTA cannot change. Flash it once over USB, which keeps settings and uploaded effects. Until then `ota-update.ps1 -FirmwareOnly` still installs firmware |
 | Lost the root key | Make a new chain with `-Force`, and flash every board over USB once |

@@ -44,12 +44,14 @@ type actionForm struct {
 	dayChoice   choice
 	kind        choice
 	turnOn      widget.Bool
+	rise        widget.Bool
 	useBright   widget.Bool
 	brightness  int
 	brightField numberField
 	useSpeed    widget.Bool
 	speed       choice
 	useEffect   widget.Bool
+	usePlaylist widget.Bool
 	effect      string
 	effectOpen  widget.Clickable
 	saveForm    widget.Clickable
@@ -75,7 +77,8 @@ func (p *schedulePage) openForm(index int) {
 	if action.Power == api.StepOff {
 		f.kind.Value = "off"
 	}
-	f.turnOn.Value = action.Power == api.StepOn
+	f.turnOn.Value = action.Power == api.StepOn || action.Power == api.StepRise
+	f.rise.Value = action.Power == api.StepRise
 	f.useBright.Value = action.Brightness != 0
 	f.brightness = action.Brightness
 	if f.brightness == 0 {
@@ -88,6 +91,7 @@ func (p *schedulePage) openForm(index int) {
 	}
 	f.speed.Value = SpeedText(speed)
 	f.useEffect.Value = action.Effect != ""
+	f.usePlaylist.Value = action.Playlist
 	f.effect = action.Effect
 }
 
@@ -111,10 +115,10 @@ func (p *schedulePage) readForm() (api.Action, error) {
 	}
 	return BuildAction(ActionForm{
 		Enabled: enabled, Time: strings.TrimSpace(f.at.Text()), Days: days,
-		TurnOff: f.kind.Value == "off", TurnOn: f.turnOn.Value,
+		TurnOff: f.kind.Value == "off", TurnOn: f.turnOn.Value, Rise: f.rise.Value,
 		UseBrightness: f.useBright.Value, Brightness: strconv.Itoa(f.brightness),
 		UseSpeed: f.useSpeed.Value, Speed: speed,
-		UseEffect: f.useEffect.Value, Effect: f.effect,
+		UseEffect: f.useEffect.Value, Effect: f.effect, UsePlaylist: f.usePlaylist.Value,
 	})
 }
 
@@ -191,7 +195,9 @@ func (a *App) stepLine(gtx C, box *widget.Bool, words string, value layout.Widge
 func (p *schedulePage) stepRows(a *App) []layout.Widget {
 	f := &p.form
 	return []layout.Widget{
-		func(gtx C) D { return a.checkbox(gtx, &f.turnOn, "Turn on") },
+		func(gtx C) D {
+			return a.stepLine(gtx, &f.turnOn, "Turn on", func(gtx C) D { return a.checkbox(gtx, &f.rise, "Rising from dark over a minute") })
+		},
 		func(gtx C) D {
 			return a.stepLine(gtx, &f.useBright, "Brightness, %", func(gtx C) D {
 				return a.numberStepper(gtx, &f.brightField, f.brightness, 1, maxBrightness, func(value int) { f.brightness = value })
@@ -212,6 +218,16 @@ func (p *schedulePage) stepRows(a *App) []layout.Widget {
 				}
 				return a.labelButton(gtx, &f.effectOpen, buttonOther, "list", words, "Choose the effect", true)
 			})
+		},
+		func(gtx C) D {
+			// An effect or the playlist: one start at a time, the last ticked.
+			if f.usePlaylist.Update(gtx) && f.usePlaylist.Value {
+				f.useEffect.Value = false
+			}
+			if f.useEffect.Value && f.usePlaylist.Value {
+				f.usePlaylist.Value = false
+			}
+			return a.checkbox(gtx, &f.usePlaylist, "Start the playlist (also turns on)")
 		},
 	}
 }

@@ -174,13 +174,16 @@ func DaysText(days int) string {
 }
 
 // StepsText says what an action does, as the portal does.
-func StepsText(power string, brightness int, speed float64, effect string) string {
+func StepsText(power string, brightness int, speed float64, effect string, playlist bool) string {
 	if power == api.StepOff {
 		return "Turn off"
 	}
 	var steps []string
-	if power == api.StepOn {
+	switch power {
+	case api.StepOn:
 		steps = append(steps, "Turn on")
+	case api.StepRise:
+		steps = append(steps, "Turn on, rising over a minute")
 	}
 	if brightness != 0 {
 		steps = append(steps, fmt.Sprintf("brightness %d%%", brightness))
@@ -191,18 +194,24 @@ func StepsText(power string, brightness int, speed float64, effect string) strin
 	if effect != "" {
 		steps = append(steps, "effect "+effect)
 	}
+	if playlist {
+		steps = append(steps, "start the playlist")
+	}
 	return strings.Join(steps, ", ")
 }
 
 // NextText says what the schedule does next.
 func NextText(next api.NextAction) string {
+	if next.Unread {
+		return "The schedule could not be read yet: the garland tries again every minute."
+	}
 	if !next.Clock {
 		return "Waiting for the clock to be set."
 	}
 	if next.At == "" {
 		return "Nothing in the coming week."
 	}
-	return next.At + ": " + StepsText(next.Power, next.Brightness, next.Speed, next.EffectName) + "."
+	return next.At + ": " + StepsText(next.Power, next.Brightness, next.Speed, next.EffectName, next.Playlist) + "."
 }
 
 var actionTime = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -214,12 +223,14 @@ type ActionForm struct {
 	Days          int
 	TurnOff       bool
 	TurnOn        bool
+	Rise          bool // With TurnOn: rising from dark over a minute.
 	UseBrightness bool
 	Brightness    string
 	UseSpeed      bool
 	Speed         float64
 	UseEffect     bool
 	Effect        string
+	UsePlaylist   bool // Start the playlist, in place of an effect.
 }
 
 // BuildAction checks the form as the portal's does, and the firmware again after it.
@@ -237,6 +248,9 @@ func BuildAction(form ActionForm) (api.Action, error) {
 	}
 	if form.TurnOn {
 		action.Power = api.StepOn
+		if form.Rise {
+			action.Power = api.StepRise
+		}
 	}
 	if form.UseBrightness {
 		percent, err := strconv.Atoi(strings.TrimSpace(form.Brightness))
@@ -253,8 +267,10 @@ func BuildAction(form ActionForm) (api.Action, error) {
 			return api.Action{}, errors.New("pick an effect")
 		}
 		action.Effect = form.Effect
+	} else if form.UsePlaylist {
+		action.Playlist = true
 	}
-	if action.Power == "" && action.Brightness == 0 && action.Speed == 0 && action.Effect == "" {
+	if action.Power == "" && action.Brightness == 0 && action.Speed == 0 && action.Effect == "" && !action.Playlist {
 		return api.Action{}, errors.New("pick at least one step")
 	}
 	return action, nil

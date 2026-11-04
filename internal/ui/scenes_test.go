@@ -78,6 +78,18 @@ func sceneSchedule() api.Schedule {
 	}
 }
 
+// The next 24 hours of sceneSchedule, from a moment taken so that the bar is drawn the same each time.
+func sceneTimeline(now int64) *api.Timeline {
+	return &api.Timeline{Synced: true, Events: []api.TimelineEvent{
+		{At: now + 3*3600, Time: "18:00", Day: 4, Entries: []int{0, 2}, Power: api.StepOn, Brightness: 60, Effect: sceneEffect},
+		{At: now + 8*3600 + 1800, Time: "23:30", Day: 4, Entries: []int{1}, Power: api.StepOff},
+	}}
+}
+
+func scenePlaylist() api.Playlist {
+	return api.Playlist{Effects: []string{sceneEffect, "fireflies", "candy-cane"}, Dwell: 90, CrossFade: 1000, Max: 16}
+}
+
 func sceneInfo() api.Info {
 	return api.Info{
 		Model: "ESP32-C6-LCD-1.3", Chip: "ESP32-C6 rev 0.2", MAC: "00:00:5E:00:53:01",
@@ -117,8 +129,10 @@ func sceneApp(t *testing.T, page Page) *App {
 	switch page {
 	case PageEffects:
 		a.effects.list = sceneEffects()
+		a.effects.playlist.take(scenePlaylist())
 	case PageSchedule:
 		a.schedule.take(sceneSchedule())
+		a.schedule.timeline = sceneTimeline(time.Now().Unix())
 		a.schedule.effects = sceneEffects()
 		for _, effect := range a.schedule.effects {
 			a.schedule.names[effect.ID] = effect.Name
@@ -772,6 +786,24 @@ func TestAnUploadNothingCameOfSaysSoInTheEnd(t *testing.T) {
 	silent := updateWatch{update: file, bootBefore: "before", started: start, unknown: true}
 	said = silent.look(start.Add(updateGiveUp+time.Second), api.Firmware{}, errors.New("no answer"))
 	if !said.finished || !said.failed || !strings.Contains(said.words, "not known") {
+		t.Fatalf("%+v", said)
+	}
+}
+
+// With the answer lost, a restart into the very bytes of the file, with no trial seen, is no proof it took
+// it: the garland may have run them already, or restarted for another reason.
+func TestALostAnswerAndARestartIntoTheSameBytesIsNoConfirmation(t *testing.T) {
+	start := time.Now()
+	file := api.UpdateFile{HasFirmware: true, Image: "same"}
+	watch := updateWatch{update: file, bootBefore: "before", started: start, unknown: true}
+	said := watch.look(start.Add(9*time.Second), api.Firmware{Boot: "after", Image: "same", Version: "1.1.0.107"}, nil)
+	if !said.finished || !said.failed || strings.Contains(said.words, "confirmed") || !strings.Contains(said.words, "cannot be told") {
+		t.Fatalf("%+v", said)
+	}
+	// Effects alone, other than those before, now running: it took them.
+	effects := updateWatch{update: api.UpdateFile{PackDigest: "new"}, bootBefore: "before", packBefore: "old", started: start, unknown: true}
+	said = effects.look(start.Add(9*time.Second), api.Firmware{Boot: "after", PackDigest: "new"}, nil)
+	if !said.finished || said.failed || !strings.Contains(said.words, "confirmed") {
 		t.Fatalf("%+v", said)
 	}
 }

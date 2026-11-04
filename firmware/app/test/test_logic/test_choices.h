@@ -39,6 +39,69 @@ static void test_a_choice_with_no_clock_takes_the_first_time_known() {
     TEST_ASSERT_FALSE(choice_needs_a_time(kNoChoiceYet));
 }
 
+static void test_a_save_is_dated_so_that_what_waits_still_comes() {
+    constexpr int64_t kNow = 29000000LL * 60;
+    constexpr int64_t kFirstKnown = kNow - 600;
+    // What a step did, by the save.
+    TEST_ASSERT_EQUAL_INT64(kNow, save_epoch(kNow, -1, kFirstKnown, kNow - 5, -1));
+    // While a later step waits for the playlist, just before it, so that a start in between still does it.
+    constexpr int64_t kWaits = kNow / 60 - 3;
+    const int64_t saved = save_epoch(kNow, -1, kFirstKnown, kNow - 5, kWaits);
+    TEST_ASSERT_EQUAL_INT64(kWaits * 60 - 1, saved);
+    TEST_ASSERT_EQUAL_INT64(kWaits, replay_first_minute(saved, kNow / 60));
+    // The owner's choice by its own moment, which waits for nothing.
+    TEST_ASSERT_EQUAL_INT64(kNow - 2, save_epoch(kNow, kNow - 2, kFirstKnown, kNow - 5, kWaits));
+    // Made with no clock, ten seconds before the first time known: as at that time, never before it.
+    TEST_ASSERT_EQUAL_INT64(kFirstKnown, save_epoch(kNow, kFirstKnown - 10, kFirstKnown, 0, -1));
+    // A step done since the choice is the newer.
+    TEST_ASSERT_EQUAL_INT64(kNow, save_epoch(kNow, kNow - 20, kFirstKnown, kNow - 5, -1));
+}
+
+static void test_only_a_choice_of_what_plays_says_what_plays() {
+    State state(32);
+    state.set_effect_count(3);
+    state.click_power();
+    state.set_power(true);
+    TEST_ASSERT_FALSE(state.owner_chose_play());
+    state.click_speed();
+    TEST_ASSERT_FALSE(state.owner_chose_play());
+    state.activate_effect(1);
+    TEST_ASSERT_TRUE(state.owner_chose_play());
+}
+
+static void test_a_change_of_only_the_levels_leaves_the_playlist_to_resume() {
+    const uint16_t effects[] = {2, 1};
+    State levels(32);
+    levels.set_effect_count(3);
+    levels.set_playlist(effects, 2, 60);
+    levels.set_power(true);
+    levels.click_speed();
+    levels.click_power();
+    TEST_ASSERT_FALSE(levels.owner_chose_play());
+    TEST_ASSERT_TRUE(levels.resume_playlist_unless_chosen());
+    TEST_ASSERT_TRUE(levels.snapshot().playlist);
+    State chosen(32);
+    chosen.set_effect_count(3);
+    chosen.set_playlist(effects, 2, 60);
+    chosen.activate_effect(1);
+    TEST_ASSERT_FALSE(chosen.resume_playlist_unless_chosen());
+    TEST_ASSERT_FALSE(chosen.snapshot().playlist);
+}
+
+static void test_a_resume_yields_to_a_choice_of_what_plays_made_with_the_mark_up_already() {
+    const uint16_t effects[] = {2, 1};
+    State state(32);
+    state.set_effect_count(3);
+    state.set_playlist(effects, 2, 60);
+    state.set_power(true);
+    // An earlier choice left the mark up, and choosing the first favourite again changes nothing else.
+    state.click_speed();
+    state.double_click_effect();
+    TEST_ASSERT_TRUE(state.owner_chose_play());
+    TEST_ASSERT_FALSE(state.resume_playlist_unless_chosen());
+    TEST_ASSERT_FALSE(state.snapshot().playlist);
+}
+
 static void test_a_change_not_yet_saved_is_told_apart() {
     const Remembered saved{1, 50, 4, true};
     Remembered changed = saved;
@@ -345,4 +408,8 @@ static void run_choice_tests() {
     RUN_TEST(test_a_pause_between_clock_reads_does_not_move_a_choice);
     RUN_TEST(test_a_step_due_before_a_choice_does_not_override_it);
     RUN_TEST(test_a_choice_keeps_its_own_moment);
+    RUN_TEST(test_a_save_is_dated_so_that_what_waits_still_comes);
+    RUN_TEST(test_only_a_choice_of_what_plays_says_what_plays);
+    RUN_TEST(test_a_change_of_only_the_levels_leaves_the_playlist_to_resume);
+    RUN_TEST(test_a_resume_yields_to_a_choice_of_what_plays_made_with_the_mark_up_already);
 }

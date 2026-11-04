@@ -57,6 +57,31 @@ constexpr bool tls_may_make_identity(StoredRead read) {
     return read != StoredRead::Unreadable;
 }
 
+// Everything that decides the root, read: the identity and the owner's domain. A domain that could
+// not be read is no domain chosen, and a root made for none would replace the one trusted.
+constexpr bool tls_may_make_identity(StoredRead identity, StoredRead domain) {
+    return tls_may_make_identity(identity) && tls_may_make_identity(domain);
+}
+
+// What reading a saved key back told: it serves, it can never serve, or the reading itself failed,
+// such as for memory, which says nothing of the key.
+enum class KeyCheck : uint8_t { Sound, Broken, Unknown };
+
+// After making the certificates failed: try once more with the keys, a new portal key under the root
+// kept, which every browser already trusts, start again with new keys altogether, or leave all of it as
+// saved for a later start, while HTTP takes the next update.
+enum class TlsRecovery : uint8_t { Retry, NewPortalKey, NewKeys, Keep };
+
+constexpr TlsRecovery tls_recovery(KeyCheck root_key, KeyCheck portal_key) {
+    if (root_key == KeyCheck::Unknown || portal_key == KeyCheck::Unknown) {
+        return TlsRecovery::Keep;
+    }
+    if (root_key == KeyCheck::Broken) {
+        return TlsRecovery::NewKeys;
+    }
+    return portal_key == KeyCheck::Broken ? TlsRecovery::NewPortalKey : TlsRecovery::Retry;
+}
+
 // When the certificates in use start, kept beside the identity, whose layout must stay. All zero
 // for those made before this was kept, of which nothing is then assumed.
 struct TlsStarts {

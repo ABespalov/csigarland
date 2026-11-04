@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "auth_logic.h"
 #include "esp_http_server.h"
 #include "garland_state.h"
 
@@ -37,6 +38,12 @@ bool auth_open_route_allows(httpd_req_t* req);
 
 // A paired browser's cookie, or the setup network.
 bool auth_allows(httpd_req_t* req);
+
+// What a request was let in under, for a long one to be held to later: see auth_grant_holds.
+AuthGrant auth_grant_of(httpd_req_t* req);
+// Whether that still holds: the client still paired with that token and in its days, or the setup
+// network still up. Forgetting a client, forgetting all, or its days running out end it.
+bool auth_grant_holds(const AuthGrant& grant);
 
 // As auth_handle_wait, and answers a program with the token itself.
 esp_err_t auth_handle_wait_for_token(httpd_req_t* req);

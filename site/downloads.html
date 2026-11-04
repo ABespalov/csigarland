@@ -11,33 +11,39 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Downloads — csiGarland</title>
-  <meta name="description" content="The latest csiGarland firmware update and the csiGarland utility for Windows, with their SHA-256 and how to build them again to the byte.">
+  <title data-i18n="downloads.meta.title">Downloads — csiGarland</title>
+  <meta name="description" data-i18n-content="downloads.meta.desc" content="The latest csiGarland firmware update and the csiGarland utility for Windows, Linux and macOS to follow, with their release dates, release notes and SHA-256, and how to build them again to the byte.">
   <link rel="canonical" href="https://garland.csilab.am/downloads.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/downloads.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/downloads.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/downloads.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script src="lang.js"></script>
+  <script src="site.js" defer></script>
   <script src="downloads.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Skip to content</a>
   <header class="site-header">
     <div class="site-header-inner">
-      <a class="brand" href="index.html" aria-label="csiGarland home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
-      <nav class="nav" aria-label="Primary">
-        <a href="index.html">Product</a>
-        <a href="roadmap.html">Roadmap</a>
-        <a href="documents.html">Documents</a>
-        <a href="downloads.html" aria-current="page">Downloads</a>
-        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer">Source</a>
+      <a class="brand" href="index.html" aria-label="csiGarland home" data-i18n-aria="nav.home"><img src="assets/wordmark.svg" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Product</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">Roadmap</a>
+        <a href="documents.html" data-i18n="nav.documents">Documents</a>
+        <a href="downloads.html" aria-current="page" data-i18n="nav.downloads">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Source</a>
       </nav>
+      <a class="lang-switch" id="lang-switch" href="ru/downloads.html" hreflang="ru" lang="ru" aria-label="Русская версия" title="Русская версия">RU</a>
     </div>
   </header>
 
   <main id="main">
     <section class="section">
-      <p class="eyebrow">Downloads</p>
-      <h1>The latest release</h1>
-      <p class="lead">Files come from the project's GitHub Releases. The update file is signed under the project's root, which a garland built from this repository's releases trusts: a garland you built with your own keys takes only what you sign yourself.</p>
+      <p class="eyebrow" data-i18n="downloads.eyebrow">Downloads</p>
+      <h1 data-i18n="downloads.title">Releases</h1>
+      <p class="lead" data-i18n="downloads.lead">Ready to download: the firmware, as an update file, and the utility, from the project's GitHub Releases, newest first, each with the day it was released and its release notes. The update file is signed under the project's root, which a garland running a release trusts: a garland you built with keys of your own takes only what you sign yourself.</p>
       <div id="downloads" class="downloads" aria-live="polite">
         <noscript><p>The list needs JavaScript. Every file is on <a href="https://github.com/ABespalov/csigarland/releases" rel="noopener noreferrer">GitHub Releases</a>.</p></noscript>
       </div>
@@ -45,23 +51,23 @@
     </section>
 
     <section class="section">
-      <h2>Installing</h2>
+      <h2 data-i18n="downloads.install.title">Installing</h2>
       <div class="grid">
-        <div class="card"><h3>Firmware</h3><p>On the garland's portal, open Firmware and choose the <code>.ota</code> file. Or, in the utility, open Firmware and choose <em>From the catalog</em>: it downloads the release and checks it against this site's list. The garland checks the signature before it writes a byte, tries the new firmware for a minute, and goes back if it does not confirm itself.</p></div>
-        <div class="card"><h3>The utility</h3><p>One file for Windows, with nothing to install: download it and run it. It finds garlands on your network and pairs with yours by a press on its buttons.</p></div>
+        <div class="card"><h3 data-i18n="downloads.i1.title">Firmware</h3><p data-i18n="downloads.i1.body">On the garland's portal, open Firmware and choose the .ota file. Or, in the utility, open Firmware and choose From the catalog: it downloads the release and checks it against this site's list. The garland checks the signature before it writes a byte, tries the new firmware for a minute, and goes back if it does not confirm itself.</p></div>
+        <div class="card"><h3 data-i18n="downloads.i2.title">The utility</h3><p data-i18n="downloads.i2.body">One file for Windows, with nothing to install: download it and run it. It finds garlands on your network and pairs with yours by a press on its buttons. Linux and macOS are to follow.</p></div>
       </div>
     </section>
 
     <section class="section">
-      <h2>Checking what you downloaded</h2>
-      <p>Each file's SHA-256 is beside it here, and in the release's <code>.manifest.json</code>. To show a file is what its sources make, build it again from a clean fork: <a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/rebuild.md" rel="noopener noreferrer">Building a Release Again, to the Byte</a>. The firmware is compared by its image and effects pack, which needs no key, and the utility file by file.</p>
+      <h2 data-i18n="downloads.check.title">Checking what you downloaded</h2>
+      <p><span data-i18n="downloads.check.a">Each file's SHA-256 is beside it here, and in the release's .manifest.json. To show a file is what its sources make, build it again from a clean fork: </span><a href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/rebuild.md" rel="noopener noreferrer" data-i18n="downloads.check.link">Building a Release Again, to the Byte</a><span data-i18n="downloads.check.b">. The firmware is compared by its image and effects pack, which needs no key, and the utility file by file.</span></p>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="section">
-      <span>csiGarland, a csi Research Lab. project. MIT License.</span>
-      <a href="https://github.com/ABespalov/csigarland/releases" rel="noopener noreferrer">All releases</a>
+      <span data-i18n="footer.copy">csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/releases" rel="noopener noreferrer" data-i18n="downloads.footer.all">All releases</a>
     </div>
   </footer>
 </body>

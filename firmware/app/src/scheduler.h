@@ -11,6 +11,7 @@
 
 #include <cstddef>
 
+#include "effect_memory.h"
 #include "esp_err.h"
 #include "garland_state.h"
 #include "rtc_logic.h"
@@ -63,17 +64,46 @@ void time_format_local(char* out, size_t out_size);
 bool time_format_clock(char* out, size_t out_size);
 
 // False if the task could not be started: then nothing is scheduled or remembered.
-bool start_scheduler(State& state);
+// choice_epoch: when the owner's remembered choice was made, as main read it, kNoChoiceYet with none
+// saved; 0 for one there that could not be read, which then outranks every step until the clock is known.
+// remembered_unread: what was remembered is there and could not be read. Nothing is saved over it, and it is
+// read again every few seconds: read, it is put on the state as at a start, unless the owner chose or a step
+// was done since, either of which is newer.
+bool start_scheduler(State& state, int64_t choice_epoch, bool remembered_unread);
+
+// The remembered effect, levels and power on the state, as at a start. What this firmware no longer
+// accepts keeps its default, such as an effect gone from a newer catalog.
+void remembered_apply(State& state, const StoredSettings& remembered);
 
 size_t schedule_copy(ScheduleEntry* out);
 
 // When the next action is due, as "Sat 31 Oct, 18:00" in local time, and what all that is due
-// then adds up to. False with the clock not set, or nothing due within a week.
-bool schedule_next(char* when, size_t when_size, ResolvedAction& action);
+// then adds up to, for a garland with a playlist to start or with none, as playlist_ready says.
+// False with the clock not set, or nothing due within a week.
+// catalog is the state's catalog_revision: an effect uploaded since may be one a step names.
+bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool playlist_ready, uint16_t catalog);
+
+// The next 24 hours of the schedule, see schedule_timeline. -1 with the clock not set, as nothing can be
+// said of when.
+// now_epoch, if given, is the time the day was worked out from, read once, for the answer to name.
+int schedule_timeline_now(TimelineEvent* out, size_t max_events, bool playlist_ready, int64_t* now_epoch = nullptr);
 
 // Saves first, so a failed save leaves the running list as it was.
 esp_err_t schedule_replace(const ScheduleEntry* entries, size_t count);
 // Moves with every replacement, so that a page can say which list its change was made to.
+// Whether the schedule has been read from NVS: until it has, it is no empty list, and the portal answers
+// 503 for it rather than show or save one.
+bool schedule_is_read();
+
+// The garland restarts in a moment, as after an update installed: what is chosen now, as an Off of the
+// POWER button's countdown during the update, is saved at once, and the scheduler is woken for it.
+void scheduler_save_before_restart();
+// Waits up to wait_ms for that save, and says whether what is chosen is saved. False when it failed, did
+// not come in time, or this is the scheduler's own task, which would wait for itself.
+bool scheduler_saved_before_restart(uint32_t wait_ms);
+// The second up to which the scheduler has done its steps, a minute's end, or 0 before its first pass: a
+// step due before it is done, whatever the state says of it.
+int64_t schedule_steps_done_until();
 uint32_t schedule_revision();
 
 }  // namespace garland

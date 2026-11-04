@@ -44,7 +44,7 @@ No project offers a descriptive format that defines an animation's behaviour and
 | `pwsh -File deploy\ota-update.ps1 -Address csigarland.local -EffectsOnly` | The pack alone, with no build. Needs the signing key |
 | `pwsh -File deploy\ota-update.ps1 -Address csigarland.local -File <path>`, or the portal's Firmware page | Whatever that update file holds. Both show it first |
 
-Every build leaves three update files in `.pio\build\esp32c6`: `firmware.ota` with both parts, `firmware-only.ota` and `effects.ota`.
+Every build leaves three update files in its environment's folder, `.pio\build\esp32c6-release` for a Release build: `firmware.ota` with both parts, `firmware-only.ota` and `effects.ota`.
 
 The board checks every effect at startup but keeps only pointers into the mapped pack, and parses an effect when it comes to play: one takes 452 bytes parsed, and only one plays. A pack (`src/effect_pack.h`) is a 12-byte header, then the records:
 

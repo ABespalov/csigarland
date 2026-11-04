@@ -10,6 +10,8 @@ package engine
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -199,5 +201,45 @@ func TestARunIsApartFromThePreviews(t *testing.T) {
 	}
 	if _, err := Run([]byte(`{}`), times, 8); err == nil {
 		t.Error("a wrong file ran")
+	}
+}
+
+// The limit is the firmware's own, as its build flags give it: one source, which the engine follows.
+func TestTheLimitIsTheFirmwares(t *testing.T) {
+	ini, err := os.ReadFile("../../firmware/app/platformio.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := regexp.MustCompile(`-DCSIGARLAND_POWER_LIMIT_MA=(\d+)`).FindSubmatch(ini)
+	if found == nil || string(found[1]) != strconv.Itoa(LimitMilliamps) {
+		t.Fatalf("platformio.ini says %q, the engine %d", found, LimitMilliamps)
+	}
+}
+
+// White on every LED at full brightness draws past the limit, and less at a lower brightness, as the
+// firmware's model says; the preview and a run say the same.
+func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
+	white := []byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`)
+	full, err := Currents(white, []uint32{0, 1000}, 100, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	half, err := Currents(white, []uint32{0}, 50, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full[0] <= LimitMilliamps || half[0] >= full[0] || half[0] <= 0 || full[0] != full[1] {
+		t.Fatalf("full %v, half %v, limit %d", full, half, LimitMilliamps)
+	}
+	preview, err := NewPreview(white)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview.Frame(0, 100, make([]Color, 32))
+	if preview.Milliamps() != full[0] {
+		t.Fatalf("the preview says %d, a run %d", preview.Milliamps(), full[0])
+	}
+	if _, err := Currents(white, []uint32{0}, 100, 0); err == nil {
+		t.Fatal("no LEDs drew a current")
 	}
 }

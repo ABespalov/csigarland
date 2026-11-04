@@ -9,9 +9,18 @@
 
 #pragma once
 
+#include <cstddef>
+
 #include "esp_http_server.h"
+#include "garland_state.h"
 
 namespace garland {
+
+// The longest answer of /api/state, which the event stream sends too.
+constexpr size_t kStateJsonBytes = 448;
+
+// The state as /api/state answers it, in out: its length, or -1 if it did not fit.
+int portal_state_json(const State& state, char* out, size_t size);
 
 // Each takes the State as the request's user_ctx.
 esp_err_t portal_handle_state(httpd_req_t* req);

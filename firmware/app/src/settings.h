@@ -46,6 +46,16 @@ esp_err_t settings_save_led_count(uint16_t setting);
 bool settings_load_favorites(char* out, size_t out_size);
 esp_err_t settings_save_favorites(const char* text);
 
+// The playlist as playlist_to_text writes it. False when none was ever saved, or it could not be read.
+bool settings_load_playlist(char* out, size_t out_size);
+// The same, telling the two apart: ESP_ERR_NVS_NOT_FOUND when none was ever saved, any other error when
+// one may be there and could not be read, which is no empty list. revision, if given, is the list's.
+esp_err_t settings_read_playlist(char* out, size_t out_size, uint32_t* revision = nullptr);
+// Saves text, with whether the list it replaces was left playing, in one write. With expected, only if the
+// list is still of that revision: ESP_ERR_INVALID_STATE when it was replaced since. revision, if given,
+// is the new list's. Revisions count the saves since the start.
+esp_err_t settings_save_playlist(const char* text, const uint32_t* expected = nullptr, uint32_t* revision = nullptr);
+
 // A POSIX TZ string. False when none was ever chosen.
 bool settings_load_timezone(char* out, size_t out_size);
 esp_err_t settings_save_timezone(const char* zone);
@@ -61,7 +71,27 @@ esp_err_t settings_save_display(const DisplaySettings& settings);
 // The last effect, brightness and speed. False when none were saved. The fields are as
 // stored: the caller checks them against this firmware's catalog and ranges.
 bool settings_load_remembered(StoredSettings& out);
-esp_err_t settings_save_remembered(const char* effect_id, uint8_t brightness_percent, uint8_t speed_x4, bool playing, int64_t choice_epoch);
+// The same, telling none saved, ESP_ERR_NVS_NOT_FOUND, from one there and not read.
+esp_err_t settings_read_remembered(StoredSettings& out);
+// The schedule into out, and how many, as settings_load_schedule; telling none saved, ESP_OK with 0,
+// from a list or its rises there and not read, which is no empty list.
+esp_err_t settings_read_schedule(ScheduleEntry* out, size_t max_entries, size_t& count);
+// At a start, once the schedule has been read: rewrites the rise marks to hold the list in force alone,
+// where a save cut short, or one whose last write failed, left a mark of another list beside it.
+esp_err_t settings_tidy_schedule_rises();
+// How the playlist goes with what is remembered: playing, stopped, or as it was saved with the value
+// this replaces, as when a choice is given its time and nothing else changes.
+enum class PlaylistMark : uint8_t { Stopped, Playing, AsSaved };
+
+// playlist: whether the playlist was playing, marked in its own record with this value, as remembered's
+// layout is 1.0.0's. Fails, to be tried again, if the record or remembered is there and cannot be read.
+esp_err_t settings_save_remembered(const char* effect_id, uint8_t brightness_percent, uint8_t speed_x4, bool playing, int64_t choice_epoch,
+                                   PlaylistMark playlist);
+// Whether the playlist was playing when remembered was last saved: false once anything, 1.0.0 among
+// them, has saved remembered since.
+bool settings_load_playlist_playing();
+// The same, telling a reading that failed from a playlist not left playing.
+esp_err_t settings_read_playlist_playing(bool& playing);
 // The time when a certificate was last found to need renewing, for a start with no clock yet.
 int64_t settings_load_last_epoch();
 esp_err_t settings_save_last_epoch(int64_t epoch);
@@ -88,7 +118,8 @@ StoredRead settings_load_tls(TlsIdentity& out);
 esp_err_t settings_save_tls(const TlsIdentity& identity);
 void settings_load_tls_starts(TlsStarts& out);
 esp_err_t settings_save_tls_starts(const TlsStarts& starts);
-void settings_load_tls_domain(char* out, size_t out_size);
+// Missing, with out empty, only where flash says none was chosen.
+StoredRead settings_load_tls_domain(char* out, size_t out_size);
 esp_err_t settings_save_tls_domain(const char* domain);
 
 }  // namespace garland

@@ -50,20 +50,26 @@ void portal_format_hostname(char (&out)[kMaxHostnameLength + 7]) {
     snprintf(out, sizeof(out), "%s.local", network_hostname());
 }
 
-void portal_add_next_action(cJSON* root) {
+void portal_add_next_action(cJSON* root, const State& state) {
     cJSON* next = cJSON_AddObjectToObject(root, "next");
     if (next == nullptr) {
         return;
     }
     cJSON_AddBoolToObject(next, "clock", time_is_synced());
+    // A schedule not read yet has no next action to tell, and is no empty one: said apart, new after 1.0.0.
+    if (!schedule_is_read()) {
+        cJSON_AddBoolToObject(next, "unread", true);
+        return;
+    }
     char when[32];
     ResolvedAction action;
-    if (!schedule_next(when, sizeof(when), action)) {
+    const Snapshot seen = state.snapshot();
+    if (!schedule_next(when, sizeof(when), action, seen.playlist_size > 0, seen.catalog_revision)) {
         return;
     }
     cJSON_AddStringToObject(next, "at", when);
     if (action.power != PowerStep::None) {
-        cJSON_AddStringToObject(next, "power", action.power == PowerStep::On ? "on" : "off");
+        cJSON_AddStringToObject(next, "power", power_step_name(action.power));
     }
     if (action.brightness_percent != 0) {
         cJSON_AddNumberToObject(next, "brightness", action.brightness_percent);
@@ -71,7 +77,9 @@ void portal_add_next_action(cJSON* root) {
     if (action.speed_x4 != 0) {
         cJSON_AddNumberToObject(next, "speed", action.speed_x4 / 4.0);
     }
-    if (action.effect >= 0) {
+    if (action.playlist) {
+        cJSON_AddBoolToObject(next, "playlist", true);
+    } else if (action.effect >= 0) {
         cJSON_AddStringToObject(next, "effect_name", catalog_name(static_cast<size_t>(action.effect)).c_str());
     }
 }
@@ -200,7 +208,7 @@ esp_err_t portal_handle_info(httpd_req_t* req) {
     cJSON_AddStringToObject(root.get(), "effect_name", catalog_name(s.effect).c_str());
     cJSON_AddNumberToObject(root.get(), "brightness", s.brightness_percent);
     cJSON_AddNumberToObject(root.get(), "speed", s.speed_x4 / 4.0);
-    portal_add_next_action(root.get());
+    portal_add_next_action(root.get(), *static_cast<const State*>(req->user_ctx));
     return send_json(req, root.get());
 }
 

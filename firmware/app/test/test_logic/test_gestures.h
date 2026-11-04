@@ -119,17 +119,42 @@ static void test_long_press_power_in_standby_does_nothing() {
     TEST_ASSERT_EQUAL_UINT8(0, state.snapshot().off_seconds);
 }
 
-static void test_long_press_effect_goes_to_the_first_favorite_when_on() {
+static void test_double_click_effect_goes_to_the_first_favorite_when_on() {
     State state;
     light_up(state);
     state.set_effect(2);
-    state.long_press_effect();
+    state.double_click_effect();
     TEST_ASSERT_EQUAL_UINT8(1, state.snapshot().effect);
 
     state.set_effect(2);
     state.set_power(false);
+    state.double_click_effect();
+    TEST_ASSERT_EQUAL_UINT8(2, state.snapshot().effect);
+}
+
+// A long press starts the playlist, when there is one and the garland is on, and stops it, keeping
+// what plays. With no playlist it does nothing, the first favourite being the double click's.
+static void test_long_press_effect_starts_and_stops_the_playlist() {
+    State state;
+    light_up(state);
+    state.set_effect(2);
     state.long_press_effect();
     TEST_ASSERT_EQUAL_UINT8(2, state.snapshot().effect);
+    TEST_ASSERT_FALSE(state.snapshot().playlist);
+
+    const uint16_t list[] = {0, 1};
+    state.set_playlist(list, 2, 30);
+    state.long_press_effect();
+    TEST_ASSERT_TRUE(state.snapshot().playlist);
+    TEST_ASSERT_EQUAL_UINT8(0, state.snapshot().effect);
+    TEST_ASSERT_TRUE(state.advance_playlist(0, 1, state.snapshot().playlist_mark));
+    state.long_press_effect();
+    TEST_ASSERT_FALSE(state.snapshot().playlist);
+    TEST_ASSERT_EQUAL_UINT8(1, state.snapshot().effect);
+
+    state.set_power(false);
+    state.long_press_effect();
+    TEST_ASSERT_FALSE(state.snapshot().playlist);
 }
 
 static void test_long_press_speed_returns_to_normal_when_on() {

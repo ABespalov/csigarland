@@ -115,42 +115,50 @@ bool cookie_origin_ok(httpd_req_t* req) {
            auth_cookie_origin_ok(origin, host);
 }
 
-// The current browser's entry, or -1.
-int find_caller(httpd_req_t* req) {
-    char text[kAuthTokenBytes * 2 + 1] = "";
-    size_t size = sizeof(text);
+// The paired client a request comes from, and the hash of its token into hash_out if given, or -1. A
+// program gives its token as a bearer, alone; a browser its HTTPS cookie, and the one plain HTTP gave it
+// should HTTPS have failed for a while, each tried in turn: an old HTTPS cookie of a pairing forgotten or
+// out of its days, which the browser still sends, does not hide the pairing it made on plain HTTP since.
+int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out = nullptr) {
     // "Bearer " and the token.
-    char header[sizeof(text) + 8] = "";
+    char header[kAuthTokenBytes * 2 + 1 + 8] = "";
     const char* bearer = nullptr;
     if (httpd_req_get_hdr_value_str(req, "Authorization", header, sizeof(header)) == ESP_OK) {
         bearer = auth_bearer_token(header);
     }
-    if (bearer != nullptr) {
-        const size_t length = std::strlen(bearer);
-        if (length >= sizeof(text)) {
-            return -1;
-        }
-        std::memcpy(text, bearer, length + 1);
-    } else if (!cookie_origin_ok(req)) {
-        return -1;
-    } else if (httpd_req_get_cookie_val(req, kCookieName, text, &size) != ESP_OK) {
-        size = sizeof(text);
-        if (httpd_req_get_cookie_val(req, kPlainCookieName, text, &size) != ESP_OK) {
-            return -1;
-        }
-    }
-    uint8_t token[kAuthTokenBytes];
-    std::array<uint8_t, kAuthHashBytes> hash{};
-    if (!auth_from_hex(text, token, sizeof(token)) || !hash_of(token, hash)) {
+    if (bearer == nullptr && !cookie_origin_ok(req)) {
         return -1;
     }
+    const char* const cookies[] = {kCookieName, kPlainCookieName};
+    const size_t tries = bearer != nullptr ? 1 : std::size(cookies);
     const int64_t now = now_epoch();
     bool settled = false;
     int found = -1;
-    {
-        Guard guard;
-        settled = auth_settle_clock(s_devices, now);
-        found = auth_find(s_devices, hash, now);
+    for (size_t i = 0; i < tries && found < 0; ++i) {
+        char text[kAuthTokenBytes * 2 + 1] = "";
+        size_t size = sizeof(text);
+        if (bearer != nullptr) {
+            const size_t length = std::strlen(bearer);
+            if (length >= sizeof(text)) {
+                return -1;
+            }
+            std::memcpy(text, bearer, length + 1);
+        } else if (httpd_req_get_cookie_val(req, cookies[i], text, &size) != ESP_OK) {
+            continue;
+        }
+        uint8_t token[kAuthTokenBytes];
+        std::array<uint8_t, kAuthHashBytes> hash{};
+        if (!auth_from_hex(text, token, sizeof(token)) || !hash_of(token, hash)) {
+            continue;
+        }
+        {
+            Guard guard;
+            settled = auth_settle_clock(s_devices, now) || settled;
+            found = auth_find(s_devices, hash, now);
+        }
+        if (hash_out != nullptr) {
+            *hash_out = hash;
+        }
     }
     if (settled) {
         // Not worth failing a request over: the days start again at the next try if this is lost.
@@ -190,32 +198,11 @@ void arm_clear_timer(uint64_t after_us) {
     }
 }
 
+// As every route reads a body: held to its size, and to the time the whole of it may take to come.
 bool read_json(httpd_req_t* req, JsonPtr& out) {
     char body[kMaxBodyBytes + 1];
-    if (req->content_len == 0) {
-        portal_send_err(req, HTTPD_400_BAD_REQUEST, "bad body size");
-        return false;
-    }
-    if (req->content_len > kMaxBodyBytes) {
-        portal_send_status(req, "413 Content Too Large", "bad body size");
-        return false;
-    }
-    size_t received = 0;
-    while (received < req->content_len) {
-        const int chunk = httpd_req_recv(req, body + received, req->content_len - received);
-        if (chunk <= 0) {
-            portal_send_err(req, HTTPD_408_REQ_TIMEOUT, "no body");
-            return false;
-        }
-        received += static_cast<size_t>(chunk);
-    }
-    body[received] = '\0';
-    out.reset(json_parse_body(body, received));
-    if (out == nullptr) {
-        portal_send_err(req, HTTPD_400_BAD_REQUEST, "not JSON");
-        return false;
-    }
-    return true;
+    out = portal_read_json(req, body, kMaxBodyBytes);
+    return out != nullptr;
 }
 
 esp_err_t send_state(httpd_req_t* req, const char* state) {
@@ -320,7 +307,10 @@ bool auth_on_setup_network(httpd_req_t* req) {
         getpeername(socket, reinterpret_cast<sockaddr*>(&peer), &peer_length) != 0 || peer.sin_family != AF_INET) {
         return false;
     }
-    return auth_is_setup_client(local.sin_addr.s_addr, peer.sin_addr.s_addr, inet_addr(CSIGARLAND_PORTAL_IP));
+    const NetworkStatus network = network_status();
+    const uint32_t portal = inet_addr(CSIGARLAND_PORTAL_IP);
+    return auth_setup_network_applies(network.access_point_on, network.ip, portal) &&
+           auth_is_setup_client(local.sin_addr.s_addr, peer.sin_addr.s_addr, portal);
 }
 
 bool auth_setup_host_is_foreign(httpd_req_t* req) {
@@ -335,6 +325,38 @@ bool auth_open_route_allows(httpd_req_t* req) {
 
 bool auth_allows(httpd_req_t* req) {
     return auth_on_setup_network(req) ? comes_from_this_portal(req) : find_caller(req) >= 0;
+}
+
+AuthGrant auth_grant_of(httpd_req_t* req) {
+    AuthGrant grant;
+    if (auth_on_setup_network(req)) {
+        grant.slot = comes_from_this_portal(req) ? kAuthGrantSetupNetwork : -1;
+        return grant;
+    }
+    grant.slot = find_caller(req, &grant.hash);
+    return grant;
+}
+
+bool auth_grant_holds(const AuthGrant& grant) {
+    if (grant.slot == kAuthGrantSetupNetwork) {
+        // Only while that network is up: once the garland is on a home network, pairing counts.
+        return s_state != nullptr && s_state->snapshot().setup_network;
+    }
+    const int64_t now = now_epoch();
+    bool settled = false;
+    bool holds = false;
+    {
+        Guard guard;
+        // A pair given without the clock starts its days here as at any request, or an open stream
+        // would keep it out of time for good.
+        settled = auth_settle_clock(s_devices, now);
+        holds = auth_grant_holds(s_devices, grant, now);
+    }
+    if (settled) {
+        Guard saving(s_save_lock);
+        save_current();
+    }
+    return holds;
 }
 
 // Body: {"label": "Windows Chrome"}. The answer holds the id only this browser will know.

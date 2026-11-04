@@ -30,13 +30,42 @@ function Get-CryptographyVersion {
     return "$version".Trim()
 }
 
-# PlatformIO's own Python first, which the build runs under, then ESP-IDF's, newest first: the first
-# that holds the pinned version. With none, the version goes into PlatformIO's, as the build does.
+# The Python a pio installed with pip runs from, as pio itself says it; else by where pio.exe sits: in a
+# virtual environment's Scripts folder beside python.exe, in a Python installed for the system one folder
+# below it. A pip install for the user puts pio.exe in a folder of its own, which only pio can say of.
+function Get-PioPython {
+    $pio = Get-Command pio -ErrorAction SilentlyContinue
+    if (-not $pio -or -not $pio.Source) {
+        return $null
+    }
+    try {
+        $said = & $pio.Source system info --json-output 2>$null | ConvertFrom-Json
+        $python = "$($said.python_exe.value)"
+        if ($LASTEXITCODE -eq 0 -and $python -and (Test-Path -LiteralPath $python)) {
+            return $python
+        }
+    } catch {
+        Write-Verbose "pio did not say its Python: $_"
+    }
+    $scripts = Split-Path -Parent $pio.Source
+    foreach ($python in (Join-Path $scripts 'python.exe'), (Join-Path (Split-Path -Parent $scripts) 'python.exe')) {
+        if (Test-Path -LiteralPath $python) {
+            return $python
+        }
+    }
+    return $null
+}
+
+# As the build chooses: the Python pio runs from, PlatformIO's own, then ESP-IDF's, newest first, the
+# first that holds the pinned version. With none, the version goes into PlatformIO's own, as the build
+# does, never into another Python, which the guides install it beside pio for.
 function Get-csiGarlandSigningPython {
     $pinned = Get-csiGarlandPinnedCryptography
-    $environments = Join-Path $HOME '.platformio\penv'
+    # As PlatformIO takes it: PLATFORMIO_CORE_DIR, or .platformio in the home folder.
+    $environments = Join-Path $(if ($env:PLATFORMIO_CORE_DIR) { $env:PLATFORMIO_CORE_DIR } else { Join-Path $HOME '.platformio' }) 'penv'
     $own = Join-Path $environments 'Scripts\python.exe'
-    $candidates = @($own)
+    $pioPython = Get-PioPython
+    $candidates = @($pioPython, $own) | Where-Object { $_ }
     if (Test-Path -LiteralPath $environments) {
         $candidates += @(Get-ChildItem -LiteralPath $environments -Directory -Force -Filter '.espidf-*' | Sort-Object Name -Descending |
                 ForEach-Object { Join-Path $_.FullName 'Scripts\python.exe' })
@@ -46,8 +75,13 @@ function Get-csiGarlandSigningPython {
             return $python
         }
     }
+    # A look ahead, as publish-release.ps1 -WhatIf, changes nothing: it says what is missing.
+    if ($env:CSIGARLAND_NO_INSTALL) {
+        throw "No Python of PlatformIO's holds cryptography ${pinned}, and nothing is installed now. Install it: & '$(if ($pioPython) { $pioPython } else { $own })' -m pip install cryptography==$pinned"
+    }
     if (-not (Test-Path -LiteralPath $own)) {
-        throw "PlatformIO's Python is not at $own. Install PlatformIO, as docs/guides/build-and-flash.md says."
+        $beside = if ($pioPython) { " Install it beside pio: & '$pioPython' -m pip install cryptography==$pinned" } else { '' }
+        throw "No Python of PlatformIO's holds cryptography ${pinned}, and PlatformIO's own is not at $own.$beside As docs/guides/build-and-flash.md says, pip installs both together."
     }
     Write-Host "No Python of PlatformIO's holds cryptography ${pinned}: installing it into $own, as the build does."
     & $own -m pip install --quiet "cryptography==$pinned" 2>&1 | ForEach-Object { Write-Host $_.ToString() }
@@ -75,13 +109,16 @@ function Assert-csiGarlandOwnSigning {
 
 # What the signing tool says of an update file signed under this repository's root, as a garland
 # would judge it: what it holds, as JSON. $null for one that is not.
+# Under the repository's root in cert/, or under Root, such as the copy of it a release publishes.
 function Get-csiGarlandOwnSignature {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$UpdatePath
+        [Parameter(Mandatory = $true)][string]$UpdatePath,
+        [string]$Root = ''
     )
     $python = Get-csiGarlandSigningPython
-    $said = & $python (Join-Path $RepoRoot 'firmware\app\scripts\ota_sign_tool.py') verify (Join-Path $RepoRoot 'cert\ota-root-ca.local.crt') $UpdatePath 2>$null
+    $trusted = if ($Root) { $Root } else { Join-Path $RepoRoot 'cert\ota-root-ca.local.crt' }
+    $said = & $python (Join-Path $RepoRoot 'firmware\app\scripts\ota_sign_tool.py') verify $trusted $UpdatePath 2>$null
     if ($LASTEXITCODE -ne 0) {
         return $null
     }
@@ -91,9 +128,10 @@ function Get-csiGarlandOwnSignature {
 function Test-csiGarlandOwnSignature {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$UpdatePath
+        [Parameter(Mandatory = $true)][string]$UpdatePath,
+        [string]$Root = ''
     )
-    return $null -ne (Get-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $UpdatePath)
+    return $null -ne (Get-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $UpdatePath -Root $Root)
 }
 
 Export-ModuleMember -Function Get-csiGarlandPinnedCryptography, Get-csiGarlandSigningPython, Assert-csiGarlandOwnSigning, Get-csiGarlandOwnSignature, Test-csiGarlandOwnSignature

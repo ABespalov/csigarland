@@ -207,7 +207,7 @@ func New(address string, rootPEM []byte, token string) (*Client, error) {
 	transport := &http.Transport{
 		MaxConnsPerHost:     maxConnections,
 		MaxIdleConnsPerHost: maxConnections,
-		IdleConnTimeout:     30 * time.Second,
+		IdleConnTimeout:     idleConnection,
 		DialContext:         (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
 		TLSHandshakeTimeout: requestTimeout,
 		TLSClientConfig: &tls.Config{
@@ -220,6 +220,11 @@ func New(address string, rootPEM []byte, token string) (*Client, error) {
 	}
 	return &Client{base: base, token: token, stall: installStall, http: &http.Client{Transport: transport, Timeout: requestTimeout}}, nil
 }
+
+// idleConnection is how long a connection waits for its next request here: less than the garland's own
+// limit on one, kHeaderDeadlineUs in firmware/app/src/portal_watch.h, past which it closes it. A request
+// sent on one it is closing would fail, and one that changes something is not sent twice by itself.
+const idleConnection = 8 * time.Second
 
 func verifyChain(state tls.ConnectionState, roots *x509.CertPool) error {
 	if len(state.PeerCertificates) == 0 {
