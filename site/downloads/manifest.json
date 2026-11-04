@@ -1,14 +1,25 @@
 {
   "format": "csigarland.downloads/2",
-  "updated": "2026-11-03",
+  "updated": "2026-11-04",
   "source": "https://github.com/ABespalov/csigarland",
-  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.0.0",
+  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.1.0",
   "products": [
     {
       "id": "firmware",
       "name": "Firmware and effects update",
       "about": "The update file for a garland whose firmware holds the project's root, signed under it: install it from the portal's Firmware page or the utility's catalog.",
       "builds": [
+        {
+          "platform": "ESP32-C6-LCD-1.3",
+          "available": true,
+          "version": "1.1.0.113",
+          "release": "1.1.0",
+          "released": "2026-11-04",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.1.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.1.0/csigarland-1.1.0.113.ota",
+          "sha256": "f04b62976d81e7948def5325ce14865e685a2fa49222b33e1cff755c88549748",
+          "size": "1.5 MB"
+        },
         {
           "platform": "ESP32-C6-LCD-1.3",
           "available": true,
@@ -27,6 +38,17 @@
       "name": "csiGarland utility",
       "about": "The program for your computer: control, tuning with a live preview, updates and the log.",
       "builds": [
+        {
+          "platform": "Windows x64",
+          "available": true,
+          "version": "1.1.0.37",
+          "release": "1.1.0",
+          "released": "2026-11-04",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.1.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.1.0/csigarland-1.1.0.37-windows-amd64.exe",
+          "sha256": "0cad713e2b8005e6164d6b0bcebf749b9c4a2d0033ce770fc4da25cc69df1f59",
+          "size": "13.3 MB"
+        },
         {
           "platform": "Windows x64",
           "available": true,
@@ -53,6 +75,17 @@
       "name": "Root certificate of the release",
       "about": "To build the release again and compare it to the byte.",
       "builds": [
+        {
+          "platform": "Any",
+          "available": true,
+          "version": "1.1.0.113",
+          "release": "1.1.0",
+          "released": "2026-11-04",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.1.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.1.0/csigarland-ota-root.crt",
+          "sha256": "071b59501b482480e0f9b82d332986e0ff6e1f782e22d73a97af8f2fba54dc05",
+          "size": null
+        },
         {
           "platform": "Any",
           "available": true,
