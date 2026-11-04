@@ -100,6 +100,9 @@ p { margin: 0 0 16px; }
 .gallery figure { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
 .gallery figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
 .shot { border-radius: 8px; border: 1px solid var(--border); width: 100%; }
+/* The pages and windows side by side as previews of one size, from their top: the whole of each opens
+   in the preview. */
+.gallery-shots .shot { aspect-ratio: 4 / 3; object-fit: cover; object-position: top; }
 
 .screens { display: grid; grid-template-columns: repeat(4, minmax(0, 128px)); gap: 12px; margin-top: 20px; }
 .screens img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }

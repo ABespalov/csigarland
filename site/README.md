@@ -9,7 +9,7 @@
 
 # csiGarland public site
 
-Static English and Russian site for **https://garland.csilab.am**, served by Cloudflare Pages from this folder, with no build step. The English pages are at the root and the Russian ones under `ru/`, each naming the other with `hreflang`. A visitor whose browser prefers Russian over English is sent from an English page to its Russian twin; a toggle in the header leads to the other language and the browser remembers that choice. Every picture opens in a zoomable preview that pages through its gallery. The portal's Effects picture is `docs/images/portal/effects-short.png`, its first three effects, while the documents keep the whole page.
+Static English and Russian site for **https://garland.csilab.am**, served by Cloudflare Pages from this folder, with no build step. The English pages are at the root and the Russian ones under `ru/`, each naming the other with `hreflang`. A visitor whose browser prefers Russian over English is sent from an English page to its Russian twin; a toggle in the header leads to the other language and the browser remembers that choice. Every picture opens in a zoomable preview that pages through its gallery. The portal's Effects picture is `docs/images/portal/effects-short.png`, and the utility's `docs/images/utility/effects-short.png`, each with its first three effects, while the documents keep the whole page. Side by side on the home page, the pages and windows are previews of one size, cut from their top, and the whole of each opens in the preview.
 
 | File | Role |
 |---|---|
@@ -33,7 +33,12 @@ The site shows what the documents show, never a mock: the renders of the 3D mode
 
 ```powershell
 pwsh -File deploy\site-assets.ps1
+pwsh -File deploy\site-pages.ps1
 ```
+
+## Versions of the files
+
+Every file a page names, its stylesheet, scripts and pictures, carries the start of its SHA-256 in its address, as `styles.css?v=0123456789`, so a browser that kept the one before, as `_headers` lets it for an hour or more, asks for the new one as soon as it changes. `deploy/site-pages.ps1` writes them into the English pages, and the Russian ones take them from there; the source rules fail while one is not current. Run it after any file of the site changes, a picture from `site-assets.ps1` among them.
 
 ## Russian pages
 

@@ -5,6 +5,12 @@
 # Purpose: Make the site's Russian pages under site/ru from its English pages and deploy/site-ru.json.
 # Contributors: None
 #
+# First every file of the site a page names, its stylesheet, scripts and pictures, gets the start of its
+# SHA-256 in its address, as styles.css?v=0123456789, written into the English pages: a browser that kept
+# the one before asks for the new one as soon as it changes, rather than show an old stylesheet beside a
+# new page. A text file is hashed with its lines ended as git keeps them, so the version is the same in
+# any checkout.
+#
 # The English pages are the source: every element with data-i18n, and every attribute named by
 # data-i18n-alt, data-i18n-content or data-i18n-aria, takes its Russian text from deploy/site-ru.json.
 # The Russian pages are static, so search engines and visitors without scripts see them, and git
@@ -53,10 +59,37 @@ function Get-Russian {
     return ConvertTo-HtmlText -Text $dictionary[$Key]
 }
 
-function ConvertTo-RussianPage {
-    param([Parameter(Mandatory = $true)][string]$Page)
+# The start of a file's SHA-256, of its text with lines ended by LF for a text file.
+function Get-FileVersion {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ([System.IO.Path]::GetExtension($Path) -in '.css', '.js', '.svg', '.json', '.txt', '.webmanifest') {
+        $bytes = $Utf8.GetBytes($Utf8.GetString($bytes).Replace("`r`n", "`n"))
+    }
+    return [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).Substring(0, 10).ToLowerInvariant()
+}
 
-    $html = [System.IO.File]::ReadAllText((Join-Path $Site $Page))
+# The page with every file of the site it names in its version. Pages, folders and other sites are left.
+function Add-FileVersions {
+    param([Parameter(Mandatory = $true)][string]$Html)
+    return [regex]::Replace($Html, '\s(href|src)="([^"?#]+)(?:\?v=[0-9a-f]+)?"', {
+            param($match)
+            $url = $match.Groups[2].Value
+            $file = Join-Path $Site $url
+            if ($url -match '^([a-z]+:|/|\.\./)' -or $url.EndsWith('.html') -or -not (Test-Path -LiteralPath $file -PathType Leaf)) {
+                return $match.Value
+            }
+            return " $($match.Groups[1].Value)=`"${url}?v=$(Get-FileVersion -Path $file)`""
+        })
+}
+
+function ConvertTo-RussianPage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Page,
+        [Parameter(Mandatory = $true)][string]$Html
+    )
+
+    $html = $Html
     if (-not $html.Contains('<html lang="en">')) {
         $problems.Add("site/${Page}: no <html lang=`"en`">")
         return $null
@@ -128,9 +161,11 @@ function ConvertTo-RussianPage {
     return $html
 }
 
+$versioned = [ordered]@{}
 $made = [ordered]@{}
 foreach ($page in $Pages) {
-    $made[$page] = ConvertTo-RussianPage -Page $page
+    $versioned[$page] = Add-FileVersions -Html ([System.IO.File]::ReadAllText((Join-Path $Site $page)))
+    $made[$page] = ConvertTo-RussianPage -Page $page -Html $versioned[$page]
 }
 foreach ($key in $dictionary.Keys) {
     if (-not $used.Contains($key)) {
@@ -144,6 +179,11 @@ if ($problems.Count -gt 0) {
 
 if ($Check) {
     $stale = [System.Collections.Generic.List[string]]::new()
+    foreach ($page in $Pages) {
+        if ([System.IO.File]::ReadAllText((Join-Path $Site $page)) -cne $versioned[$page]) {
+            $stale.Add("site/${page}: versions of the files it names")
+        }
+    }
     foreach ($page in $Pages) {
         $path = Join-Path $Target $page
         if (-not (Test-Path -LiteralPath $path) -or [System.IO.File]::ReadAllText($path) -cne $made[$page]) {
@@ -162,6 +202,9 @@ if ($Check) {
     return
 }
 
+foreach ($page in $Pages) {
+    [System.IO.File]::WriteAllText((Join-Path $Site $page), $versioned[$page], $Utf8)
+}
 New-Item -ItemType Directory -Path $Target -Force | Out-Null
 foreach ($page in $Pages) {
     [System.IO.File]::WriteAllText((Join-Path $Target $page), $made[$page], $Utf8)
