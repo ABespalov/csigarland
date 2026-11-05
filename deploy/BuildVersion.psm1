@@ -276,7 +276,8 @@ function Get-csiGarlandSourceFormat { return $SourceFormat }
 
 # The C++ compiler the utility of a release is built with, for each platform it is released for, as
 # docs/guides/rebuild.md names it: another builds, but not the same file, and a release says its file
-# builds again to the byte. A platform with none named here has no release yet: $null.
+# builds again to the byte. A platform with none named here has no release yet: $null. deploy/lib/csg_tool.py
+# names the same, for the bash scripts.
 $ReleaseCompilers = @{
     'windows-amd64' = 'gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0'
 }
@@ -335,8 +336,10 @@ function Get-csiGarlandUtilitySourceDigest {
     )
 
     # This module with the script, as it sets the engine's flags and what the script checks the build by; and
-    # what checks its notices, the script and the licence texts it reads, as its manifest says they held.
-    return Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Revision $Revision -Paths @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1', 'deploy/BuildVersion.psm1', 'deploy/new-third-party-notices.ps1', 'deploy/licences')
+    # what checks its notices, the script and the licence texts it reads, as its manifest says they held. The
+    # bash twins of all of these too, as deploy/lib/csg_tool.py lists them the same: a path a tag does not
+    # hold adds nothing, so the digests of releases before them stay as they were.
+    return Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Revision $Revision -Paths @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1', 'deploy/BuildVersion.psm1', 'deploy/new-third-party-notices.ps1', 'deploy/licences', 'deploy/build-utility.sh', 'deploy/new-third-party-notices.sh', 'deploy/lib/common.sh', 'deploy/lib/build_version.sh', 'deploy/lib/csg_tool.py', 'deploy/lib/csg_notices.py')
 }
 
 # The utility for Windows links these of the compiler's libraries statically, each under one of three
@@ -373,7 +376,7 @@ function Get-csiGarlandUtilityLibraryGroup {
 function Set-csiGarlandEngineSources {
     param([Parameter(Mandatory = $true)][string]$RepoRoot)
 
-    $folder = Join-Path $RepoRoot 'firmware\app\src'
+    $folder = Join-Path $RepoRoot 'firmware/app/src'
     $sha = [System.Security.Cryptography.IncrementalHash]::CreateHash('SHA256')
     try {
         foreach ($file in (Get-ChildItem -LiteralPath $folder -Recurse -File | Sort-Object FullName)) {

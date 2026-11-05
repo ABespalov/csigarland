@@ -12,11 +12,15 @@
 
 name: Build and test
 
+# On a change of main, by a push or a pull request into it. Another branch runs only by hand, from the
+# Actions tab, as a branch pushed to be looked at elsewhere is not yet a change of main.
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -25,8 +29,8 @@ permissions:
 jobs:
   go:
     name: Go utility
-    # Windows, the utility's first system. Its window needs development headers on Linux, which
-    # come with the Ubuntu build. Its effect engine needs cgo, and this image has the compiler.
+    # Windows, the utility's first system. Its effect engine needs cgo, and this image has the
+    # compiler. Linux has a job of its own, go-linux, with the window's development headers.
     runs-on: windows-latest
     env:
       CGO_ENABLED: '1'
@@ -66,6 +70,82 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+  go-linux:
+    name: Go utility on Linux
+    # Ubuntu, with the headers Gio's window builds against. No session bus runs here, so the test of
+    # the Secret Service skips, and the Linux code's own tests run with no display.
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: The window's development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc g++ pkg-config libwayland-dev libx11-dev \
+            libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev \
+            libxcursor-dev libvulkan-dev
+
+      # gofmt, build, vet and the race tests, with the engine's sources in Go's cache key, by the bash twin
+      # of deploy/test-utility.ps1.
+      - name: Go checks
+        run: bash deploy/test-utility.sh
+
+  go-macos:
+    name: Go utility on macOS
+    # The utility builds and passes its tests on macOS, where the token store and the file dialog are not
+    # written yet; the script runs under macOS's own bash 3.2.
+    runs-on: macos-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go checks
+        run: /bin/bash deploy/test-utility.sh
+
+  scripts:
+    name: Bash scripts on ${{ matrix.os }}
+    # The bash twins of the PowerShell checks, on Linux and on macOS as it comes: bash 3.2 and the BSD
+    # tools there. The whole history and its tags, for the history's keys and the digests of a release.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Source rules
+        run: /bin/bash deploy/tests/source-rules.tests.sh
+
+      - name: Sensitive data
+        run: /bin/bash deploy/tests/sensitive-data.tests.sh
+
+      - name: Partition entry check
+        run: /bin/bash deploy/tests/partition-entry.tests.sh
+
+      - name: The shell library, against the digests of a release
+        run: /bin/bash deploy/tests/shell-lib.tests.sh
 
   firmware:
     name: Firmware image and host tests

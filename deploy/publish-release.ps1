@@ -167,6 +167,9 @@ $readTag = {
         return "$blob".Trim()
     }
     $catalogText = (& git -C $RepoRoot show "${Tag}:firmware/app/effects/catalog.json") -join "`n"
+    # The zlib the tag says a release is built with; a tag from before the zlib was named says none.
+    $iniText = (& git -C $RepoRoot show "${Tag}:firmware/app/platformio.ini") -join "`n"
+    $releaseZlib = [regex]::Match($iniText, '(?m)^CSIGARLAND_RELEASE_ZLIB\s*=\s*(\S+)\s*$')
     $changelogText = (& git -C $RepoRoot show "${Tag}:CHANGELOG.md") -join "`n"
     if ($LASTEXITCODE -ne 0) {
         throw "$Tag holds no CHANGELOG.md."
@@ -179,6 +182,7 @@ $readTag = {
         Notices  = & $blobOf 'THIRD_PARTY_NOTICES.md'
         License  = & $blobOf 'LICENSE'
         Notes    = Get-ReleaseNotes -Text $changelogText
+        Zlib     = if ($releaseZlib.Success) { $releaseZlib.Groups[1].Value } else { $null }
     }
 }
 # Whether a file's bytes are those of the tag's blob: as git would hash it, with no filters.
@@ -713,6 +717,16 @@ if ($WithFirmware) {
     }
     if ($TagHolds.Effects -ne $effects) {
         throw "$FirmwareVersion holds $effects effects, and $Tag's catalog $($TagHolds.Effects): build it again from the tag."
+    }
+    # The portal's pages are bytes of the image, gzipped by the zlib of the Python that built it: a release
+    # holds the one its tag names, so that whoever builds it again with that zlib makes the same image.
+    if ($TagHolds.Zlib) {
+        if (-not $firmwareBuild.PSObject.Properties['zlib'] -or -not $firmwareBuild.zlib) {
+            throw "$FirmwareVersion records no zlib, as a staging before it did: stage it again."
+        }
+        if ($firmwareBuild.zlib -cne $TagHolds.Zlib) {
+            throw "$FirmwareVersion was built with zlib $($firmwareBuild.zlib), not $($TagHolds.Zlib) as $Tag names in CSIGARLAND_RELEASE_ZLIB: its portal's pages are other bytes than a release's. Build it under a Python with that zlib."
+        }
     }
 }
 if ($WithUtility -and $TagHolds.Utility -ne $utilityBuild.source_sha256) {

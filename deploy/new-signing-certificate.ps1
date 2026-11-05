@@ -104,6 +104,13 @@ try {
     Remove-Item Env:CSIGARLAND_ROOT_PASSPHRASE, Env:CSIGARLAND_CERT_ORGANIZATION, Env:CSIGARLAND_CERT_PERSON, Env:CSIGARLAND_CERT_EMAIL -ErrorAction SilentlyContinue
 }
 
+# Every key here for this user alone: the tool writes its own so, and a root key kept from before by
+# -RenewSigning is narrowed as well. Windows keeps the folder's ACL, the user's own.
+if (-not $IsWindows) {
+    foreach ($key in Get-ChildItem -LiteralPath $CertFolder -Filter '*.key' -File) {
+        & chmod 600 $key.FullName
+    }
+}
 Write-Host "Done. Keep $RootKey and its passphrase apart, off this machine."
 if (-not $RenewSigning) {
     Write-Host 'Firmware built now trusts this root; a board on older firmware takes it over USB once.'

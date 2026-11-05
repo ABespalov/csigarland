@@ -30,10 +30,17 @@ $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (-not (Test-Path -LiteralPath $OpenScad -PathType Leaf)) {
     throw "OpenSCAD was not found at $OpenScad. Install it, or name it with -OpenScad."
 }
-$python = Get-ChildItem (Join-Path $env:USERPROFILE '.platformio\penv\.espidf-*\Scripts\python.exe') -ErrorAction SilentlyContinue |
+# ESP-IDF's Python, under PlatformIO's core as PLATFORMIO_CORE_DIR or the home folder gives it, else the Python
+# on the PATH, as the bash twin takes: the renders need nothing installed.
+Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
+$python = Get-ChildItem (Join-Path (Get-csiGarlandPlatformIOCore) 'penv\.espidf-*\Scripts\python.exe') -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
 if (-not $python) {
-    throw 'The Python environment of ESP-IDF was not found under .platformio: build the firmware once.'
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $onPath) {
+        throw 'Neither the Python environment of ESP-IDF under .platformio nor a Python on the PATH was found: build the firmware once, or install Python.'
+    }
+    $python = $onPath.Source
 }
 & $python (Join-Path $PSScriptRoot 'model_renders.py') $OpenScad $RepoRoot
 if ($LASTEXITCODE -ne 0) {

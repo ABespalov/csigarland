@@ -17,7 +17,8 @@ Beside each update file in a release:
 
 The firmware's toolchain comes from the platform `platformio.ini` pins and the components `dependencies.lock` names. Install:
 
-* Git and PowerShell 7.2 or later.
+* Git, and PowerShell 7.2 or later, or on Linux and macOS bash and `python3`, with `deploy/rebuild-release.sh` taking the same options as `--firmware-manifest` and `--utility-manifest`.
+* For the firmware, a Python whose zlib is the one `CSIGARLAND_RELEASE_ZLIB` in the release's `platformio.ini` names, as `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` says it, and from the release after 1.1.0 on the manifest's `zlib` too: the portal's pages are gzipped with it, and another zlib packs them into other bytes. 1.1.0's is `1.3.1.zlib-ng`, of Python 3.14 on Windows. A Python on Linux or macOS has the classic zlib, so a firmware built again there has the release's effects pack and pages, but not its image; `rebuild-release` says so before its verdict.
 * PlatformIO Core 6.1.19, with the signing tool's `cryptography` in the same Python, as the first build needs it before ESP-IDF's environment exists: `pip install platformio==6.1.19 cryptography==44.0.3`.
 * For the utility: Go, any 1.26 or later (the build fetches the exact `toolchain` that `go.mod` names), and WinLibs GCC 16.1.0 UCRT, POSIX threads, SEH, release r2, on the `PATH`. Another compiler builds the utility as well, but not the same file.
 

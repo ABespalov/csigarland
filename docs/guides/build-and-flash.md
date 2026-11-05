@@ -1,17 +1,17 @@
 # Building a Fork and the First Flash
 
-From a clean fork of this repository to your own signed firmware on a board. After this the board updates over Wi-Fi, and the [User Guide](user-guide.md) takes over. Commands are for Windows with PowerShell 7.2 or later, run from the repository root.
+From a clean fork of this repository to your own signed firmware on a board. After this the board updates over Wi-Fi, and the [User Guide](user-guide.md) takes over. Commands are for Windows with PowerShell 7.2 or later, run from the repository root. On Linux and macOS each script has a bash twin of the same name, as [On Linux and macOS](#on-linux-and-macos) says, and what to install is in [Installing on Linux](#installing-on-linux) and [Installing on macOS](#installing-on-macos).
 
 ## 1. What You Need
 
 | Tool | Version | Why |
 |---|---|---|
 | [Git](https://git-scm.com/) | Any recent | |
-| [PowerShell](https://github.com/PowerShell/PowerShell) (`pwsh`) | 7.2 or later, as the scripts use .NET 6 | Every script in `deploy/` |
+| [PowerShell](https://github.com/PowerShell/PowerShell) (`pwsh`) on Windows; bash and `python3` on Linux and macOS | PowerShell 7.2 or later, as the scripts use .NET 6; bash 3.2 or later, as macOS has it, and Python 3.8 or later | Every script in `deploy/` |
 | [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/) | 6.1, on the `PATH` (CI pins `platformio==6.1.19`) | Installs ESP-IDF 6 and its toolchain at the first build, which takes a while |
 | Python | What PlatformIO needs (CI uses 3.12) | |
 | [Go](https://go.dev/) | 1.26.3 or later, as `go.mod` says, only for the utility, which also needs a C++20 compiler | CI builds it. The firmware does not need it, and `stage-assets.ps1` checks the third-party notices only with it |
-| GCC on the `PATH`, such as [WinLibs](https://winlibs.com/) | Any recent, with C++20 | Only for the host tests and the document pictures, which run on your computer. The firmware brings its own compiler |
+| GCC on the `PATH`, such as [WinLibs](https://winlibs.com/) on Windows, the system's on Linux, clang of Apple's command line tools on macOS | Any recent, with C++20 | Only for the host tests and the document pictures, which run on your computer. The firmware brings its own compiler |
 | Chrome or Edge | | Only for the document pictures |
 | A USB-C data cable | Not a charge-only one | Only for the first flash, and for recovery |
 
@@ -24,6 +24,83 @@ pip install platformio==6.1.19 cryptography==44.0.3
 ```
 
 With that, `deploy\new-signing-certificate.ps1` in section 4 needs no build before it.
+
+### Installing on Linux
+
+For Ubuntu 22.04 or later, or Debian; another distribution has the same packages under its own names. The packages of the system, in one go, each for what the table above says it is for:
+
+```bash
+sudo apt update
+```
+
+```bash
+sudo apt install git curl python3 python3-venv python3-pip gcc g++ pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+```
+
+| Packages | For |
+|---|---|
+| `git`, `curl` | The repository, and `ota-update.sh`, which sends an update with `curl` |
+| `python3`, `python3-venv`, `python3-pip` | PlatformIO, the scripts' helper in `deploy/lib`, and the environment of ESP-IDF that the first build makes with `python -m venv`, which fails without `python3-venv` |
+| `gcc`, `g++`, `pkg-config` | The host tests, the document pictures and the utility's effect engine. The firmware brings its own compiler |
+| `libwayland-dev` to `libvulkan-dev` | The utility's window only, which Gio builds against: the firmware needs none of them |
+
+Go comes from [go.dev/dl](https://go.dev/dl/), as the one Ubuntu packages is older than `go.mod` asks: 1.26.3 or later, and the scripts fetch the exact toolchain `go.mod` names themselves. For an x86-64 computer, `linux-arm64` in place of `linux-amd64` on ARM:
+
+```bash
+curl -LO https://go.dev/dl/go1.26.4.linux-amd64.tar.gz
+```
+
+```bash
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.26.4.linux-amd64.tar.gz
+```
+
+PlatformIO and `cryptography` go into a virtual environment of their own, as above, never into the system's Python:
+
+```bash
+python3 -m venv ~/.venvs/csigarland
+```
+
+```bash
+~/.venvs/csigarland/bin/pip install platformio==6.1.19 cryptography==44.0.3
+```
+
+Put both on the `PATH` for every new terminal, then open a new one:
+
+```bash
+echo 'export PATH="$HOME/.venvs/csigarland/bin:/usr/local/go/bin:$PATH"' >> ~/.profile
+```
+
+To flash over USB and read the log, your user needs the `dialout` group, `uucp` on Arch, and a new login after it:
+
+```bash
+sudo usermod -aG dialout "$USER"
+```
+
+As needed: Chrome or Chromium for the document pictures (`sudo snap install chromium`), OpenSCAD for the renders of the figurines (`sudo apt install openscad`), and the GitHub CLI from [cli.github.com](https://cli.github.com/) to publish a release, as Ubuntu's own `gh` is too old for `publish-release.sh`. The utility keeps its token in GNOME Keyring or KWallet, which a desktop has.
+
+### Installing on macOS
+
+Apple's command line tools give Git, `curl`, `python3`, and clang, which answers as `gcc` and `g++`; macOS's own bash 3.2 runs every script, so Homebrew is not needed:
+
+```bash
+xcode-select --install
+```
+
+Go comes from [go.dev/dl](https://go.dev/dl/), the `.pkg` for your Mac, Apple silicon or Intel. PlatformIO and `cryptography` go into a virtual environment, as on Linux:
+
+```bash
+python3 -m venv ~/.venvs/csigarland
+```
+
+```bash
+~/.venvs/csigarland/bin/pip install platformio==6.1.19 cryptography==44.0.3
+```
+
+```bash
+echo 'export PATH="$HOME/.venvs/csigarland/bin:$PATH"' >> ~/.zprofile
+```
+
+A serial port needs no group on macOS. As needed: Chrome for the document pictures, OpenSCAD for the renders, and the GitHub CLI to publish a release. Apple's `curl` does not read the Keychain, so `ota-update.sh` is given the garland's root with `--ca-file`, as [On Linux and macOS](#on-linux-and-macos) says.
 
 ## 2. Fork and Clone
 
@@ -79,7 +156,7 @@ pwsh -File deploy\tests\sensitive-data.tests.ps1
 Remove-Item Env:CSIGARLAND_THROWAWAY_SIGNING
 ```
 
-GitHub Actions runs all of this on every push: the builds, tests and repository rules through [`.github/workflows/build-and-test.yml`](../../.github/workflows/build-and-test.yml) with a throwaway chain, and the search for keys through [`.github/workflows/sensitive-data.yml`](../../.github/workflows/sensitive-data.yml). Your fork needs no secrets for either.
+GitHub Actions runs all of this: the builds, tests and repository rules through [`.github/workflows/build-and-test.yml`](../../.github/workflows/build-and-test.yml) with a throwaway chain, on every push to `main` and every pull request into it, and on another branch by hand from the Actions tab; and the search for keys through [`.github/workflows/sensitive-data.yml`](../../.github/workflows/sensitive-data.yml), on every push of any branch and every pull request. Your fork needs no secrets for either.
 
 ## 4. Make Your Signing Certificates
 
@@ -181,6 +258,17 @@ The screen says `Making the HTTPS key` for that moment, then shows the setup net
 | `deploy\publish-release.ps1` | Makes the GitHub Release of a staged release, or adds to one, and writes the site's downloads and firmware catalog for it, to commit. See [Publishing a Release](#publishing-a-release) |
 | `deploy\tests\reproducible-build.tests.ps1` | Builds the firmware and the utility twice from copies of the sources, and compares what they make |
 
+### On Linux and macOS
+
+Every script above has a bash twin beside it, `deploy/<name>.sh` for `deploy\<name>.ps1`, which does the same and writes the same files, counters and manifests, so the two can take turns in one checkout. Its options are the PowerShell ones in lower case with dashes: `bash deploy/flash-device.sh --port /dev/ttyACM0 --no-monitor` for `-Port COM5 -NoMonitor`, `--build-profile Dev`, `--what-if`. They run on Linux and on macOS as it comes, with bash 3.2 and its BSD tools, and leave to `python3` what bash cannot do alike on both, the digests, JSON and update files, by `deploy/lib/`. `bash deploy/tests/shell-lib.tests.sh` holds them to the digests the PowerShell scripts recorded for a release.
+
+What differs by system:
+
+* **Ports** are device paths, `/dev/ttyACM0` on Linux and `/dev/cu.usbmodem1101` on macOS, or the name alone. On Linux your user needs the `dialout` group, `uucp` on Arch, to open one. The ports are listed by pyserial in ESP-IDF's Python, which the scripts give it as esptool needs it; a board enrolled on Windows is the same board here, as both hash the chip's USB serial number.
+* **HTTPS of the garland.** `ota-update.sh` checks it with `curl`, which on Linux trusts the system's roots, where the garland's root is installed as for a browser. Apple's `curl` does not read the Keychain, so on macOS name the root with `--ca-file`.
+* **`flash-device.sh`** asks before it writes to a board it found itself, as PowerShell's `-Confirm` does; `--yes` writes without asking, as `-Confirm:$false`.
+* **Locks.** The bash scripts hold the same `temp/build-<kind>.lock` the PowerShell ones open for themselves alone, by an exclusive `flock` that a small Python process keeps for as long as the script lives, as `flock` is no command on macOS. The system lets go of it when its holder ends, however it ends, so a build stopped hard leaves no lock behind; a stop sent to the whole job, as Ctrl+C or a cancel, leaves it held until the script has given back what it took, a build number or files half made. pwsh on Linux and macOS takes the same file by the same kind of lock, so a bash and a pwsh build of one checkout wait for each other there.
+
 ### Publishing a Release
 
 `pwsh -File deploy\publish-release.ps1 -Release 1.1.0 -FirmwareVersion 1.1.0.113 -UtilityVersion 1.1.0.37` makes the GitHub Release of what `stage-assets.ps1` and `build-utility.ps1` left in `assets\`, once its tag, `v1.0.0`, is pushed, and then writes the site's `downloads\manifest.json` and `downloads\firmware-catalog-v1.json` for it, to commit.
@@ -215,6 +303,8 @@ pio run -d firmware/app -e esp32c6 --disable-auto-clean
 `flash-device.ps1 -FullClean` still compiles everything, should a build ever need it.
 
 Each build through `flash-device.ps1` spends a number from `firmware/app/.csigarland_build_counter`, and a utility build one from `cmd/csigarland/.csigarland_build_counter`. Git keeps both, so commit them with the work they were built from: a clone on another machine then goes on from the last number. Neither counts as a change of the sources, in the digest a manifest records or in its `dirty`, and on a merge of two machines' builds the higher number is the one to keep. A build that fails, is stopped, or fails a check after it gives its number back and leaves no image of it, so the next build takes the same number; so does a utility build, which is made and checked in a folder of its own under `temp\` and put in place only then, so a failed build of a number named again leaves the file there as it was, and whose counter is written once the file and its manifest are in place. One firmware build and one utility build of a checkout run at a time, each under a lock, `temp\build-firmware.lock` and `temp\build-utility.lock`, held from taking the number to giving it back: a second waits for none, and says so. `stage-assets.ps1` holds the firmware's for all its staging, `ota-update.ps1` from its build to the bytes it reads, and a write over USB until the last try of the write, not the log after it, so no build replaces the files they take in between. `ota-update.ps1 -EffectsOnly` makes its file under `temp\`, never in the build's `generated\`. A utility file of a number named again is put in place with its manifest, or both stay as they were, and a build whose sources changed while Go compiled them fails, spending no number. A staging with no Go, which cannot check the notices against what the build links, says so in its manifest, `notices_checked`, and no release takes it. The scripts find PlatformIO's packages and Pythons under `PLATFORMIO_CORE_DIR` when it is set, and a build alone, for staging or OTA, no longer asks for esptool. A Release firmware build refuses what PlatformIO would take into it from the environment, `PLATFORMIO_BUILD_FLAGS`, `PLATFORMIO_BUILD_SRC_FLAGS`, `PLATFORMIO_BUILD_UNFLAGS`, `PLATFORMIO_BUILD_SRC_FILTER`, `PLATFORMIO_EXTRA_SCRIPTS`, `PLATFORMIO_SRC_DIR`, `PLATFORMIO_INCLUDE_DIR`, `PLATFORMIO_LIB_DIR`, `PLATFORMIO_LIB_EXTRA_DIRS` and `PLATFORMIO_DEFAULT_ENVS`, and what ESP-IDF would, `SDKCONFIG_DEFAULTS` and `SDKCONFIG`, and its mark of a config made is of a format of its own, `made-from-defaults/2`, so one marked by a build before these checks is made again once, and runs the scripts `platformio.ini` lists for it alone. The utility's build takes `GOFLAGS`, `GOEXPERIMENT` and `GOFIPS140` as Go really has them, `go env -w` included, warns of any but off, and records them; a release takes none of them. An image that passed its checks keeps its number, whether or not it was written to a board. A clone that has not taken the latest counter counts on from the number it holds, and a lower number is not refused: signed older versions install, by design.
+
+The portal's pages are gzipped by the zlib of the Python that runs the build, and another zlib packs them into other bytes. `CSIGARLAND_RELEASE_ZLIB` in `platformio.ini` names the one a release is built with, `1.3.1.zlib-ng` of Python 3.14 on Windows: a Release build under another warns of it, records the zlib it used in `generated/portal_zlib.txt`, which `flash-device` puts in the build's `firmware.source.json` and `stage-assets` in its manifest, and `publish-release` refuses a firmware of another zlib than its tag names. Python on Linux and macOS has the classic zlib, so a firmware for a release is built on Windows; a Dev build, or one to try, builds anywhere.
 
 Every build leaves three update files in its environment's folder, `firmware/app/.pio/build/esp32c6-release` for Release:
 

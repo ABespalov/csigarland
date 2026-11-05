@@ -12,7 +12,9 @@ One Go + Gio code base for all of them. Where it stands is in [its status](utili
   - [x] Control the garland, repeating what the portal does: playing and favourites, brightness and speed, uploads, the schedule and clock, LED count and screen, network and certificate, updates, and the browsers that have access.
   - [x] Receive the garland's log and show it, as a sealed unit has no USB to read one from.
   - [x] See all of it working against a real garland, as listed in [its status](utility-progress.md).
-  - [ ] Ubuntu: Secret Service, a file dialog, and CI with the window's development headers.
+  - [x] Ubuntu: Secret Service, a file dialog, one window at a time, and CI with the window's development headers.
+  - [x] Linux and macOS: the scripts of `deploy/` in bash, with the same checks and digests as the PowerShell ones.
+  - [ ] Ubuntu: see it working against a real garland, the bash scripts against a real board, and a release compiler for Linux named in `deploy/BuildVersion.psm1` and `deploy/lib/csg_tool.py`.
   - [ ] macOS: Keychain and a file dialog.
 - [ ] **Android and iOS applications** repeating the utility, on the same Go + Gio code.
 - [x] **Notices for the utility's own binary.** `deploy/new-third-party-notices.ps1` names Go's library and the compiler's libraries the `.exe` links statically, by the groups `deploy/build-utility.ps1` holds its link map to. The compiler ships no licence texts, so those of winpthreads and of mingw-w64's runtime, from mingw-w64 v14.0.0, which WinLibs GCC 16.1.0 r2 is built on, are kept in `deploy/licences/`.
@@ -22,6 +24,13 @@ Settled:
 
 - **Preview inside the application.** Through cgo, on the firmware's own C++ effect engine, which already builds on a computer for the host tests. There is one engine, so its frames cannot differ. This needs GCC where the application is built, and is still to be tried on phones.
 - **Reaching the garland from an application.** As in a browser: the owner enters an IP address or domain, and pairs at the garland's buttons. [The API's page](../stubs/PUBLIC-API.md) has the port, trust and the token.
+
+## Build and Release
+
+- [x] **The zlib a firmware is built with.** `firmware/app/scripts/portal_pack.py` gzips the portal's pages with the zlib of the Python running the build, and another zlib packs them into other bytes: 1.1.0's firmware built again on Ubuntu 22.04 has the release's effects pack and the same nine pages before compression, but its classic zlib, 1.2.11, 1.3 and 1.3.2 alike, packs five of them 5 to 12 bytes tighter than the `1.3.1.zlib-ng` of Python 3.14 on Windows that built the release, so the image moves after them. `CSIGARLAND_RELEASE_ZLIB` in `platformio.ini` names it now: the build records and warns, the manifest holds it, `publish-release` refuses another, `rebuild-release` says so.
+- [ ] **A firmware for a release built on Linux or macOS.** Their Python has the classic zlib, never zlib-ng, so a release's firmware is built on Windows. Packing the pages by a compressor of the project's own, the same on every computer, would lift it, and change the images of releases from then on.
+
+- [ ] **A build that spends no number.** An option of the build scripts, in both versions of each, `-KeepNumber` in PowerShell and `--keep-number` in bash, for the firmware (`flash-device`, `stage-assets`, `ota-update`) and the utility (`build-utility`, `run`): a build under the number the counter holds, the counter left as it is, for a build to check or to stage that is no new version. Now each build moves a counter git keeps, so a build made only to check the scripts or the tools takes a number a release would. It has to settle how such a build is told apart, as two builds of one number may then differ: by its hashes, which the manifests and the garland already go by, and whether a release may take one at all.
 
 ## Measurements
 

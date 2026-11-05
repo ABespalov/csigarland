@@ -63,6 +63,21 @@ repository.
   `-BuildProfile Dev`; a plain `pio run` builds Dev. Only Release builds are published.
 - **PowerShell:** every tracked `.ps1` states `#requires -Version 7.2` under its
   header and is invoked as `pwsh -File`.
+- **Bash:** every tracked `.sh` starts with `#!/usr/bin/env bash` and states `set -euo pipefail`, or,
+  sourced from `deploy/lib/`, with `# shellcheck shell=bash`; it is invoked as `bash deploy/<name>.sh`.
+  It runs on Linux and on macOS as it comes: bash 3.2 and the BSD tools, so no associative arrays,
+  `mapfile`, `${x,,}`, `sed -i`, `readlink -f`, `grep -P`, `flock`, `timeout` or other GNU-only option,
+  no `case` inside `$( )`, whose patterns' `)` bash 3.2 takes for its end, and an empty array is expanded
+  as `${a[@]+"${a[@]}"}`. What bash cannot do alike on both, digests,
+  JSON and binary formats, goes in `deploy/lib/*.py`, under any `python3` from 3.8 on, with nothing
+  installed. The source rules enforce what a machine can see of this.
+- **Scripts in step across systems:** every script of `deploy/` has a version for each system: a
+  PowerShell `.ps1` or `.psm1` for Windows, and a bash `.sh` of the same name for Linux and macOS, its
+  modules under `deploy/lib/`. A change to one is made to every version in the same change set: the
+  same options, checks, refusals, outputs and files written, and the same digests, manifests and
+  counters to the byte, so the versions can take turns in one checkout. Where a system cannot do the
+  same, as Windows Credential Manager against the Secret Service, the version says so in its header
+  and does the nearest thing. A change made to one version only is not done.
 - **Chat language:** Russian.
 - **Tracked docs, code, comments, and UI language:** English.
 - **Git:** never commit, push, rewrite history, or push to `main` unless the user
@@ -199,7 +214,8 @@ Never place secrets, keys or real passwords in tracked documents or examples.
 - Wrap errors with context using `%w`, and inspect them with `errors.Is/As`.
 - Never panic or call `os.Exit` from reusable packages or handlers.
 - Use `path/filepath` for filesystem paths.
-- Format with `gofmt`. Verify with `pwsh -File deploy\test-utility.ps1`: it runs `go build ./...`,
+- Format with `gofmt`. Verify with `pwsh -File deploy\test-utility.ps1`, or `bash deploy/test-utility.sh`
+  on Linux and macOS: it runs `go build ./...`,
   `go vet ./...` and `go test -race ./...`, and plain ones could use an engine compiled before the
   firmware last changed.
 
@@ -210,11 +226,13 @@ The firmware build comes first, as the host tests use the cJSON it brings in.
 1. `pio run -d firmware/app -e esp32c6 --disable-auto-clean`: the flag keeps the objects through a
    change of `platformio.ini` or of the list of sources, see `docs/guides/build-and-flash.md`.
 2. `pio test -d firmware/app -e native`
-3. `pwsh -File deploy\tests\source-rules.tests.ps1`
-4. `pwsh -File deploy\tests\sensitive-data.tests.ps1`
+3. `pwsh -File deploy\tests\source-rules.tests.ps1`, or `bash deploy/tests/source-rules.tests.sh`
+4. `pwsh -File deploy\tests\sensitive-data.tests.ps1`, or `bash deploy/tests/sensitive-data.tests.sh`
 5. When the signing tool changed, `firmware/app/scripts/test_ota_sign_tool.py`, under the Python
    `Get-csiGarlandSigningPython` in `deploy/SigningPython.psm1` picks. When device detection
-   changed, `pwsh -File deploy\tests\partition-entry.tests.ps1`.
+   changed, `pwsh -File deploy\tests\partition-entry.tests.ps1`, or its `.sh`. When a script of
+   `deploy/` changed, its other versions too, and `bash deploy/tests/shell-lib.tests.sh`, which holds
+   the bash scripts' digests to those the PowerShell ones recorded for a release.
 6. When a portal page changed, the real page in a browser with the server stubbed: host tests do not
    run its script.
 7. When Go changed, the checks of section 6.

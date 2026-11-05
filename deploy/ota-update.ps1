@@ -37,7 +37,9 @@
 # The first time, the garland shows a code and asks for POWER and SPEED, like a browser's first
 # visit, and the token it gives is kept in deploy/portal-token.local.txt for its 100 days. HTTPS
 # is checked against this computer's trusted roots, so install the garland's root first, see
-# docs/guides/user-guide.md. Without that nothing is sent, not even the token.
+# docs/guides/user-guide.md. Without that nothing is sent, not even the token. The bash twin also takes
+# --ca-file, as Apple's curl does not read the Keychain; PowerShell's web calls take no root of their own
+# but the system's, so on Windows the root goes in its store, as for a browser.
 #
 # The script shows what the file holds before sending it, and -WhatIf stops there. The
 # garland installs what the file holds and leaves the rest. It refuses anything not signed
@@ -296,13 +298,23 @@ function Request-PortalToken {
     throw 'The request was not approved in time. Nothing was sent.'
 }
 
+# The token is for this user alone: anyone else who read it could run the garland for its 100 days. On
+# Windows the file takes the folder's ACL, as the user's own; elsewhere, under pwsh, it is narrowed as the
+# bash twin narrows it.
+function Protect-TokenFile {
+    if (-not $IsWindows -and (Test-Path -LiteralPath $TokenPath)) {
+        & chmod 600 $TokenPath
+    }
+}
+Protect-TokenFile
 $token = if (Test-Path -LiteralPath $TokenPath) { (Get-Content -LiteralPath $TokenPath -Raw).Trim() } else { '' }
 $AuthHeaders = @{ Cookie = "csig=$token" }
 # A check of who answers comes before the token goes anywhere. A firmware whose HTTPS failed keeps
 # the portal on plain HTTP and must still take the next update, which is what -Insecure is for:
 # the file's signature guards it the same, while the token travels unencrypted.
 try {
-    $null = Invoke-WebRequest -Uri $Uri @TlsCheck -Headers $AuthHeaders -TimeoutSec 15 -SkipHttpErrorCheck
+    # With no token: it goes only to who has answered, as the bash twin sends it.
+    $null = Invoke-WebRequest -Uri $Uri @TlsCheck -TimeoutSec 15 -SkipHttpErrorCheck
 } catch {
     if (-not $Insecure) {
         throw ("No trusted HTTPS at ${Address}: $($_.Exception.Message) Nothing was sent, not even the token. " +
@@ -323,7 +335,19 @@ try {
         throw
     }
     $token = Request-PortalToken
-    [System.IO.File]::WriteAllText($TokenPath, "$token`n", [System.Text.UTF8Encoding]::new($false))
+    # Written to a new file, then put in the old one's place, so whoever held the old file open keeps its old
+    # bytes. Elsewhere than Windows the new file is made for this user alone from the start, by a shell under
+    # umask 077, as .NET 6 makes a file as the umask has it and narrowing it after leaves a moment in which
+    # another could open it; the token then goes into that file, whose mode a write keeps.
+    $partial = "$TokenPath.$PID.new"
+    if (-not $IsWindows) {
+        & /bin/sh -c 'umask 077 && : > "$1"' sh $partial
+        if ($LASTEXITCODE -ne 0) {
+            throw "The token could not be kept in ${TokenPath}. Nothing was sent."
+        }
+    }
+    [System.IO.File]::WriteAllText($partial, "$token`n", [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::Move($partial, $TokenPath, $true)
     $AuthHeaders = @{ Cookie = "csig=$token" }
     $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders
 }

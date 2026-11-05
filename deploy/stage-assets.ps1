@@ -110,6 +110,10 @@ function Get-BuildProblem {
     if ($stamp.image -cne (Get-csiGarlandImageId -BinPath $BinPath)) {
         return "$StampPath is about another image"
     }
+    # A build before the zlib was recorded says nothing of the bytes of its portal's pages.
+    if (-not $stamp.PSObject.Properties['zlib'] -or -not $stamp.zlib) {
+        return 'the last build records no zlib, as one made before builds did'
+    }
     # The notices staged beside it are this checkout's, so they describe it only if it was made here.
     if ($stamp.source_sha256 -cne (Get-csiGarlandSourceIdentity -RepoRoot $RepoRoot).source_sha256) {
         return 'the firmware sources changed since the last build, and the notices staged with it would describe these'
@@ -212,6 +216,7 @@ try {
     $manifest | Add-Member source_sha256 $source.source_sha256
     $manifest | Add-Member source_format $source.source_format
     $manifest | Add-Member image_id $source.image
+    $manifest | Add-Member zlib $source.zlib
     $manifest | Add-Member ota_sha256 $hash
     # The notices and the licence staged with it are shared by every version in assets/firmware, and the next
     # staging writes them again: the manifest names the ones of this build, which a release is held to.

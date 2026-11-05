@@ -8,6 +8,9 @@
 
 """Usage: model_renders.py <openscad.exe> <repository root>"""
 
+# Under any python3 from 3.8 on, as the bash scripts may run it: its hints are not evaluated.
+from __future__ import annotations
+
 import re
 import struct
 import subprocess

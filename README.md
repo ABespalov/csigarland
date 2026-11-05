@@ -61,7 +61,7 @@ More of them, with what each does, are in the [User Guide](docs/guides/user-guid
 
 ## Quick Start
 
-On Windows with PowerShell 7.2 or later, [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/) and Git. **Read [Building a Fork and the First Flash](docs/guides/build-and-flash.md) first:** the first start of the firmware burns a key into the chip's eFuse, which cannot be undone.
+On Windows with PowerShell 7.2 or later, or on Linux and macOS with bash and `python3`, whose scripts are the `.sh` twins of those below, [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/) and Git. **Read [Building a Fork and the First Flash](docs/guides/build-and-flash.md) first:** the first start of the firmware burns a key into the chip's eFuse, which cannot be undone.
 
 To build a published release again and show it is the same to the byte, firmware and utility: [Building a Release Again](docs/guides/rebuild.md).
 
@@ -100,7 +100,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | [Building a Release Again](docs/guides/rebuild.md) | Building a published firmware and utility again from a clean fork, the same to the byte |
 | [User Guide](docs/guides/user-guide.md) | Buttons, the screen, portal access, every page, updates, troubleshooting |
 | [Effects Guide](docs/guides/effects.md) | The catalog, the file format, every algorithm, tuning |
-| [The csiGarland Utility](docs/guides/utility.md) | The program for your computer: control, tuning with a live preview, the log. Windows for now |
+| [The csiGarland Utility](docs/guides/utility.md) | The program for your computer: control, tuning with a live preview, the log. Windows and Linux |
 | [Public API](docs/stubs/PUBLIC-API.md) | `/api/v1/`, for programs of your own |
 | [Hardware Specification](docs/hardware/specification.md) and [Control Unit](docs/hardware/control-unit.md) | Electrical design, pins, power budget, the portal's API |
 | [Optical Design](docs/hardware/optical-design.md) and [Diffusers](docs/hardware/diffusers.md) | The figurines and how to slice and print them |
@@ -114,7 +114,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 csigarland/
 ├── 3d-model/          # CAD designs (STEP, STL, Bambu Studio 3MF projects)
 ├── cmd/, internal/    # The Go + Gio utility, and the firmware's effect engine through cgo
-├── deploy/            # PowerShell scripts: build, flash, update, certificates, pictures
+├── deploy/            # Scripts for PowerShell and bash: build, flash, update, certificates, pictures
 ├── docs/              # Guides, hardware, roadmap, pictures in docs/images
 ├── firmware/app/      # The firmware: PlatformIO and ESP-IDF, effects, host tests
 ├── site/              # The public site, garland.csilab.am, on Cloudflare Pages

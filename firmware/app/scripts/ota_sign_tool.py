@@ -27,6 +27,7 @@ import json
 import os
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 from cryptography import x509
@@ -77,8 +78,20 @@ def passphrase() -> bytes:
 
 def save_key(path: Path, key: ec.EllipticCurvePrivateKey, password: bytes | None) -> None:
     protection = serialization.BestAvailableEncryption(password) if password else serialization.NoEncryption()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, protection))
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    data = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, protection)
+    # For its owner alone: anyone else on the computer who read the signing key could sign updates a garland
+    # takes. Written to a new file of its own, which mkstemp makes for its owner alone whatever the umask, and
+    # then put in the old one's place: whoever held the old file open, when it was readable, keeps its old
+    # bytes, never the new key. Windows keeps the folder's own ACL, which these modes do not touch.
+    descriptor, partial = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".new")
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+        os.replace(partial, path)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
 
 
 def key_usage(signs_certificates: bool) -> x509.KeyUsage:

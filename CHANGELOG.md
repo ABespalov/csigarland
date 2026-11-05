@@ -14,6 +14,16 @@ tell builds apart by the hashes of what they hold.
 - The figurines' order along the cable, which effects use to find a figurine by name, is now tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, repeated, chosen so that neither colours nor shapes bunch together. A garland assembled in the order before lights other figurines in `Figurine Colors`, `Ring the Bells`, `Star Shine` and `Figurine Parade`; nothing it saved changes.
 - `Figurine Colors` and `Figurine Parade` light each figurine in the colour of its new filament.
 
+### Utility
+
+- Runs on Linux: the token stays in the Secret Service, as GNOME Keyring and KWallet give it, files are chosen with the desktop portal's dialog, or zenity's where there is no portal, and a second start asks the first window forward and ends. The addresses and roots live in `~/.config/csiGarland`.
+
+### Build and release
+
+- Every script of `deploy/` has a bash twin for Linux and macOS, `deploy/<name>.sh`, with the same checks, and the same counters, manifests and digests to the byte, so the two can take turns in one checkout. They run with bash 3.2 and the BSD tools of macOS as well as on Linux, and `deploy/tests/shell-lib.tests.sh` holds them to the digests the PowerShell scripts recorded for 1.1.0.
+- The digest of the utility's sources takes in the bash scripts that build it as well. A release before this one holds none of them, so its digest is as it was.
+- The firmware's image holds the portal's pages gzipped by the zlib of the Python that builds it, and another zlib packs them into other bytes. `CSIGARLAND_RELEASE_ZLIB` in `platformio.ini` names the one a release is built with, `1.3.1.zlib-ng` of Python 3.14 on Windows, as 1.1.0 was: a build records the one it used in its manifest and warns of another, and a release refuses another.
+
 ### Hardware
 
 - The figurines print in new colours: tree Translucent Olive, star Translucent Light Blue, icicle and snowman Clear, pinecone Translucent Brown, bell Translucent Teal, gingerbread man Translucent Orange, lantern Translucent Gray. `csigarland_full_set.3mf` follows them, with tree supports on every figurine's plate.

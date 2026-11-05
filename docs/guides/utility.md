@@ -1,6 +1,6 @@
 # The csiGarland Utility
 
-A program for your computer that does what the portal does, and two things it cannot: it tunes an effect with a preview drawn by the firmware's own engine, and it shows the garland's log. For now it runs on Windows. Ubuntu, macOS, Android and iOS come after, on the same code.
+A program for your computer that does what the portal does, and two things it cannot: it tunes an effect with a preview drawn by the firmware's own engine, and it shows the garland's log. It runs on Windows and on Linux, written for Ubuntu with GNOME. macOS, Android and iOS come after, on the same code.
 
 It talks to the garland over its [public API](../stubs/PUBLIC-API.md), which every release of the firmware has.
 
@@ -8,13 +8,23 @@ The garland does not depend on it, as it does not on the portal: buttons, screen
 
 ## Build It
 
-You need Go and a C++20 compiler on the `PATH`, as the effect engine is the firmware's C++ code: MinGW-w64 on Windows.
+You need Go and a C++20 compiler on the `PATH`, as the effect engine is the firmware's C++ code: MinGW-w64 on Windows, GCC on Linux. On Linux the window needs the development headers of Wayland, X11 and EGL as well, on Ubuntu as below; [Installing on Linux](build-and-flash.md#installing-on-linux) has the rest of what a first build needs:
+
+```bash
+sudo apt install gcc g++ pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+```
 
 ```bash
 pwsh -File deploy\build-utility.ps1
 ```
 
-The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed.
+On Linux and macOS:
+
+```bash
+bash deploy/build-utility.sh
+```
+
+The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed. On Linux it uses the system's own Wayland, X11 and EGL libraries, which a desktop has.
 
 Each build has its own number, apart from the firmware's: its base is in `cmd/csigarland/version.go`, and sources the same as the last build's keep its number and its file. `-Force` spends a new one. A build that fails, or is stopped, spends none, and leaves no file. The manifest beside the file names its platform, such as `windows-amd64`; a platform with no release compiler named in `deploy/BuildVersion.psm1` builds, with a warning that no release takes it yet. `-BuildProfile Dev` keeps the symbols and debug information, for a debugger, and marks the version `-dev`.
 
@@ -23,6 +33,8 @@ To build it and start it in one go, which starts nothing if the build failed, ra
 ```bash
 pwsh -File deploy\run.ps1
 ```
+
+or `bash deploy/run.sh` on Linux and macOS.
 
 `-NoRun` builds and stops.
 
@@ -36,7 +48,7 @@ Buttons show a glyph and what they do, side by side and on to a new line if the 
 
 A line too long for the footer is whole in the Journal, beside it, which keeps what the footer has said since the window opened, newest first. Its button turns red while there are errors you have not looked at.
 
-Only one utility runs at a time: starting it again brings the one already open to the front. Its window is at least 1024 by 768, as csiPass's is, and the system's dialogs for choosing a file open over it. Beside a hash or a MAC, a small button puts it on the clipboard.
+Only one utility runs at a time: starting it again brings the one already open to the front, and ends. On Linux under Wayland the compositor has the last word, and GNOME's leaves the window where it is. Its window is at least 1024 by 768, as csiPass's is, and the system's dialogs for choosing a file open over it. On Linux they are the desktop portal's, or zenity's on a desktop with no portal, and under Wayland they open on their own rather than over the window. Beside a hash or a MAC, a small button puts it on the clipboard.
 
 ## Connect and Pair
 
@@ -53,7 +65,7 @@ For one not paired, the list proves nothing, as anything can say it is a garland
 
 ![Pairing](../images/utility/pair.png)
 
-The access token stays in Windows Credential Manager, and the addresses and roots in `%AppData%\csiGarland`. Access lasts 100 days, as a browser's does, and then the utility asks you to pair again. If it says the garland no longer knows it, it was forgotten on the garland, or its time ran out. If it says the certificate is not valid at this computer's time, the garland is yours but a clock is wrong, on this computer or on the garland, which makes a new certificate once it knows the time: pairing again would not help, putting the clock right does.
+The access token stays in Windows Credential Manager, or on Linux in the Secret Service, as GNOME Keyring and KWallet give it, and the addresses and roots in `%AppData%\csiGarland`, or `~/.config/csiGarland` on Linux. A Linux with no Secret Service keeps no token anywhere less safe: pairing lasts until the utility closes, and it says so. A locked keyring asks for its password when the utility first needs the token. Access lasts 100 days, as a browser's does, and then the utility asks you to pair again. If it says the garland no longer knows it, it was forgotten on the garland, or its time ran out. If it says the certificate is not valid at this computer's time, the garland is yours but a clock is wrong, on this computer or on the garland, which makes a new certificate once it knows the time: pairing again would not help, putting the clock right does.
 
 ## With No Garland
 

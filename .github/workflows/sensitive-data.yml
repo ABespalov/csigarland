@@ -7,6 +7,8 @@
 
 name: Sensitive data
 
+# On every push, of any branch, and every pull request: a key that reached GitHub in any branch is in its
+# history there, and is out. Light enough for all of them, where the builds run only for main.
 on:
   push:
     branches:

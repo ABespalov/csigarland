@@ -16,11 +16,31 @@ $MaxLines = 1000
 $HeaderChars = 400
 $LicenseLine = 'Licensed under the terms specified by the MIT License'
 $PowerShellGuard = '#requires -Version 7.2'
-$SourcePattern = '\.(c|cc|cpp|h|hpp|go|py|ps1|psm1|html|css|js)$'
-$NativePattern = '\.(c|cc|cpp|h|hpp|go)$'
+$SourcePattern = '\.(c|cc|cpp|h|hpp|go|py|ps1|psm1|sh|html|css|js)$'
+$NativePattern = '\.(c|cc|cpp|h|hpp|go|sh)$'
 $FirmwarePattern = '^firmware/app/(src|test|scripts)/'
 # A third party's file, copied whole with its own licence header, so cgo can build it.
 $CopiedPattern = '^internal/engine/cJSON\.(c|h)$'
+# What bash 3.2 or the BSD tools of macOS lack, outside comments: deploy/lib/csg_rules.py holds the same list.
+$NotPortable = [ordered]@{
+    '\b(declare|local|typeset)\s+-[a-zA-Z]*[An]'                       = 'an associative array or a nameref, which bash 3.2 lacks'
+    '\b(mapfile|readarray)\b'                                          = 'mapfile, which bash 3.2 lacks'
+    '\$\{[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\])?(,,|\^\^|,|\^)\}'                 = 'a change of case by ${x,,}, which bash 3.2 lacks'
+    '\|&|&>>'                                                          = '|& or &>>, which bash 3.2 lacks'
+    '\bsed\s+(-[a-zA-Z]*\s+)*-i\b'                                     = 'sed -i, which differs on macOS'
+    '\breadlink\s+-f\b'                                                 = 'readlink -f, which older macOS lacks'
+    '\bgrep\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*P'                              = 'grep -P, which macOS lacks'
+    '(?:^|[\s;&|(])(?:flock|timeout|sha256sum)(?:\s|$)'                 = 'flock, timeout or sha256sum, which macOS lacks'
+    '\b(stat\s+-c|date\s+-d|find\s.*-printf|xargs\s+-r)\b'               = 'a GNU-only option, which macOS lacks'
+    '\$\{[A-Za-z_][A-Za-z0-9_]*\[-1\]\}'                                  = 'a negative index, which bash 3.2 lacks'
+    '\$\([^)]*\bcase\b'                                                  = 'a case inside $( ), whose patterns'' ) bash 3.2 takes for the end of it'
+}
+# Bash reads the bash scripts' syntax where it takes this system's paths: not WSL's launcher on Windows, which
+# reads them as its own, but Git's bash there.
+$Bash = Get-Command bash -ErrorAction SilentlyContinue
+if ($Bash -and $IsWindows -and $Bash.Source -notmatch '\\Git\\') {
+    $Bash = $null
+}
 
 $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $stubFolder = Join-Path $repository 'docs\stubs'
@@ -64,6 +84,41 @@ foreach ($file in $files) {
         $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$syntaxErrors)
         foreach ($syntaxError in $syntaxErrors) {
             $problems.Add("${file}:$($syntaxError.Extent.StartLineNumber): $($syntaxError.Message)")
+        }
+    }
+    # The bash scripts run on Linux and macOS alike, as AGENTS.md says: a sourced one is marked as such.
+    if ($file -match '\.sh$') {
+        $shellLines = $text -split "`n"
+        if ($file -like 'deploy/lib/*') {
+            if ($shellLines[0] -cne '# shellcheck shell=bash') {
+                $problems.Add("${file}: a sourced script starts with '# shellcheck shell=bash'")
+            }
+        } else {
+            if ($shellLines[0] -cne '#!/usr/bin/env bash') {
+                $problems.Add("${file}: no '#!/usr/bin/env bash' on its first line")
+            }
+            if ($text -cnotmatch '(?m)^set -euo pipefail$') {
+                $problems.Add("${file}: no 'set -euo pipefail' on a line of its own")
+            }
+        }
+        if ($text.Contains("`r")) {
+            $problems.Add("${file}: lines ended with CR, which bash reads as part of each command")
+        }
+        for ($number = 1; $number -le $shellLines.Count; $number++) {
+            $line = $shellLines[$number - 1]
+            if ($line -match '^\s*#') {
+                continue
+            }
+            foreach ($rule in $NotPortable.GetEnumerator()) {
+                if ($line -cmatch $rule.Key) {
+                    $problems.Add("${file}:${number}: $($rule.Value)")
+                }
+            }
+        }
+        if ($Bash) {
+            foreach ($said in @(& $Bash.Source -n $path 2>&1)) {
+                $problems.Add("${file}: $("$said".Trim())")
+            }
         }
     }
     # What these print reaches the serial log, which is ASCII only.

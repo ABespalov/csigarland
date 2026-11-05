@@ -134,6 +134,13 @@ if ($FirmwareManifest) {
         $env:CSIGARLAND_BUILD_NUMBER = $saved.Number
         $env:CSIGARLAND_THROWAWAY_SIGNING = $saved.Throwaway
     }
+    # The image holds the portal's pages gzipped by the zlib of the Python that built it: another zlib than the
+    # release's, as the manifest or the tag's platformio.ini names it, packs them into other bytes.
+    $madeZlib = (Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'generated\portal_zlib.txt')).Trim()
+    $releaseZlib = if ($release.PSObject.Properties['zlib']) { $release.zlib } else { [regex]::Match((Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'platformio.ini')), '(?m)^CSIGARLAND_RELEASE_ZLIB\s*=\s*(\S+)\s*$').Groups[1].Value }
+    if ($releaseZlib -and $madeZlib -cne $releaseZlib) {
+        Write-Warning "The portal's pages were gzipped with zlib $madeZlib here, the release's with ${releaseZlib}: expect the image to differ."
+    }
     $all = (Show-Verdict -What 'firmware image' -Made (Get-Sha256 (Join-Path $FirmwareDir ".pio\build\$environment\firmware.bin")) -Released $release.image_sha256) -and $all
     $all = (Show-Verdict -What 'effects pack' -Made (Get-Sha256 (Join-Path $FirmwareDir 'generated\effects.pack')) -Released $release.pack_sha256) -and $all
 }

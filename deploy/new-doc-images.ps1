@@ -58,13 +58,21 @@ $PortalPages = @(
     @('pair', '/pair?press=pair-start')
 )
 
+# ESP-IDF's Python, under PlatformIO's core as PLATFORMIO_CORE_DIR or the home folder gives it. The screens need
+# a firmware build anyway; the portal's stub needs nothing installed, so without one it runs under the
+# Python on the PATH, as the bash twin does.
 function Find-Python {
-    $python = Get-ChildItem (Join-Path $env:USERPROFILE '.platformio\penv\.espidf-*\Scripts\python.exe') -ErrorAction SilentlyContinue |
+    Import-Module (Join-Path $PSScriptRoot 'BuildVersion.psm1') -Force
+    $python = Get-ChildItem (Join-Path (Get-csiGarlandPlatformIOCore) 'penv\.espidf-*\Scripts\python.exe') -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-    if (-not $python) {
-        throw 'The Python environment of ESP-IDF was not found under .platformio: build the firmware once.'
+    if ($python) {
+        return $python
     }
-    return $python
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($PortalOnly -and $onPath) {
+        return $onPath.Source
+    }
+    throw 'The Python environment of ESP-IDF was not found under .platformio: build the firmware once.'
 }
 
 function Find-Browser {

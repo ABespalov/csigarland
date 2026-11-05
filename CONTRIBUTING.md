@@ -14,7 +14,7 @@ Thank you for helping. A contribution is accepted under the [MIT License](LICENS
 
 ## Set Up
 
-Install the tools in [What You Need](docs/guides/build-and-flash.md#1-what-you-need). The commands are for Windows with PowerShell 7.2 or later, run from the repository root.
+Install the tools in [What You Need](docs/guides/build-and-flash.md#1-what-you-need). The commands are for Windows with PowerShell 7.2 or later, run from the repository root. On Linux and macOS each has a bash twin, `bash deploy/<name>.sh` with `--kebab-case` options, as [On Linux and macOS](docs/guides/build-and-flash.md#on-linux-and-macos) says. A change to a script of `deploy/` is made to its twin in the same change set.
 
 A test build needs no certificates and no board. It signs with a chain made on the spot and thrown away:
 
@@ -53,9 +53,9 @@ Run these as well when the change touches them:
 | A portal page | The real page in a browser with the server stubbed, as host tests do not run its script |
 | A dependency, or a setting that links more | `pwsh -File deploy\new-third-party-notices.ps1` after a build |
 | How a screen, portal page or utility page looks | `pwsh -File deploy\new-doc-images.ps1`, which remakes the pictures in the documents |
-| Go | `pwsh -File deploy\test-utility.ps1`, which runs `gofmt`, `go build`, `go vet` and `go test -race` on the engine as it stands, with a C++20 compiler on the `PATH` for the effect engine: MinGW-w64 on Windows |
+| Go | `pwsh -File deploy\test-utility.ps1`, which runs `gofmt`, `go build`, `go vet` and `go test -race` on the engine as it stands, with a C++20 compiler on the `PATH` for the effect engine: MinGW-w64 on Windows, GCC and the window's headers on Linux, as [the utility's guide](docs/guides/utility.md#build-it) lists |
 
-GitHub Actions runs these on every push. Your fork needs no secrets for them.
+GitHub Actions runs the builds, tests and rules on every push to `main` and every pull request into it, and on another branch by hand, from the Actions tab; the search for keys runs on every push of any branch. Your fork needs no secrets for them.
 
 ## What a Change Needs
 

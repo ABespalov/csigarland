@@ -294,6 +294,9 @@ function Invoke-NumberedFirmwareBuild {
         # Beside the image, so that whoever passes it on later says what it was made from.
         $source | Add-Member version $version
         $source | Add-Member image (Get-csiGarlandImageId -BinPath $BinPath)
+        # The zlib the portal's pages were gzipped with, which the image's bytes depend on, as portal_pack.py
+        # recorded it: a release is held to the one platformio.ini names.
+        $source | Add-Member zlib (Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'generated\portal_zlib.txt')).Trim()
         $stampPath = Join-Path (Split-Path -Parent $BinPath) 'firmware.source.json'
         [System.IO.File]::WriteAllText($stampPath, (($source | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
         $image = [pscustomobject]@{

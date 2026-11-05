@@ -11,6 +11,7 @@
 
 import datetime
 import hashlib
+import os
 import struct
 import subprocess
 import sys
@@ -193,6 +194,27 @@ def main() -> None:
         refuses = run_tool("sign", str(folder), str(pack_path), str(image_path), str(refused), "00" * 32).returncode != 0 and not refused.exists()
         print(f"{'ok' if took and refuses else 'FAILED'}: signing is held to the root the image trusts")
         failed += [] if took and refuses else ["the image's root"]
+        # The keys are for their owner alone, whatever the umask, and one there before with more is narrowed.
+        if os.name == "posix":
+            was = os.umask(0o022)
+            try:
+                narrowed = Path(scratch) / "narrowed"
+                narrowed.mkdir()
+                (narrowed / ROOT_KEY).write_bytes(b"left by someone")
+                os.chmod(narrowed / ROOT_KEY, 0o644)
+                # Someone who opened the old file while it was readable reads only its old bytes after.
+                with open(narrowed / ROOT_KEY, "rb") as held_open:
+                    made = run_tool("throwaway", str(narrowed)).returncode == 0
+                    still_old = held_open.read() == b"left by someone"
+            finally:
+                os.umask(was)
+            modes = [oct((narrowed / name).stat().st_mode & 0o777) for name in (ROOT_KEY, "ota-signing.local.key")]
+            private = made and modes == ["0o600", "0o600"] and still_old
+            print(f"{'ok' if private else 'FAILED'}: the keys are for their owner alone: {modes}, an old open file keeps its old bytes: {still_old}")
+            failed += [] if private else ["the keys' modes"]
+            left = [entry.name for entry in narrowed.iterdir() if entry.name.endswith(".new")]
+            print(f"{'ok' if not left else 'FAILED'}: no partial key is left beside them")
+            failed += [] if not left else ["partial keys left"]
     if failed:
         raise SystemExit(f"{len(failed)} cases went wrong.")
     print("verify judges every case as the garland does.")
