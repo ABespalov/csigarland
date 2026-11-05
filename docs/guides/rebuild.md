@@ -55,7 +55,7 @@ pwsh -File deploy\tests\reproducible-build.tests.ps1
 
 ## 5. What Makes It Repeat
 
-* **Firmware:** the Release profile, compiled with no debug information, the components linked in one fixed order, ESP-IDF's reproducible build (`CONFIG_APP_REPRODUCIBLE_BUILD`) keeps the date, time and paths of the machine out of the image. The date the image holds, the earliest its certificates may start, is `CSIGARLAND_SOURCE_DATE` in `platformio.ini`. `CSIGARLAND_BUILD_NUMBER` gives a build its number in place of the local counter. Update files are signed deterministically (RFC 6979), so the owner, with the same key, makes the same `.ota` too.
+* **Firmware:** the Release profile, compiled with no debug information, the components linked in one fixed order, ESP-IDF's reproducible build (`CONFIG_APP_REPRODUCIBLE_BUILD`) keeps the date, time and paths of the machine out of the image. The date the image holds, the earliest its certificates may start, is `CSIGARLAND_SOURCE_DATE` in `platformio.ini`. `CSIGARLAND_BUILD_NUMBER` gives a build its number in place of the counter. Update files are signed deterministically (RFC 6979), so the owner, with the same key, makes the same `.ota` too.
 * **Utility:** the Release profile, linked with no symbols, `-trimpath`, no VCS stamp, the repository's path mapped away in the C++ of the engine, no time in the PE header, and `-BuildNumber` for the version.
 
 The host tests' compiler is not pinned, and is not part of any release.

@@ -257,7 +257,8 @@ def inject_build_version() -> None:
         build_number = _read_counter(counter)
         if os.environ.get("CSIGARLAND_INCREMENT_BUILD") == "1":
             build_number += 1
-            counter.write_text(f"{build_number}\n", encoding="utf-8")
+            # LF, as git keeps it, so that a build on Windows leaves no change of line endings behind.
+            counter.write_text(f"{build_number}\n", encoding="utf-8", newline="\n")
 
     profile = "release" if env.subst("$PIOENV").endswith(_RELEASE_SUFFIX) else "dev"
     # The variable that picked it before would now be passed over without a word.

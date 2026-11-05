@@ -180,8 +180,9 @@ function Get-csiGarlandSourceIdentity {
 
     $commit = & git -C $RepoRoot rev-parse HEAD 2>$null
     $commitKnown = $LASTEXITCODE -eq 0
-    # A git that failed would say clean and list nothing, and stamp a build with an empty digest.
-    $changes = @(& git -C $RepoRoot status --porcelain)
+    # A git that failed would say clean and list nothing, and stamp a build with an empty digest. A build
+    # counter moved by the build before is no change to the sources.
+    $changes = @(& git -C $RepoRoot status --porcelain -- . @($BuildCounters | ForEach-Object { ":(exclude)$_" }))
     if ($LASTEXITCODE -ne 0) {
         throw "git status failed with exit code $LASTEXITCODE in $RepoRoot."
     }
@@ -201,11 +202,16 @@ $SourceFormat = 'raw-blobs/1'
 # git would store it, as nothing is built from it.
 $RewrittenByBuild = @('firmware/app/dependencies.lock')
 
+# The build counters, which git keeps so that a clone on another machine goes on from the last number:
+# each build moves its own, so neither is a source of what is built. The number a build takes is in
+# its version, and a release built again is given its number outright.
+$BuildCounters = @('firmware/app/.csigarland_build_counter', 'cmd/csigarland/.csigarland_build_counter')
+
 # The files git would keep under Paths, each by the blob of its bytes as they lie: what a build
 # compiles or embeds, as go:embed takes an effect's file, is those bytes, so a file saved with other
 # line endings is another source. A checkout of a tag lies as git stores it (.gitattributes asks for LF),
 # so it gives the digest of a build made from what the tag holds. Only RewrittenByBuild is taken as git
-# would store it.
+# would store it. BuildCounters are left out, so a digest is what it was when git ignored them.
 function Get-csiGarlandTreeDigest {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -223,7 +229,7 @@ function Get-csiGarlandTreeDigest {
         $held = @($listed -split "`0" | Where-Object { $_ } | ForEach-Object {
                 $meta, $path = $_ -split "`t", 2
                 $mode, $type, $blob = $meta -split ' '
-                if ($type -eq 'blob') { [pscustomobject]@{ Path = $path; Blob = $blob } }
+                if ($type -eq 'blob' -and $path -cnotin $BuildCounters) { [pscustomobject]@{ Path = $path; Blob = $blob } }
             } | Sort-Object -Property Path -Culture '' -CaseSensitive)
         if ($held.Count -eq 0) {
             throw "$Revision holds no files of $($Paths -join ', ')."
@@ -239,7 +245,7 @@ function Get-csiGarlandTreeDigest {
         }
     }
     $files = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- @Paths | Sort-Object -Culture '' -CaseSensitive |
-            Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) -PathType Leaf })
+            Where-Object { $_ -cnotin $BuildCounters -and (Test-Path -LiteralPath (Join-Path $RepoRoot $_) -PathType Leaf) })
     if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) {
         throw "git ls-files listed no files of $($Paths -join ', ') in $RepoRoot (exit code $LASTEXITCODE)."
     }

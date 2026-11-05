@@ -35,8 +35,9 @@ firmware/**/managed_components/
 firmware/**/sdkconfig.*
 !firmware/**/sdkconfig.defaults
 firmware/**/generated/
-firmware/**/.csigarland_build_counter
-cmd/**/.csigarland_build_*
+# The utility's note of its last build, which only the file built here answers to. The build
+# counters are tracked: a clone on another machine goes on from the last number.
+cmd/**/.csigarland_build_fingerprint
 deploy/device-profile.local.json
 
 # Signing keys and certificates, anywhere
