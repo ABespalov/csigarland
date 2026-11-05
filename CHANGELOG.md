@@ -9,6 +9,15 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+### Firmware
+
+- The figurines' order along the cable, which effects use to find a figurine by name, is now tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, repeated, chosen so that neither colours nor shapes bunch together. A garland assembled in the order before lights other figurines in `Figurine Colors`, `Ring the Bells`, `Star Shine` and `Figurine Parade`; nothing it saved changes.
+- `Figurine Colors` and `Figurine Parade` light each figurine in the colour of its new filament.
+
+### Hardware
+
+- The figurines print in new colours: tree Translucent Olive, star Translucent Light Blue, icicle and snowman Clear, pinecone Translucent Brown, bell Translucent Teal, gingerbread man Translucent Orange, lantern Translucent Gray. `csigarland_full_set.3mf` follows them, with tree supports on every figurine's plate.
+
 ## [1.1.0] - 2026-11-04
 
 Everything a 1.0.0 garland saved, settings, pairings, uploaded effects, favourites, the schedule and its root certificate, stays as it was after this update. What this one saves reads in 1.0.0 as it means here, should a garland go back to it: a rise as a plain turn on, and the playlist as not set.

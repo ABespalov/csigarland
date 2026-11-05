@@ -29,7 +29,7 @@ Everything is served from this origin alone, as the `Content-Security-Policy` in
 
 ## Pictures
 
-The site shows what the documents show, never a mock: the renders of the 3D models and the pictures `deploy/new-doc-images.ps1` makes from the firmware's and utility's own code. After either changes:
+The site shows what the documents show, never a mock: the renders `deploy/new-model-renders.ps1` makes from the 3D models and the pictures `deploy/new-doc-images.ps1` makes from the firmware's and utility's own code. After either changes:
 
 ```powershell
 pwsh -File deploy\site-assets.ps1

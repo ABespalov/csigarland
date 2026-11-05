@@ -41,7 +41,7 @@
       "items": false
     },
     "figurine": {
-      "enum": ["star", "icicle", "gingerbread", "snowman", "bell", "lantern", "tree", "pinecone"]
+      "enum": ["tree", "star", "snowman", "pinecone", "lantern", "bell", "icicle", "gingerbread"]
     },
     "zone": {
       "oneOf": [

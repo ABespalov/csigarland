@@ -306,7 +306,7 @@ static void test_parser_reads_a_layer() {
     TEST_ASSERT_EQUAL_UINT8(100, layer.bri);
     TEST_ASSERT_TRUE(layer.rev);
     TEST_ASSERT_TRUE(layer.blend == Blend::Add);
-    TEST_ASSERT_EQUAL_UINT8(0b10000001, layer.figurine_mask);
+    TEST_ASSERT_EQUAL_UINT8(0b00001010, layer.figurine_mask);
     TEST_ASSERT_EQUAL_INT16(-3, layer.of);
 }
 
@@ -555,7 +555,7 @@ static void test_zone_masks_by_figurine() {
     Frame frame{};
     s_renderer.render(spec, 0, frame);
     for (int i = 0; i < 32; ++i) {
-        TEST_ASSERT_EQUAL_UINT8(i % 8 == 1 ? 255 : 0, frame[i].r);
+        TEST_ASSERT_EQUAL_UINT8(i % 8 == 6 ? 255 : 0, frame[i].r);
     }
 }
 

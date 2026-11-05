@@ -132,7 +132,7 @@ The last column is a rule of thumb: keep the drop at the last LED within about 1
 
 **At the plug.** JST-XH crimp contacts commonly take up to 22 AWG. With 20 AWG, check yours, or join a short tail of 22 AWG for the plug.
 
-**Order of the figurines:** effects can address figurines by type, and the layout in firmware repeats star, icicle, gingerbread, snowman, bell, lantern, tree, pinecone. That order is a placeholder: use it, and you need change nothing. Four built-in effects depend on it: `Figurine Colors`, `Ring the Bells` and `Star Shine`, by their zones, and `Figurine Parade`, by its algorithm.
+**Order of the figurines:** from the control unit, tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, four times over. The order is chosen for that loop: the two clear figurines, the icicle and the snowman, stand four places apart, as do the two warm ones, the pinecone and the gingerbread man, and the two cool ones, the star and the bell, and no two neighbours share a colour. Effects address figurines by type through this order, so assemble the harness in it: four built-in effects depend on it, `Figurine Colors`, `Ring the Bells` and `Star Shine`, by their zones, and `Figurine Parade`, by its algorithm.
 
 ## 5. Checks Before and After Power
 

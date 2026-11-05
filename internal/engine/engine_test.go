@@ -143,7 +143,7 @@ func TestBrightnessIsAppliedAsTheGarlandAppliesIt(t *testing.T) {
 // The parser's lists, which every shipped effect's fx is among.
 func TestTheParsersNamesAreThere(t *testing.T) {
 	algorithms, figurines := Algorithms(), Figurines()
-	if len(algorithms) < 90 || algorithms[0] != "solid" || len(figurines) != 8 || figurines[0] != "star" {
+	if len(algorithms) < 90 || algorithms[0] != "solid" || len(figurines) != 8 || figurines[0] != "tree" {
 		t.Fatalf("%d algorithms from %q, figurines %v", len(algorithms), algorithms[0], figurines)
 	}
 	for _, name := range algorithms {

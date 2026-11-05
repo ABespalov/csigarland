@@ -39,9 +39,9 @@ This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects
 
 ## 2. Figurine Collection
 
-For high-resolution previews, individual visual breakdowns, and Bambu Studio print parameters, see the comprehensive [Optical Diffuser Figurine Catalog](../docs/hardware/diffusers.md).
+For high-resolution previews, individual visual breakdowns, and Bambu Studio print parameters, see the comprehensive [Optical Diffuser Figurine Catalog](../docs/hardware/diffusers.md), which also gives the order of the figurines along the cable. The table numbers the designs, not that order. Each model's `c_cap` is its filament's colour in the renders, which `deploy/new-model-renders.ps1` makes after a change to a model.
 
-All 8 holiday figurines print collar-down in translucent PETG and hang with the universal snap-fit base mount at the top (cord running overhead). Tree, icicle, bell and lantern print without supports; snowman (nose, hands), gingerbread (arms), pinecone (scale undersides) and the two lower star points need tree supports or support enforcers:
+All 8 holiday figurines print collar-down in translucent PETG and hang with the universal snap-fit base mount at the top (cord running overhead). Every figurine prints with tree supports. They hold the socket ceiling inside the collar, which sags into strings unsupported, and on the snowman (nose, hands), gingerbread (arms), pinecone (scale undersides) and the two lower star points they also carry those overhangs:
 
 | # | Figurine Name | SCAD Source | STL File | Style & Geometry |
 |---|---|---|---|---|
@@ -65,19 +65,19 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
 
 | Plate | Content | Filament | Plate-specific settings |
 |---|---|---|---|
-| 1 | Tree ×4 | PETG Translucent Olive | – |
-| 2 | Star ×4 | PETG Translucent Teal | tree supports |
-| 3 | Icicle ×4 | PETG Translucent Light Blue | – |
+| 1 | Tree ×4 | PETG Translucent Olive | tree supports |
+| 2 | Star ×4 | PETG Translucent Light Blue | tree supports |
+| 3 | Icicle ×4 | PETG Clear | tree supports |
 | 4 | Pinecone ×4 | PETG Translucent Brown | tree supports, 0.16 mm layers |
-| 5 | Bell ×4 | PETG Translucent Orange | – |
-| 6 | Snowman ×4 | PETG Translucent Clear | tree supports, 0.16 mm layers |
+| 5 | Bell ×4 | PETG Translucent Teal | tree supports |
+| 6 | Snowman ×4 | PETG Clear | tree supports, 0.16 mm layers |
 | 7 | Gingerbread ×4 | PETG Translucent Orange | tree supports, 0.16 mm layers |
-| 8 | Lantern ×4 | PETG Translucent Gray | – |
+| 8 | Lantern ×4 | PETG Translucent Gray | tree supports |
 | 9 | Base mount ×32 | PETG Basic Pine Green | 4 walls, 100% zig-zag infill, no brim |
 
 * **Process:** `0.20mm Standard @BBL P2S` with 3 walls, 0% sparse infill (hollow translucent shells),
   6 top layers, 3 mm outer brim (0.15 mm gap), prime tower off, elephant-foot compensation 0.15 mm.
-* **Supports** (plates 2, 4, 6, 7): tree (auto), threshold 30°, not limited to the build plate, 0.2 mm top/bottom Z distance.
+* **Supports** (plates 1–8): tree (auto), threshold 30°, not limited to the build plate, 0.2 mm top/bottom Z distance.
 * **Filament presets:** `Bambu PETG Translucent @BBL P2S 0.4 nozzle` (245 °C) and
   `Bambu PETG Basic @BBL P2S 0.4 nozzle` (250 °C); plate 70 °C.
 * **Estimate (Bambu Studio):** ~17.8 h in total, ~214 g of translucent PETG + ~47 g of PETG Basic.

@@ -51,15 +51,15 @@ tol_xy            = 0.30;
 pocket_arc_d      = led_pcb_arc_d + tol_xy;
 pocket_flat_w     = led_pcb_flat_w + tol_xy;
 
-c_cap       = [0.88, 0.58, 0.28, 0.90]; // Honey/amber translucent PETG
+c_cap       = [1.00, 0.52, 0.12, 0.88]; // Bambu PETG Translucent Orange
 c_base      = [0.15, 0.45, 0.25, 1.0];
 c_pcb       = [0.95, 0.95, 0.95, 1.0];
 c_pad_gold  = [0.85, 0.70, 0.25, 1.0];
 c_led       = [0.98, 0.98, 0.98, 1.0];
 c_lens      = [1.00, 0.90, 0.30, 0.9];
-c_wire_vcc  = [0.85, 0.15, 0.15, 1.0];
-c_wire_dat  = [0.15, 0.75, 0.20, 1.0];
-c_wire_gnd  = [0.20, 0.20, 0.25, 1.0];
+c_wire_vcc  = [0.18, 0.55, 0.28, 1.0]; // The cable is green, all three wires
+c_wire_dat  = [0.18, 0.55, 0.28, 1.0]; // The cable is green, all three wires
+c_wire_gnd  = [0.18, 0.55, 0.28, 1.0]; // The cable is green, all three wires
 
 // =============================================================================
 // SUB-MODULE: Base Mount

@@ -15,17 +15,17 @@
       ],
       "zone": [
         "star",
+        "bell",
         "icicle"
       ]
     },
     {
       "fx": "solid",
       "col": [
-        "10C040"
+        "60C020"
       ],
       "zone": [
-        "tree",
-        "pinecone"
+        "tree"
       ]
     },
     {

@@ -12,7 +12,7 @@
 
 **[garland.csilab.am](https://garland.csilab.am)** · [Downloads](https://garland.csilab.am/downloads.html) · [Roadmap](https://garland.csilab.am/roadmap.html) · [Documents](https://garland.csilab.am/documents.html)
 
-<img src="docs/images/diffusers/garland_octet_hanging.png" width="720" alt="The eight figurines of the garland on their cord: a tree, a star, an icicle, a pine cone, a bell, a snowman, a gingerbread man and a lantern">
+<img src="docs/images/diffusers/garland_octet_hanging.png" width="720" alt="The eight figurines of the garland on their cord: a tree, a star, a snowman, a pine cone, a lantern, a bell, an icicle and a gingerbread man">
 
 <sub>The eight figurines as designed, a render of the 3D models. Four copies of each make the garland.</sub>
 

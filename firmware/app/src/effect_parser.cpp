@@ -63,9 +63,10 @@ constexpr AlgorithmName kAlgorithms[] = {
     {"figure-parade", Algorithm::FigureParade},
 };
 
-// Must stay in the order of the layout in docs/guides/effects.md, section 7.
-constexpr const char* kFigurines[kFigurineCount] = {"star", "icicle", "gingerbread", "snowman",
-                                                    "bell", "lantern", "tree",        "pinecone"};
+// The order of the figurines along the cable, from the control unit, repeated: docs/guides/effects.md,
+// section 7. deploy/model_renders.py draws the garland in it.
+constexpr const char* kFigurines[kFigurineCount] = {"tree",    "star", "snowman", "pinecone",
+                                                    "lantern", "bell", "icicle",  "gingerbread"};
 
 constexpr Rgb kDefaultColor{255, 170, 80};
 

@@ -339,7 +339,7 @@ The catalog covers the effects of WLED `v0.15.0-b6` that fit a single chain, eac
 
 **Palettes.** `pal` is `"Rainbow"` or an inline gradient of 2 to 16 position and colour pairs, for example `[0, "000000", 128, "FF4000", 255, "FFD080"]`. Omitted, the palette is built from `col`.
 
-**Figurines.** Zones resolve through the layout, a repeating list of `star`, `icicle`, `gingerbread`, `snowman`, `bell`, `lantern`, `tree`, `pinecone`. **This order is a placeholder:** the documents do not yet fix the physical order along the cable, so it must match the assembled harness.
+**Figurines.** Zones resolve through the layout, the order of the figurines along the cable from the control unit, repeated: `tree`, `star`, `snowman`, `pinecone`, `lantern`, `bell`, `icicle`, `gingerbread`. The eight repeat four times along the cable, so the order is chosen for the loop: the two clear figurines, the icicle and the snowman, stand four places apart, as do the two warm ones, the pinecone and the gingerbread man, and the two cool ones, the star and the bell, and no two neighbours share a colour. A harness assembled in another order lights the wrong figurines in the effects that name them.
 
 ## 8. Algorithms
 
