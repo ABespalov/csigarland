@@ -9,12 +9,19 @@
 # browsers may keep those for good: a change gives a new name, which the pages link to. The
 # pages themselves are checked with the garland each time. The sources are src/portal_assets.h
 # and src/portal_page_*.h.
+#
+# The pages are gzipped by the zlib of the Python that runs the build, and another zlib packs them into
+# other bytes: zlib-ng, as Python 3.14 has on Windows, and the classic zlib of Linux and macOS differ. So
+# the zlib is recorded in generated/portal_zlib.txt, which the deploy scripts put in a build's manifest, and
+# a Release build warns of one other than CSIGARLAND_RELEASE_ZLIB in platformio.ini, whose image no release
+# takes.
 
 Import("env")
 
 import gzip
 import hashlib
 import re
+import zlib
 from pathlib import Path
 
 _DEFINITION = re.compile(r'(k\w+)\[\] = R"(\w+)\((.*?)\)\2"', re.S)
@@ -30,6 +37,8 @@ _PAGES = (
 _REVALIDATE = "no-cache"
 _FOREVER = "public, max-age=31536000, immutable"
 _BYTES_PER_LINE = 16
+_RELEASE_SUFFIX = "-release"
+_RELEASE_ZLIB = re.compile(r"^CSIGARLAND_RELEASE_ZLIB\s*=\s*(\S+)\s*$", re.MULTILINE)
 
 # The wordmark on the glass and in the portal is one set of letters, so the build compares them.
 _GLYPH = re.compile(r"\{(\d+), (\d+), (\d+), (\d+), (\d+)\},\s*// \w")
@@ -81,8 +90,24 @@ def _array(name: str, data: bytes) -> list:
     return [f"inline constexpr unsigned char {name}[] = {{", *(f"    {line}," for line in lines), "};", ""]
 
 
+def _record_zlib(project_dir: Path) -> None:
+    """The zlib the pages are packed with, beside them, and a word where a release would take another."""
+    used = zlib.ZLIB_RUNTIME_VERSION
+    record = project_dir / "generated" / "portal_zlib.txt"
+    record.parent.mkdir(parents=True, exist_ok=True)
+    if not record.is_file() or record.read_text(encoding="utf-8") != f"{used}\n":
+        record.write_text(f"{used}\n", encoding="utf-8", newline="\n")
+    pinned = _RELEASE_ZLIB.search((project_dir / "platformio.ini").read_text(encoding="utf-8"))
+    if not pinned:
+        raise RuntimeError("CSIGARLAND_RELEASE_ZLIB not found in platformio.ini")
+    if env.subst("$PIOENV").endswith(_RELEASE_SUFFIX) and used != pinned.group(1):
+        print(f"WARNING: the portal's pages are gzipped with zlib {used}, not {pinned.group(1)} as a release's are: "
+              "this builds, but not the image of a release, and no release takes it.")
+
+
 def portal_pack() -> None:
     project_dir = Path(env["PROJECT_DIR"])
+    _record_zlib(project_dir)
     src = project_dir / "src"
     assets = _texts(src / "portal_assets.h")
     _check_wordmark(src, assets["kPortalPageTop"])
@@ -139,7 +164,7 @@ def portal_pack() -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.is_file() or target.read_text(encoding="utf-8") != header:
         target.write_text(header, encoding="utf-8")
-    print(f"portal: {raw_total} bytes, {packed_total} gzipped")
+    print(f"portal: {raw_total} bytes, {packed_total} gzipped with zlib {zlib.ZLIB_RUNTIME_VERSION}")
 
 
 portal_pack()
