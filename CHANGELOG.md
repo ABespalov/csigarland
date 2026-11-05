@@ -14,15 +14,23 @@ tell builds apart by the hashes of what they hold.
 - The figurines' order along the cable, which effects use to find a figurine by name, is now tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, repeated, chosen so that neither colours nor shapes bunch together. A garland assembled in the order before lights other figurines in `Figurine Colors`, `Ring the Bells`, `Star Shine` and `Figurine Parade`; nothing it saved changes.
 - `Figurine Colors` and `Figurine Parade` light each figurine in the colour of its new filament.
 
+## [1.2.0] - 2026-11-05
+
+A release of the utility alone, for Windows and now for Linux: the firmware stays 1.1.0.113, and the utility works with it as before.
+
 ### Utility
 
 - Runs on Linux: the token stays in the Secret Service, as GNOME Keyring and KWallet give it, files are chosen with the desktop portal's dialog, or zenity's where there is no portal, and a second start asks the first window forward and ends. The addresses and roots live in `~/.config/csiGarland`.
+- A file for Linux on x86-64, built for Ubuntu 24.04 and running on Ubuntu 22.04 and later with a desktop, which has the Wayland, X11 and EGL libraries it uses.
+- The preview finds a figurine by name in the new order along the cable, and draws `Figurine Colors` and `Figurine Parade` in the new filaments' colours, as the firmware after 1.1.0 will; a garland on 1.1.0 still lights them in the order and colours before.
 
 ### Build and release
 
 - Every script of `deploy/` has a bash twin for Linux and macOS, `deploy/<name>.sh`, with the same checks, and the same counters, manifests and digests to the byte, so the two can take turns in one checkout. They run with bash 3.2 and the BSD tools of macOS as well as on Linux, and `deploy/tests/shell-lib.tests.sh` holds them to the digests the PowerShell scripts recorded for 1.1.0.
 - The digest of the utility's sources takes in the bash scripts that build it as well. A release before this one holds none of them, so its digest is as it was.
 - The firmware's image holds the portal's pages gzipped by the zlib of the Python that builds it, and another zlib packs them into other bytes. `CSIGARLAND_RELEASE_ZLIB` in `platformio.ini` names the one a release is built with, `1.3.1.zlib-ng` of Python 3.14 on Windows, as 1.1.0 was: a build records the one it used in its manifest and warns of another, and a release refuses another.
+- The Linux utility's release compiler is the GCC of Ubuntu 24.04, and on Windows it is built in a Docker container of that Ubuntu, pinned by its image digest, the day of its packages and Go's checksum, as `docs/guides/utility.md` says, so it builds again to the byte there and on Ubuntu.
+- The build counters are kept in git, so a clone on another computer goes on from the last number.
 
 ### Hardware
 

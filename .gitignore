@@ -12,6 +12,9 @@ GEMINI.md
 
 # Scratch data and logs
 temp/**
+
+# The Docker image and container of the Linux utility's build on Windows: docs/guides/utility.md holds them.
+/docker/
 logs/**
 
 # Staged release files

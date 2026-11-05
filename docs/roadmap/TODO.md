@@ -14,7 +14,8 @@ One Go + Gio code base for all of them. Where it stands is in [its status](utili
   - [x] See all of it working against a real garland, as listed in [its status](utility-progress.md).
   - [x] Ubuntu: Secret Service, a file dialog, one window at a time, and CI with the window's development headers.
   - [x] Linux and macOS: the scripts of `deploy/` in bash, with the same checks and digests as the PowerShell ones.
-  - [ ] Ubuntu: see it working against a real garland, the bash scripts against a real board, and a release compiler for Linux named in `deploy/BuildVersion.psm1` and `deploy/lib/csg_tool.py`.
+  - [x] A release compiler for Linux, Ubuntu 24.04's GCC, named in `deploy/BuildVersion.psm1` and `deploy/lib/csg_tool.py`, and the Linux utility built on Windows in Docker, as [the utility's guide](../guides/utility.md#the-linux-utility-on-windows) says.
+  - [ ] Ubuntu: see it working against a real garland, and the bash scripts against a real board.
   - [ ] macOS: Keychain and a file dialog.
 - [ ] **Android and iOS applications** repeating the utility, on the same Go + Gio code.
 - [x] **Notices for the utility's own binary.** `deploy/new-third-party-notices.ps1` names Go's library and the compiler's libraries the `.exe` links statically, by the groups `deploy/build-utility.ps1` holds its link map to. The compiler ships no licence texts, so those of winpthreads and of mingw-w64's runtime, from mingw-w64 v14.0.0, which WinLibs GCC 16.1.0 r2 is built on, are kept in `deploy/licences/`.

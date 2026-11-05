@@ -11,7 +11,7 @@ Beside each update file in a release:
 | `csigarland-<version>.ota` | The signed update |
 | `csigarland-<version>.ota.manifest.json` | Its version, the SHA-256 of its image and pack, of its root certificate, and of the firmware sources |
 | `csigarland-ota-root.crt` | The root certificate the image trusts, which every image holds anyway |
-| `csigarland-<version>-windows-amd64.exe` and its `.manifest.json` | The utility, with its SHA-256 and the Go and C++ compiler that made it |
+| `csigarland-<version>-windows-amd64.exe`, `csigarland-<version>-linux-amd64` and their `.manifest.json` | The utility, with its SHA-256 and the Go and C++ compiler that made it |
 
 ## 2. The Tools, Exactly
 
@@ -20,7 +20,7 @@ The firmware's toolchain comes from the platform `platformio.ini` pins and the c
 * Git, and PowerShell 7.2 or later, or on Linux and macOS bash and `python3`, with `deploy/rebuild-release.sh` taking the same options as `--firmware-manifest` and `--utility-manifest`.
 * For the firmware, a Python whose zlib is the one `CSIGARLAND_RELEASE_ZLIB` in the release's `platformio.ini` names, as `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` says it, and from the release after 1.1.0 on the manifest's `zlib` too: the portal's pages are gzipped with it, and another zlib packs them into other bytes. 1.1.0's is `1.3.1.zlib-ng`, of Python 3.14 on Windows. A Python on Linux or macOS has the classic zlib, so a firmware built again there has the release's effects pack and pages, but not its image; `rebuild-release` says so before its verdict.
 * PlatformIO Core 6.1.19, with the signing tool's `cryptography` in the same Python, as the first build needs it before ESP-IDF's environment exists: `pip install platformio==6.1.19 cryptography==44.0.3`.
-* For the utility: Go, any 1.26 or later (the build fetches the exact `toolchain` that `go.mod` names), and WinLibs GCC 16.1.0 UCRT, POSIX threads, SEH, release r2, on the `PATH`. Another compiler builds the utility as well, but not the same file.
+* For the utility: Go, any 1.26 or later (the build fetches the exact `toolchain` that `go.mod` names), and the compiler `deploy/BuildVersion.psm1` names for its platform, on the `PATH`: for Windows WinLibs GCC 16.1.0 UCRT, POSIX threads, SEH, release r2; for Linux the GCC of Ubuntu 24.04, `gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, on Ubuntu or in the container [the utility's guide](utility.md#the-linux-utility-on-windows) makes on Windows. Another compiler builds the utility as well, but not the same file.
 
 ## 3. The Sources
 
@@ -46,7 +46,7 @@ From the repository's root:
 pwsh -File deploy\rebuild-release.ps1 -FirmwareManifest <path>\csigarland-<version>.ota.manifest.json -UtilityManifest <path>\csigarland-<version>-windows-amd64.exe.manifest.json
 ```
 
-It checks that the root certificate is the release's, copies the sources to `temp\rebuild-release`, so the checkout is left as it is, builds the firmware there with that root and the release's build number, unsigned, and builds the utility there with its build number. Each file is reported `same` or `DIFFER`, with both hashes.
+It checks that the root certificate is the release's, copies the sources to `temp\rebuild-release`, so the checkout is left as it is, builds the firmware there with that root and the release's build number, unsigned, and builds the utility there with its build number. Each file is reported `same` or `DIFFER`, with both hashes. The Linux utility is built again on Linux, or in that container, with `bash deploy/rebuild-release.sh --utility-manifest <path>/csigarland-<version>-linux-amd64.manifest.json`.
 
 To see that two builds of your own checkout agree, with nothing published:
 

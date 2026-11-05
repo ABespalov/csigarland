@@ -36,6 +36,8 @@ UTILITY_PATHS = (
 )
 RELEASE_COMPILERS = {
     "windows-amd64": "gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0",
+    # Ubuntu 24.04's, as the container of docs/guides/utility.md has it on Windows and Ubuntu itself on Linux.
+    "linux-amd64": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
 }
 UTILITY_PLATFORMS = OrderedDict([
     ("windows-amd64", "Windows x64"),

@@ -40,6 +40,86 @@ or `bash deploy/run.sh` on Linux and macOS.
 
 The icon is in `cmd/csigarland`, as `app.ico`, and `rsrc_windows_amd64.syso` puts it in the program. `generate_icon.go` there says how to make them again.
 
+## The Linux Utility on Windows
+
+cgo builds only for the system it runs on, so on Windows the Linux utility is built in Docker, in a container of Ubuntu 24.04 that stays, with this checkout mounted in it. It runs `deploy/build-utility.sh` on the same counter, fingerprint and manifests as `build-utility.ps1`, so the two take turns, and its file lands in `assets/utility` beside the Windows one. Its GCC is the release compiler `deploy/BuildVersion.psm1` names for `linux-amd64`, the one of Ubuntu 24.04 itself, so a file built there is the same as one built on Ubuntu.
+
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) with its WSL 2 engine, running. The image and the container live in the `docker/` folder of the checkout, which git ignores; make it there as `docker/Dockerfile`:
+
+```dockerfile
+# csiGarland: Ubuntu for building the Linux utility on Windows, under Docker Desktop.
+# This folder is ignored by git; docs/guides/utility.md, "The Linux Utility on Windows", holds this file
+# and the commands, so that it can be made again.
+#
+# Everything is pinned, as a release says its file builds again to the byte with the compiler named in
+# deploy/BuildVersion.psm1: the image by its digest, Ubuntu's packages by the day of their snapshot, and Go
+# by its checksum. Go then fetches the toolchain go.mod names itself.
+
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+
+ARG SNAPSHOT=20261105T000000Z
+ARG GO_VERSION=1.26.4
+ARG GO_SHA256=1153d3d50e0ac764b447adfe05c2bcf08e889d42a02e0fe0259bd47f6733ad7f
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH=/usr/local/go/bin:/root/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LANG=C.UTF-8
+
+# The packages of "Installing on Linux" in docs/guides/build-and-flash.md that the utility needs: Git, Python
+# for the scripts' helper, GCC for the effect engine, and the headers of the window. The snapshot is served
+# over HTTPS, so the roots come first from the archive as it is, and then as the snapshot has them.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && apt-get update --snapshot "$SNAPSHOT" \
+ && apt-get install -y --no-install-recommends --snapshot "$SNAPSHOT" \
+        ca-certificates curl git python3 gcc g++ pkg-config \
+        libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev \
+        libffi-dev libxcursor-dev libvulkan-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSLo /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+ && echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c - \
+ && tar -C /usr/local -xzf /tmp/go.tar.gz \
+ && rm /tmp/go.tar.gz
+
+# The checkout comes from Windows, owned by another user as git sees it.
+RUN git config --system --add safe.directory /src
+
+WORKDIR /src
+CMD ["sleep", "infinity"]
+```
+
+What it holds, and why:
+
+| Setting | What it is | Why |
+|---|---|---|
+| `ubuntu:24.04@sha256:…` | The base image, by its digest | The tag alone moves with every point release |
+| `SNAPSHOT` | The day of Ubuntu's [package snapshot](https://snapshot.ubuntu.com/) the packages come from | GCC's version, and so the release compiler, stays `gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` |
+| `GO_VERSION`, `GO_SHA256` | Go from go.dev, checked by its SHA-256 | Any 1.26 does: the build fetches the exact toolchain `go.mod` names |
+| `safe.directory /src` | Git's trust of the mounted checkout | Its files belong to Windows' user, and git refuses a repository of another user |
+
+Once, from the repository's root, build the image, then make the container. It mounts the checkout at `/src`, keeps Go's modules and build cache in two volumes of its own, so a container made again starts warm, and starts again with Docker:
+
+```bash
+docker build -t csigarland-linux:24.04 docker
+```
+
+```bash
+docker create --name csigarland-linux --restart unless-stopped -v "${PWD}:/src" -v csigarland-linux-cache:/root/.cache -v csigarland-linux-go:/root/go csigarland-linux:24.04
+```
+
+```bash
+docker start csigarland-linux
+```
+
+Then each build, which spends a number of the shared counter as on Ubuntu:
+
+```bash
+docker exec csigarland-linux bash deploy/build-utility.sh
+```
+
+`--force`, `--build-number` and `--build-profile` work as in [Build It](#build-it). Nothing else of the bash scripts is needed in the container: a release of the file it made is published from Windows, as `-Platform linux-amd64` in [the build guide](build-and-flash.md). After a change of the Dockerfile, remove the container with `docker rm -f csigarland-linux`, and build and make it again; the volumes stay.
+
 ## The Window
 
 As in the csiPass companion. The top bar has the wordmark, in the same pixel letters as the garland's screen and the portal, its tagline, and the pages. The rail under it says whether the garland is answering, its address and firmware, and what it is playing: the effect, or while the playlist plays, `Playlist 3/12 (Fireplace)`. **Refresh** reads the page again, and **Disconnect** leaves this garland for the list, where it stays paired and comes first. The utility still goes back to the last one used when it next starts. The footer is one line for what just happened, or the slogan when nothing did, and the utility's version. The garland pushes its state as it changes, on a connection of the utility's own, so the rail and the Effects page follow its buttons at once; with no stream, as from a garland of 1.0.0, the utility asks every 3 s. While the garland's firmware is on trial, after an update from here or from anywhere else, the footer counts down the seconds until it confirms itself, and says when it has.

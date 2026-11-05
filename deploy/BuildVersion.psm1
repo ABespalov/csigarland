@@ -280,6 +280,8 @@ function Get-csiGarlandSourceFormat { return $SourceFormat }
 # names the same, for the bash scripts.
 $ReleaseCompilers = @{
     'windows-amd64' = 'gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0'
+    # Ubuntu 24.04's, as the container of docs/guides/utility.md has it on Windows and Ubuntu itself on Linux.
+    'linux-amd64'   = 'gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0'
 }
 function Get-csiGarlandReleaseCompiler {
     param([string]$Platform = 'windows-amd64')

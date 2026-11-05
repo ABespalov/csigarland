@@ -17,6 +17,11 @@ Where the public API and the Go + Gio utility stand, and what is planned. The AP
 - **`internal/backup`:** the schedule, favourites, playlist, screen and uploads to a file and back, with a test that puts an erased garland back.
 - **`internal/ui`:** the offer of a newer release, the playlist card, the next 24 hours, Tune's current by the firmware's model, the backup card, the API check after an update, the playlist in the rail, and the countdown of a trial after a start.
 
+## In 1.2.0
+
+- **Linux:** `internal/secret` keeps the token in the Secret Service, `internal/ui` chooses files with the desktop portal's dialog or zenity's, and a second start brings the first window forward over a socket. Host tests pass on Ubuntu 22.04 with GNOME on Wayland, the token against GNOME Keyring.
+- **Build:** `deploy/build-utility.sh` for Linux and macOS, with the same counter and manifest as the PowerShell script, and the Linux release built on Windows in a Docker container of Ubuntu 24.04, whose GCC is its release compiler.
+
 ## Seen on the Board
 
 The 1.0.0 utility against the owner's garland: pairing, the pages, updates and the log. What 1.1.0 adds is yet to be seen on it.
@@ -26,6 +31,6 @@ The 1.0.0 utility against the owner's garland: pairing, the pages, updates and t
 
 ## Planned
 
-- **Ubuntu:** written, with Secret Service for the token, the desktop portal's file dialog or zenity's, one window at a time over a socket, and the window's development headers in CI. Host tests pass on Ubuntu 22.04 with GNOME on Wayland, the token against GNOME Keyring; still to see against a garland, and to release.
+- **Ubuntu:** released in 1.2.0; still to see against a garland.
 - **macOS:** Keychain, a file dialog.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.
