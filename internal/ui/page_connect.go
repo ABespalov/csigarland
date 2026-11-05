@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/ABespalov/csigarland/internal/api"
-	"github.com/ABespalov/csigarland/internal/secret"
 	"github.com/ABespalov/csigarland/internal/settings"
 )
 
@@ -62,6 +62,10 @@ type connectPage struct {
 	local    widget.Clickable
 	copyRoot widget.Clickable
 	pairing  atomic.Uint64 // Which attempt is current: one left behind ends by itself.
+	asked    atomic.Uint64 // Which look at the tokens is current: one left behind is dropped.
+	// Which choice of the owner's is current: each garland picked, forgotten, typed or left for the effects
+	// moves it, and a token read for one before is dropped when it comes.
+	choice atomic.Uint64
 }
 
 func (p *connectPage) init() {
@@ -69,6 +73,7 @@ func (p *connectPage) init() {
 }
 
 func (p *connectPage) start(a *App) {
+	p.choice.Add(1)
 	p.stage = stageAddress
 	p.busy = false
 	p.name = ""
@@ -96,39 +101,77 @@ func (p *connectPage) discover(a *App) {
 	}()
 }
 
-// Which of those met before have a token, asked once rather than at every frame.
+// Which of those met before have a token, asked once rather than at every frame, and away from the window,
+// as a locked store may ask for its password first.
 func (p *connectPage) refreshPaired(a *App) {
-	p.paired = map[string]bool{}
-	for _, garland := range a.settings.Garlands {
-		if _, err := secret.Get(garland.Fingerprint); err == nil {
-			p.paired[garland.Fingerprint] = true
+	asked := p.asked.Add(1)
+	garlands := slices.Clone(a.settings.Garlands)
+	a.keyring(func() func() {
+		paired := map[string]bool{}
+		for _, garland := range garlands {
+			if _, err := tokenGet(garland.Fingerprint); err == nil {
+				paired[garland.Fingerprint] = true
+			}
 		}
-	}
+		return func() {
+			if p.asked.Load() == asked {
+				p.paired = paired
+			}
+		}
+	})
 }
 
 func (p *connectPage) pick(a *App, row GarlandRow) {
-	if garland, known := a.settings.Find(row.Fingerprint); known && row.Paired {
-		if token, err := secret.Get(row.Fingerprint); err == nil {
+	garland, known := a.settings.Find(row.Fingerprint)
+	if !known || !row.Paired {
+		p.byAddress(a, row)
+		return
+	}
+	// The token away from the window; a choice made meanwhile, another garland, forgetting this one, an
+	// address typed or the effects alone, stands, and this one is dropped.
+	choice := p.choice.Add(1)
+	a.keyring(func() func() {
+		token, err := tokenGet(row.Fingerprint)
+		return func() {
+			if p.choice.Load() != choice || a.connected {
+				return
+			}
+			if _, still := a.settings.Find(row.Fingerprint); !still {
+				return
+			}
+			if err != nil {
+				p.byAddress(a, row)
+				return
+			}
 			if err := a.connectKnown(garland, row.Address, token); err != nil {
 				a.reportError(err)
 			}
-			return
 		}
-	}
+	})
+}
+
+// byAddress goes to a garland by its address, comparing its root before pairing, as for one not paired.
+func (p *connectPage) byAddress(a *App, row GarlandRow) {
 	p.address.SetText(row.Address)
 	p.name = row.Name
 	p.fetchRoot(a)
 }
 
 func (p *connectPage) forgetRow(a *App, row GarlandRow) {
-	if err := secret.Delete(row.Fingerprint); err != nil {
-		a.reportError(err)
-	}
+	p.choice.Add(1)
+	a.keyring(func() func() {
+		err := tokenDelete(row.Fingerprint)
+		return func() {
+			if err != nil {
+				a.reportError(err)
+			}
+			p.refreshPaired(a)
+		}
+	})
 	a.settings.Forget(row.Fingerprint)
 	if err := a.saveSettings(); err != nil {
 		a.reportError(err)
 	}
-	p.refreshPaired(a)
 }
 
 func (p *connectPage) foundCard(a *App) layout.Widget {
@@ -230,6 +273,7 @@ func (p *connectPage) fetchRoot(a *App) {
 		a.reportError(err)
 		return
 	}
+	p.choice.Add(1)
 	p.busy = true
 	a.report("Reaching the garland...")
 	generation := p.pairing.Load()
@@ -405,7 +449,7 @@ func (p *connectPage) waitForApproval(a *App, client *api.Client, generation uin
 func (p *connectPage) finish(a *App, client *api.Client, address, token string) {
 	// Another garland met at this address stays: its own may have changed, and it is still paired.
 	// One whose root is gone for good is the owner's to forget, from the list.
-	tokenErr := secret.Set(p.root.Fingerprint, token)
+	fingerprint := p.root.Fingerprint
 	name := p.name
 	if name == "" {
 		name = address
@@ -422,9 +466,16 @@ func (p *connectPage) finish(a *App, client *api.Client, address, token string) 
 	if savedErr != nil {
 		a.reportError(fmt.Errorf("paired, but this garland could not be remembered: %w", savedErr))
 	}
-	if tokenErr != nil {
-		a.reportError(fmt.Errorf("paired, but the token could not be kept, so pair again next time: %w", tokenErr))
-	}
+	// Kept away from the window, as a locked store may ask for its password first; a failure comes last.
+	a.keyring(func() func() {
+		err := tokenSet(fingerprint, token)
+		return func() {
+			if err != nil {
+				a.reportError(fmt.Errorf("paired, but the token could not be kept, so pair again next time: %w", err))
+			}
+			p.refreshPaired(a)
+		}
+	})
 }
 
 func (p *connectPage) codeCard(a *App) layout.Widget {

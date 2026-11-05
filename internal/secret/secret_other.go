@@ -2,10 +2,10 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: The token store where none is written yet: Secret Service comes with Ubuntu.
+// Purpose: The token store where none is written yet, as on macOS.
 // Contributors: None
 
-//go:build !windows
+//go:build !windows && !linux
 
 package secret
 

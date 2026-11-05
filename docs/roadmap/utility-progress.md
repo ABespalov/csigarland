@@ -26,6 +26,6 @@ The 1.0.0 utility against the owner's garland: pairing, the pages, updates and t
 
 ## Planned
 
-- **Ubuntu:** Secret Service for the token, a file dialog, the window's development headers in CI.
+- **Ubuntu:** written, with Secret Service for the token, the desktop portal's file dialog or zenity's, one window at a time over a socket, and the window's development headers in CI. Host tests pass on Ubuntu 22.04 with GNOME on Wayland, the token against GNOME Keyring; still to see against a garland, and to release.
 - **macOS:** Keychain, a file dialog.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

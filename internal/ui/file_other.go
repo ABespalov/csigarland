@@ -2,10 +2,10 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: Choosing a file where no dialog is written yet: it comes with Ubuntu.
+// Purpose: Choosing a file where no dialog is written yet, as on macOS.
 // Contributors: None
 
-//go:build !windows
+//go:build !windows && !linux
 
 package ui
 

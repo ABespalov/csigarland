@@ -560,9 +560,16 @@ func (p *infoPage) forget(a *App, paired api.PairedClient) {
 
 // The garland forgot this program, so nothing of it is kept here.
 func (p *infoPage) unpairThis(a *App) {
-	if err := secret.Delete(a.current.Fingerprint); err != nil && !errors.Is(err, secret.ErrNotFound) {
-		a.reportError(err)
-	}
+	fingerprint := a.current.Fingerprint
+	a.keyring(func() func() {
+		err := tokenDelete(fingerprint)
+		return func() {
+			if err != nil && !errors.Is(err, secret.ErrNotFound) {
+				a.reportError(err)
+			}
+			a.connect.refreshPaired(a)
+		}
+	})
 	a.settings.Forget(a.current.Fingerprint)
 	if err := a.saveSettings(); err != nil {
 		a.reportError(err)

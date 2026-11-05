@@ -27,12 +27,17 @@ import (
 	"github.com/ABespalov/csigarland/internal/api"
 )
 
-// CSIGARLAND_SHOTS names the folder. deploy/new-doc-images.ps1 sets it.
+// CSIGARLAND_SHOTS names the folder. deploy/new-doc-images.ps1 and its bash twin set it.
+//
+// No two windows are open at once: on Linux Gio draws with EGL, whose display is one for the whole
+// process, and releasing a window terminates it, leaving any other window unable to draw. So the short
+// picture, in a window of its own height, is drawn and done with before the others' window opens.
 func TestRenderShots(t *testing.T) {
 	folder := os.Getenv("CSIGARLAND_SHOTS")
 	if folder == "" {
 		t.Skip("CSIGARLAND_SHOTS is not set")
 	}
+	shootShort(t, filepath.Join(folder, "effects-short.png"))
 	window, err := headless.NewWindow(sceneWidth, sceneHeight)
 	if err != nil {
 		t.Fatalf("a window with no screen: %v", err)
@@ -64,7 +69,6 @@ func TestRenderShots(t *testing.T) {
 	action.schedule.clockPick.open(startTime(action.schedule.clock, time.Now()))
 	action.schedule.popup = popupClock
 	shoot(t, window, filepath.Join(folder, "schedule-clock.png"), action)
-	shootShort(t, filepath.Join(folder, "effects-short.png"))
 	shoot(t, window, filepath.Join(folder, "tune.png"), sceneTune(t))
 	shoot(t, window, filepath.Join(folder, "tune-colours.png"), sceneTuneColours(t))
 	shoot(t, window, filepath.Join(folder, "preview.png"), scenePreview(t))

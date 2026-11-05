@@ -18,6 +18,7 @@ import (
 	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/io/input"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -191,6 +192,24 @@ func (a *App) newPages() {
 	a.logPage.init()
 }
 
+// The system's token store, by variables that a test can stand in for, as one slow to answer.
+var (
+	tokenGet    = secret.Get
+	tokenSet    = secret.Set
+	tokenDelete = secret.Delete
+)
+
+// keyring runs work with the system's token store away from the window's goroutine, as a locked store may
+// ask for its password first and wait on the owner: the window goes on meanwhile. What work returns, if
+// anything, runs at a frame, as post runs it. The store's own calls end by themselves, so does this.
+func (a *App) keyring(work func() func()) {
+	go func() {
+		if done := work(); done != nil {
+			a.post(done)
+		}
+	}()
+}
+
 // post runs fn on the window's goroutine at its next frame.
 func (a *App) post(fn func()) {
 	select {
@@ -330,12 +349,15 @@ func (a *App) strangerAnswered() {
 
 // The garland no longer knows this program: its 100 days ran out, or it was forgotten.
 func (a *App) lostPairing() {
-	if err := secret.Delete(a.current.Fingerprint); err != nil {
-		log.Warn().Err(err).Msg("a token that no longer works stayed")
-	}
+	fingerprint := a.current.Fingerprint
+	a.keyring(func() func() {
+		if err := tokenDelete(fingerprint); err != nil {
+			log.Warn().Err(err).Msg("a token that no longer works stayed")
+		}
+		return func() { a.connect.refreshPaired(a) }
+	})
 	a.disconnect()
 	a.connect.start(a)
-	a.connect.refreshPaired(a)
 	a.reportError(errors.New("the garland no longer has this program paired: pair it again"))
 }
 
@@ -414,13 +436,30 @@ func (a *App) resume() {
 		return
 	}
 	a.connect.address.SetText(last.Address)
-	token, err := secret.Get(last.Fingerprint)
-	if err != nil {
-		return
-	}
-	if err := a.connectKnown(last, last.Address, token); err != nil {
-		a.reportError(err)
-	}
+	a.resumeToken(last, a.connect.choice.Load())
+}
+
+// resumeToken reads the token of the garland used last away from the window, which opens meanwhile, and
+// connects to it unless the owner chose something else by the time it comes: a garland, the effects alone,
+// another address or forgetting this one, which stands.
+func (a *App) resumeToken(last settings.Garland, choice uint64) {
+	a.keyring(func() func() {
+		token, err := tokenGet(last.Fingerprint)
+		if err != nil {
+			return nil
+		}
+		return func() {
+			if a.connect.choice.Load() != choice || a.connected || a.local || a.connect.stage != stageAddress || a.connect.busy {
+				return
+			}
+			if _, still := a.settings.Find(last.Fingerprint); !still {
+				return
+			}
+			if err := a.connectKnown(last, last.Address, token); err != nil {
+				a.reportError(err)
+			}
+		}
+	})
 }
 
 func (a *App) useClient(client *api.Client) {
@@ -673,6 +712,7 @@ func (a *App) leaveGarland() {
 }
 
 func (a *App) enterLocal() {
+	a.connect.choice.Add(1)
 	a.connect.pairing.Add(1)
 	a.connect.busy = false
 	a.newPages()
@@ -753,6 +793,9 @@ func Run(version string, exit func(code int)) {
 		window.Option(app.Title(windowTitle), app.Size(windowWidth, windowHeight), app.MinSize(windowMinWidth, windowMinHeight))
 		// Ahead of anything that could post, as that reads it from another goroutine.
 		a.invalidate = window.Invalidate
+		// Asked from the goroutine of the utility's socket, and done on the window's, at a frame: the window
+		// is made and closed on its own goroutine, which nothing else may race.
+		whenAskedToShow(func() { a.post(func() { window.Perform(system.ActionRaise) }) })
 		a.resume()
 		if !a.connected {
 			a.connect.discover(a)

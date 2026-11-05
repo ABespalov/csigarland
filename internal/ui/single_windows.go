@@ -58,3 +58,6 @@ func focusFirstInstance() {
 		time.Sleep(findTriesEvery)
 	}
 }
+
+// whenAskedToShow has nothing to do here: a second start brings this window to the front itself.
+func whenAskedToShow(func()) {}
