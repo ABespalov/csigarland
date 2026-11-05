@@ -36,10 +36,21 @@ $NotPortable = [ordered]@{
     '\$\([^)]*\bcase\b'                                                  = 'a case inside $( ), whose patterns'' ) bash 3.2 takes for the end of it'
 }
 # Bash reads the bash scripts' syntax where it takes this system's paths: not WSL's launcher on Windows, which
-# reads them as its own, but Git's bash there.
+# reads them as its own, but Git's bash there, which is often not on the PATH that git.exe is on: it is then
+# found beside it, as Git for Windows has it in bin\ next to cmd\.
 $Bash = Get-Command bash -ErrorAction SilentlyContinue
 if ($Bash -and $IsWindows -and $Bash.Source -notmatch '\\Git\\') {
     $Bash = $null
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCommand) {
+        $gitBash = Join-Path (Split-Path -Parent (Split-Path -Parent $gitCommand.Source)) 'bin\bash.exe'
+        if (Test-Path -LiteralPath $gitBash -PathType Leaf) {
+            $Bash = Get-Command $gitBash
+        }
+    }
+}
+if (-not $Bash) {
+    Write-Warning "No bash of this system's paths was found, so the bash scripts' syntax is not read: install Git for Windows."
 }
 
 $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))

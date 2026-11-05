@@ -335,8 +335,8 @@ try {
         throw
     }
     $token = Request-PortalToken
-    # Written to a new file, then put in the old one's place, so whoever held the old file open keeps its old
-    # bytes. Elsewhere than Windows the new file is made for this user alone from the start, by a shell under
+    # Written to a new file, then put in the old one's place, so that no reader sees half a token; on Linux and
+    # macOS whoever held the old file open keeps its old bytes. Elsewhere than Windows the new file is made for this user alone from the start, by a shell under
     # umask 077, as .NET 6 makes a file as the umask has it and narrowing it after leaves a moment in which
     # another could open it; the token then goes into that file, whose mode a write keeps.
     $partial = "$TokenPath.$PID.new"
@@ -347,7 +347,20 @@ try {
         }
     }
     [System.IO.File]::WriteAllText($partial, "$token`n", [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::Move($partial, $TokenPath, $true)
+    # Windows refuses to replace a file another program holds open, as a sync client or a virus scanner may
+    # for a moment: tried again for a few seconds, and a token that cannot be kept leaves no copy behind.
+    for ($try = 1; ; $try++) {
+        try {
+            [System.IO.File]::Move($partial, $TokenPath, $true)
+            break
+        } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+            if ($try -ge 10) {
+                Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue
+                throw "The token could not be kept in ${TokenPath}, which another program holds open: $($_.Exception.Message) Nothing was sent; close it and run this again."
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
     $AuthHeaders = @{ Cookie = "csig=$token" }
     $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders
 }
