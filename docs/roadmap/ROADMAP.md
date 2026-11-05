@@ -58,6 +58,7 @@ Not implemented: see **Planned** below.
 
 ## Released
 
+* **1.2.0**, released 2026-11-05 (utility 1.2.0.38 for Windows, 1.2.0.39 for Linux; the firmware stays 1.1.0.113): the utility alone, the first for Linux, tested on the host on Windows and on Ubuntu, the Linux file built in a Docker container of Ubuntu 24.04 on Windows. Not yet seen against the garland on Linux. The [changelog](../../CHANGELOG.md) has each.
 * **1.1.0**, released 2026-11-04 (firmware 1.1.0.113, utility 1.1.0.37): what is listed below, tested on the host and in a browser against the stubbed portal, and seen working on the owner's garland. A garland updated from 1.0.0 keeps all it saved. The [changelog](../../CHANGELOG.md) has each:
 
 * **Playlists and transitions:** up to 16 effects played in turn, and a cross-fade at every change of effect.
@@ -71,14 +72,14 @@ Not implemented: see **Planned** below.
 
 ## In the Next Release
 
-Nothing yet beyond what is planned below.
+The firmware with the figurines' new order along the cable and the new filaments' colours, as the changelog's Unreleased section has it.
 
 
 ## Planned
 
 Not implemented, and not to be read as what the firmware or the utility does:
 
-* Go + Gio applications beyond Windows, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
+* Go + Gio applications beyond Windows and Linux, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
 
 ## Open Hardware Questions
 

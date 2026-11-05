@@ -1,8 +1,8 @@
 {
   "format": "csigarland.downloads/2",
-  "updated": "2026-11-04",
+  "updated": "2026-11-05",
   "source": "https://github.com/ABespalov/csigarland",
-  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.1.0",
+  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.2.0",
   "products": [
     {
       "id": "firmware",
@@ -41,6 +41,17 @@
         {
           "platform": "Windows x64",
           "available": true,
+          "version": "1.2.0.38",
+          "release": "1.2.0",
+          "released": "2026-11-05",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.2.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.2.0/csigarland-1.2.0.38-windows-amd64.exe",
+          "sha256": "6b8c847c2fa9768a3f9b6a60dfd90515dc7a4ef1d19c10241d5f9d88cf4f553c",
+          "size": "13.4 MB"
+        },
+        {
+          "platform": "Windows x64",
+          "available": true,
           "version": "1.1.0.37",
           "release": "1.1.0",
           "released": "2026-11-04",
@@ -61,8 +72,15 @@
           "size": "13.2 MB"
         },
         {
-          "platform": "Linux",
-          "available": false
+          "platform": "Linux x64",
+          "available": true,
+          "version": "1.2.0.39",
+          "release": "1.2.0",
+          "released": "2026-11-05",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.2.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.2.0/csigarland-1.2.0.39-linux-amd64",
+          "sha256": "26e53cd5fc60d2cb3ca20101c2316f52af8701fff96ff6e048e988defa06c056",
+          "size": "13.5 MB"
         },
         {
           "platform": "macOS",

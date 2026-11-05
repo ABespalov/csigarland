@@ -18,7 +18,7 @@
 
 </div>
 
-> **Status: 1.1.0 is released** (firmware 1.1.0.113, utility 1.1.0.37), with playlists, fades, backup and restore, the schedule on a timeline and push updates. The firmware's update file and the utility for Windows are on [Releases](https://github.com/ABespalov/csigarland/releases) and the [site](https://garland.csilab.am/downloads.html), each built again to the byte from its tag. What has been seen working on real hardware and what has not is listed in the [roadmap](docs/stubs/ROADMAP.md), and the measurements still to make are in the [to-do list](docs/stubs/TODO.md).
+> **Status: 1.2.0 is released**, the utility for Windows and now Linux (1.2.0.38 and 1.2.0.39), beside the firmware of 1.1.0 (1.1.0.113), with playlists, fades, backup and restore, the schedule on a timeline and push updates. The firmware's update file and the utility for Windows and Linux are on [Releases](https://github.com/ABespalov/csigarland/releases) and the [site](https://garland.csilab.am/downloads.html), each built again to the byte from its tag. What has been seen working on real hardware and what has not is listed in the [roadmap](docs/stubs/ROADMAP.md), and the measurements still to make are in the [to-do list](docs/stubs/TODO.md).
 
 ## What It Is
 

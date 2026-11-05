@@ -153,7 +153,7 @@ func shootShort(t *testing.T, path string) {
 // Versions of the release the pictures show. The scenes keep older ones, which the tests of updates and the
 // catalog rely on.
 const (
-	shotUtility  = "1.1.0.37"
+	shotUtility  = "1.2.0.38"
 	shotFirmware = "1.1.0.113"
 )
 
