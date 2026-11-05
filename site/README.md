@@ -9,7 +9,7 @@
 
 # csiGarland public site
 
-Static English and Russian site for **https://garland.csilab.am**, served by Cloudflare Pages from this folder, with no build step. The English pages are at the root and the Russian ones under `ru/`, each naming the other with `hreflang`. A visitor whose browser prefers Russian over English is sent from an English page to its Russian twin; a toggle in the header leads to the other language and the browser remembers that choice. Every picture opens in a zoomable preview that pages through its gallery. The portal's Effects picture is `docs/images/portal/effects-short.png`, and the utility's `docs/images/utility/effects-short.png`, each with its first three effects, while the documents keep the whole page. Side by side on the home page, the pages and windows are previews of one size, cut from their top, and the whole of each opens in the preview.
+Static English and Russian site for **https://garland.csilab.am**, served by Cloudflare Pages from this folder, with no build step. The English pages are at the root and the Russian ones under `ru/`, each naming the other with `hreflang`. A visitor whose browser prefers Russian over English is sent from an English page to its Russian twin; a toggle in the header leads to the other language and the browser remembers that choice. Every picture opens in a zoomable preview that pages through its gallery. The portal's Effects picture is `docs/images/portal/effects-short.png`, with its first three effects, and the utility's `docs/images/utility/effects-short.png`, with its first group of effects open and the others closed, while the documents keep the whole page. Side by side on the home page, the pages and windows are previews of one size, cut from their top, and the whole of each opens in the preview.
 
 | File | Role |
 |---|---|
@@ -55,6 +55,7 @@ The source rules fail while `ru/` is not what it would make, when a key has no R
 1. Create a Pages project linked to the GitHub repository `ABespalov/csigarland`.
 2. Set **Production branch** to `main`, **Root directory** to `site`, leave **Build command** empty, and set **Build output directory** to `/`.
 3. Attach the custom domain `garland.csilab.am`. Cloudflare adds its CNAME to the `csilab.am` zone.
+4. Under **Build watch paths**, set **Include paths** to `site/*`, entered as an item with Enter. Saved as an empty list, it matches no file, and Pages skips every push but one that changes nothing.
 
 A garland reached from the internet needs a name of its own, not this one: a DNS-only record, such as `home.garland.csilab.am`, pointing at the router that forwards to it, and the same name in the domain field of its Network page. A proxied name would end TLS at Cloudflare, under a certificate that is not the garland's.
 
