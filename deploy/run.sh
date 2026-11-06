@@ -7,7 +7,7 @@
 # Contributors: None
 #
 # The bash twin of deploy/run.ps1, for Linux and macOS. The build belongs to deploy/build-utility.sh. On
-# macOS it starts the bundle the build made beside the file, which the PowerShell twin, on Windows, has not.
+# macOS it starts the bundle the build unzipped beside its zip, which the PowerShell twin, on Windows, has not.
 # A failed build leaves the previous file in assets/utility, and running that would open a window that
 # works and is not the code just written, which looks like success. So the run is reached only through
 # a build that returned. Touches no garland, and needs none to start. The script ends once the utility
@@ -63,15 +63,19 @@ if [ "$no_run" -eq 1 ]; then
     exit 0
 fi
 # The utility only brings the one already open to the front, and a different build would not be shown.
-earlier="$(ps -A -o args= 2>/dev/null | grep '/csigarland-[0-9]' | grep -v grep | grep -vF "$output" || true)"
+# On macOS the build's file is a zip, and what runs is the bundle beside it.
+started="$output"
+if [ "$(csg_os)" = darwin ]; then started="${output%.zip}.app"; fi
+earlier="$(ps -A -o args= 2>/dev/null | grep '/csigarland-[0-9]' | grep -v grep | grep -vF "$started" || true)"
 if [ -n "$earlier" ]; then
     csg_warn "An earlier build is running, ${earlier%%$'\n'*}. Close its window to see this one."
 fi
 # On macOS the bundle beside the file, as a Mac starts a program: with its icon, and the questions macOS
 # asks before the local network and the keychain asked of it, not of this terminal.
-if [ "$(csg_os)" = darwin ] && [ -d "$output.app" ]; then
-    open "$output.app" || csg_die "macOS would not open $output.app."
-    csg_say "Started $output.app."
+if [ "$(csg_os)" = darwin ]; then
+    [ -d "$started" ] || csg_die "The build left no bundle beside $output, at $started."
+    open "$started" || csg_die "macOS would not open $started."
+    csg_say "Started $started."
     exit 0
 fi
 # On its own from here: it has no terminal to keep, and logs nothing to one.

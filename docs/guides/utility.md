@@ -24,7 +24,7 @@ On Linux and macOS:
 bash deploy/build-utility.sh
 ```
 
-The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed. On Linux it uses the system's own Wayland, X11 and EGL libraries, which a desktop has. On macOS the build also wraps the file in an application bundle beside it, `<file>.app`, which is what to start there, as [On macOS](#on-macos) says.
+The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed. On Linux it uses the system's own Wayland, X11 and EGL libraries, which a desktop has. On macOS the file is the program in an application bundle, `csiGarland.app`, zipped: `csigarland-<version>-darwin-arm64.zip`, which a release publishes. The build unzips the bundle beside it, as `.app` for `.zip`, which is what to start there, as [On macOS](#on-macos) says. For an Intel Mac, build on Apple silicon with `GOARCH=amd64` before the command, and the other way round.
 
 Each build has its own number, apart from the firmware's: its base is in `cmd/csigarland/version.go`, and sources the same as the last build's keep its number and its file. `-Force` spends a new one. A build that fails, or is stopped, spends none, and leaves no file. The manifest beside the file names its platform, such as `windows-amd64`; a platform with no release compiler named in `deploy/BuildVersion.psm1` builds, with a warning that no release takes it yet. `-BuildProfile Dev` keeps the symbols and debug information, for a debugger, and marks the version `-dev`.
 
@@ -42,6 +42,8 @@ The icon is in `cmd/csigarland`, as `app.ico`, and `rsrc_windows_amd64.syso` put
 
 ## On macOS
 
+The download is `csigarland-<version>-darwin-arm64.zip` for Apple silicon, or `-darwin-amd64.zip` for Intel. Open it, and move the `csiGarland.app` it holds to Applications.
+
 The bundle is signed ad hoc, by no one: the project has no Apple Developer ID, so macOS cannot tell who made it. One built on your Mac opens as it is. One downloaded is held back the first time, as from an unidentified developer:
 
 1. Open it, and close the window macOS shows instead.
@@ -50,7 +52,7 @@ The bundle is signed ad hoc, by no one: the project has no Apple Developer ID, s
 Or take the quarantine off in Terminal, with the bundle's path:
 
 ```bash
-xattr -dr com.apple.quarantine csigarland-1.3.0.27-darwin-arm64.app
+xattr -dr com.apple.quarantine /Applications/csiGarland.app
 ```
 
 Then, once each:

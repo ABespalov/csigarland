@@ -10,8 +10,10 @@
 # manifest: the two can take turns in one checkout. Needs Go, and a C++20 compiler on the PATH for cgo, as
 # the effect engine is the firmware's own code: GCC on Linux, the Xcode command line tools on macOS. On
 # Linux the result uses the system's Wayland, X11 and EGL libraries, which a desktop has. On macOS the file
-# is wrapped as well in a bundle beside it, <file>.app, signed ad hoc, which is what is started there:
-# deploy/lib/macos_bundle.sh says why. The PowerShell twin builds on Windows alone, and has no bundle.
+# is the program in a bundle signed ad hoc, csiGarland.app, zipped: csigarland-<version>-darwin-<arch>.zip,
+# its manifest naming the zip, and the bundle unzipped beside it, as .app for .zip, for deploy/run.sh to
+# start. deploy/lib/macos_bundle.sh says why. The PowerShell twin builds on Windows alone, and has no bundle.
+# For a Mac with the other processor, GOARCH=amd64 or GOARCH=arm64 before it: Apple's clang builds for both.
 #
 # The utility and the firmware are built apart and each counts its own builds. The base version is in
 # cmd/csigarland/version.go, and a build is it with its number, such as 1.0.0.27. Sources the same as the
@@ -94,6 +96,7 @@ system="$(go env GOOS)"
 machine="$(go env GOARCH)"
 extension=''
 if [ "$system" = windows ]; then extension='.exe'; fi
+if [ "$system" = darwin ]; then extension='.zip'; fi
 # The compiler the releases for this platform are made with; a platform with none named has no release yet.
 release_compiler="$(csg_release_compiler "$system-$machine")"
 
@@ -185,10 +188,8 @@ source_digest="$(csg_utility_source_digest "$repo")"
 notices_digests="$(csg_tool sha256 --upper "$repo/THIRD_PARTY_NOTICES.md" "$repo/LICENSE")"
 fingerprint_text="$profile"$'\n'"$go_version"$'\n'"$compiler"$'\n'"$cc"$'\n'"$cxx"$'\n'"$go_cc"$'\n'"$go_cxx"$'\n'"$(env_of GOAMD64)"$'\n'"$(env_of GOFLAGS)"$'\n'"$(env_of GOWORK)"$'\n'"$(env_of GOEXPERIMENT)"$'\n'"$(env_of GOFIPS140)"$'\n'"$cgo_values$notices_digests"
 fingerprint="$source_digest|$(printf '%s' "$fingerprint_text" | csg_tool sha256-text)"
-# On macOS, the bundle of a file built: made again from it each time, so one there is never of another file.
-make_bundle() {
-    csg_macos_bundle "$1" "$(output_version "$2")" "$base_number.$2" "$base_number" "$repo/cmd/csigarland/app.icns"
-}
+# On macOS, the bundle a build's zip holds, beside it, as deploy/run.sh starts it.
+app_beside() { printf '%s.app\n' "${1%.zip}"; }
 kept="$(output_path "$number")"
 kept_checked=false
 if [ -f "$kept.manifest.json" ]; then
@@ -197,7 +198,9 @@ fi
 if [ "$named_number" -lt 0 ] && [ "$force" -eq 0 ] && [ "$number" -gt 0 ] && [ "$kept_checked" = true ] &&
     [ "$fingerprint" = "$(stored_text "$fingerprint_path")" ] && [ -f "$kept" ]; then
     csg_say "Sources and tools unchanged, so $kept stands."
-    if [ "$system" = darwin ]; then make_bundle "$kept" "$number" >/dev/null; fi
+    if [ "$system" = darwin ] && [ ! -d "$(app_beside "$kept")" ]; then
+        csg_macos_unzip_beside "$kept" "$(app_beside "$kept")"
+    fi
     printf '%s\n' "$kept"
     exit 0
 fi
@@ -257,11 +260,18 @@ csg_set_engine_sources "$repo"
 # The engine's C++ names its files by where this clone is; mapped to the repository's root, it does not.
 # Quoted, as Go reads these flags: a path may hold a space.
 export CGO_CPPFLAGS="$CGO_CPPFLAGS \"-ffile-prefix-map=$repo=.\""
-go -C "$repo" build -mod=readonly -trimpath -buildvcs=false "-ldflags=$link_flags" -o "$output" ./cmd/csigarland ||
+# On macOS the program goes in a bundle, and the bundle zipped is the file.
+program="$output"
+if [ "$system" = darwin ]; then program="$work/csigarland"; fi
+go -C "$repo" build -mod=readonly -trimpath -buildvcs=false "-ldflags=$link_flags" -o "$program" ./cmd/csigarland ||
     csg_die 'Building the utility failed.'
 # A file saved while it built, which the file may hold and the digest not, is found here.
 [ "$(csg_utility_source_digest "$repo")" = "$source_digest" ] ||
     csg_die 'The sources changed while the utility was built: build it again, once they are left alone.'
+if [ "$system" = darwin ]; then
+    csg_macos_bundle "$program" "$work/csiGarland.app" "$version" "$base_number.$number" "$base_number" "$repo/cmd/csigarland/app.icns"
+    csg_tool bundle-zip "$work/csiGarland.app" "$output" || csg_die 'Zipping the bundle failed.'
+fi
 # Every library of the compiler's a Windows build holds is one THIRD_PARTY_NOTICES.md names. On Linux
 # and macOS the C++ runtime is the system's own, linked as a shared library, and passed on with nothing.
 if [ "$system" = windows ]; then
@@ -324,7 +334,8 @@ if [ "$named_number" -lt 0 ] && ! printf '%s\n' "$fingerprint" >"$fingerprint_pa
 fi
 csg_say "$final, $(($(csg_tool file-size "$final") / 1024)) KB, SHA-256 $hash"
 if [ "$system" = darwin ]; then
-    csg_say "$(make_bundle "$final" "$number"), to start on this Mac."
+    csg_macos_unzip_beside "$final" "$(app_beside "$final")"
+    csg_say "$(app_beside "$final"), to start on this Mac."
 fi
 # For deploy/run.sh.
 printf '%s\n' "$final"

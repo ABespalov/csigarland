@@ -18,6 +18,7 @@
 #   --release <a.b.c>          The release, such as 1.0.0, and its tag v1.0.0.
 #   --only firmware|utility    Publish only the firmware, with its root certificate, or only the utility.
 #   --platform <goos-goarch>   The utility's platform, as Go names it: windows-amd64 by default.
+#                              macOS's file is its bundle zipped, csigarland-<version>-darwin-<arch>.zip.
 #   --firmware-version <a.b.c.n>, --utility-version <a.b.c.n>
 #                              The staged builds of that release, each only for what the run publishes.
 #   --build-new                Build what the run publishes first, each spending a build number. The
@@ -149,7 +150,7 @@ if [ "$build_new" -eq 1 ]; then
             if [ "$with_firmware" -eq 1 ]; then staged="; the firmware $firmware_version stays staged, for --firmware-version"; fi
             csg_die "Building the utility failed. Nothing was released$staged."
         fi
-        utility_version="$(printf '%s' "${said##*$'\n'}" | sed -n "s|.*/csigarland-\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\)-$platform\(\.exe\)\{0,1\}\$|\1|p")"
+        utility_version="$(printf '%s' "${said##*$'\n'}" | sed -n -E "s#.*/csigarland-([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)-$platform(\.exe|\.zip)?\$#\1#p")"
         [ -n "$utility_version" ] || csg_die 'build-utility.sh did not say which file it built. Nothing was released.'
     fi
     csg_say "Built ${firmware_version:+firmware $firmware_version}${firmware_version:+${utility_version:+ and }}${utility_version:+utility $utility_version} for $release."
@@ -160,7 +161,8 @@ fi
 base_url="https://github.com/$repository/releases/download/$tag"
 ota_name="csigarland-$firmware_version.ota"
 utility_name="csigarland-$utility_version-$platform"
-case "$platform" in windows-*) utility_name="$utility_name.exe" ;; esac
+# On Windows a program, and on macOS its bundle zipped, csiGarland.app in it, which build-utility.sh makes there.
+case "$platform" in windows-*) utility_name="$utility_name.exe" ;; darwin-*) utility_name="$utility_name.zip" ;; esac
 # What goes out is a copy, made first and checked after: assets/ is shared with every staging.
 snapshot="$scratch/files"
 firmware_dir="$snapshot/firmware"

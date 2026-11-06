@@ -28,7 +28,8 @@
 #   -Platform windows-amd64|linux-amd64|linux-arm64|darwin-amd64|darwin-arm64
 #       The utility's platform, as Go names it and its file is named: windows-amd64 by default. A
 #       platform is released only once deploy\BuildVersion.psm1 names the compiler its releases are
-#       built with.
+#       built with. macOS's file is its bundle zipped, csigarland-<version>-darwin-<arch>.zip, built on a
+#       Mac by deploy/build-utility.sh and copied here with its manifest.
 #
 #   -FirmwareVersion <a.b.c.n>, -UtilityVersion <a.b.c.n>
 #       The staged firmware and utility of that release, such as 1.0.0.102 and 1.0.0.27, each only for
@@ -269,7 +270,7 @@ if ($BuildNew) {
             $staged = if ($WithFirmware) { "; the firmware $FirmwareVersion stays staged, for -FirmwareVersion" } else { '' }
             throw "Building the utility failed with exit code $LASTEXITCODE. Nothing was released$staged."
         }
-        $made = [regex]::Match("$($said | Select-Object -Last 1)", "[\\/]csigarland-(\d+\.\d+\.\d+\.\d+)-$([regex]::Escape($Platform))(?:\.exe)?$")
+        $made = [regex]::Match("$($said | Select-Object -Last 1)", "[\\/]csigarland-(\d+\.\d+\.\d+\.\d+)-$([regex]::Escape($Platform))(?:\.exe|\.zip)?$")
         if (-not $made.Success) {
             throw 'build-utility.ps1 did not say which file it built. Nothing was released.'
         }
@@ -284,7 +285,8 @@ $Base = "https://github.com/$Repository/releases/download/$Tag"
 $StagedFirmware = Join-Path $RepoRoot 'assets\firmware'
 $StagedUtility = Join-Path $RepoRoot 'assets\utility'
 $OtaName = "csigarland-$FirmwareVersion.ota"
-$UtilityName = "csigarland-$UtilityVersion-$Platform$(if ($Platform.StartsWith('windows-')) { '.exe' })"
+# On Windows a program, and on macOS its bundle zipped, csiGarland.app in it, which deploy/build-utility.sh makes there.
+$UtilityName = "csigarland-$UtilityVersion-$Platform$(if ($Platform.StartsWith('windows-')) { '.exe' } elseif ($Platform.StartsWith('darwin-')) { '.zip' })"
 $FirmwareNames = @(if ($WithFirmware) { $OtaName, "$OtaName.sha256", "$OtaName.manifest.json", 'csigarland-ota-root.crt', 'THIRD_PARTY_NOTICES.md', 'LICENSE' })
 $UtilityNames = @(if ($WithUtility) { $UtilityName, "$UtilityName.manifest.json" })
 # What goes out is a copy, made first and checked after: assets/ is shared with every staging, and one
@@ -782,9 +784,9 @@ $describe = {
     if ($ota.Success) {
         return "Firmware $($ota.Groups[1].Value) and its effects, the update file"
     }
-    $program = [regex]::Match($File, '^csigarland-(\d+\.\d+\.\d+\.\d+)-([a-z0-9]+-[a-z0-9]+)(?:\.exe)?$')
+    $program = [regex]::Match($File, '^csigarland-(\d+\.\d+\.\d+\.\d+)-([a-z0-9]+-[a-z0-9]+)(\.exe|\.zip)?$')
     if ($program.Success -and $UtilityPlatforms.Contains($program.Groups[2].Value)) {
-        return "The csiGarland utility $($program.Groups[1].Value) for $($UtilityPlatforms[$program.Groups[2].Value])"
+        return "The csiGarland utility $($program.Groups[1].Value) for $($UtilityPlatforms[$program.Groups[2].Value])$(if ($program.Groups[3].Value -eq '.zip') { ', the application zipped' })"
     }
     return ''
 }

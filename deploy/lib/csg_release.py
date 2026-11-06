@@ -57,9 +57,10 @@ def describe(name: str) -> str:
     ota = re.match(r"^csigarland-(\d+\.\d+\.\d+\.\d+)\.ota$", name)
     if ota:
         return f"Firmware {ota.group(1)} and its effects, the update file"
-    program = re.match(r"^csigarland-(\d+\.\d+\.\d+\.\d+)-([a-z0-9]+-[a-z0-9]+)(?:\.exe)?$", name)
+    program = re.match(r"^csigarland-(\d+\.\d+\.\d+\.\d+)-([a-z0-9]+-[a-z0-9]+)(\.exe|\.zip)?$", name)
     if program and program.group(2) in UTILITY_PLATFORMS:
-        return f"The csiGarland utility {program.group(1)} for {UTILITY_PLATFORMS[program.group(2)]}"
+        zipped = ", the application zipped" if program.group(3) == ".zip" else ""
+        return f"The csiGarland utility {program.group(1)} for {UTILITY_PLATFORMS[program.group(2)]}{zipped}"
     return ""
 
 

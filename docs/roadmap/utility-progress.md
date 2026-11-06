@@ -24,7 +24,7 @@ Where the public API and the Go + Gio utility stand, and what is planned. The AP
 
 ## Next
 
-- **macOS:** `internal/secret` keeps the token in the login keychain through the Security framework, `internal/ui` chooses files with AppKit's panels as a sheet over the window, and a second start brings the first window forward over the socket of Linux. `deploy/build-utility.sh` wraps the file in a bundle signed ad hoc, with `app.icns` and an `Info.plist` that asks for the local network. Host tests pass on macOS 26 on Apple silicon, the token against the login keychain.
+- **macOS:** `internal/secret` keeps the token in the login keychain through the Security framework, `internal/ui` chooses files with AppKit's panels as a sheet over the window, and a second start brings the first window forward over the socket of Linux. `deploy/build-utility.sh` makes the file a bundle signed ad hoc, with `app.icns` and an `Info.plist` that asks for the local network, zipped the same to the byte, which a release publishes; Apple's clang is the release compiler for both processors. Host tests pass on macOS 26 on Apple silicon, the token against the login keychain.
 
 ## Seen on the Board
 
@@ -36,5 +36,5 @@ The 1.0.0 utility against the owner's garland: pairing, the pages, updates and t
 ## Planned
 
 - **Ubuntu:** released in 1.2.0; still to see against a garland.
-- **macOS:** a release of it, with its release compiler named and the bundle published.
+- **macOS:** the first release, and the Intel build seen running.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

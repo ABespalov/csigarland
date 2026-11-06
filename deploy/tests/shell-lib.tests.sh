@@ -201,6 +201,25 @@ for round in 1 2 3; do
 done
 check 'a lock taken by several at once is held by one at a time' "$(csg_count_lines "$(cat "$work/race.out" 2>/dev/null || true)")" 0
 
+# A bundle zipped is the same to the byte whenever and wherever it is zipped, and keeps what macOS reads
+# back: the folder by its name, a program's executable bit, and a link as a link.
+for place in one 'другое место'; do
+    bundle="$work/$place/csiGarland.app"
+    mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
+    printf 'program\n' >"$bundle/Contents/MacOS/csigarland"
+    chmod 755 "$bundle/Contents/MacOS/csigarland"
+    printf 'plist\n' >"$bundle/Contents/Info.plist"
+    chmod 600 "$bundle/Contents/Info.plist"
+    ln -s ../MacOS/csigarland "$bundle/Contents/Resources/link"
+    sleep 1
+    csg_tool bundle-zip "$bundle" "$work/$place.zip"
+done
+check 'a bundle zipped anywhere, at any time' "$(csg_tool sha256 "$work/one.zip")" "$(csg_tool sha256 "$work/другое место.zip")"
+check 'a bundle zipped keeps its modes' "$(csg_python -c 'import sys, zipfile
+for entry in zipfile.ZipFile(sys.argv[1]).infolist():
+    print("%s %o" % (entry.filename, entry.external_attr >> 16))' "$work/one.zip" | tr '\n' ';')" \
+    'csiGarland.app/ 40755;csiGarland.app/Contents/ 40755;csiGarland.app/Contents/Info.plist 100644;csiGarland.app/Contents/MacOS/ 40755;csiGarland.app/Contents/MacOS/csigarland 100755;csiGarland.app/Contents/Resources/ 40755;csiGarland.app/Contents/Resources/link 120755;'
+
 # A counter that goes back only from the number its build took.
 printf '5\n' >"$work/counter"
 if csg_undo_build_number "$work/counter" 4; then back=yes; else back=no; fi

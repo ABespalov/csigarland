@@ -11,10 +11,11 @@
 #
 # A program is a Mac's own only inside a bundle: with its name and icon in the Dock, and the questions macOS
 # asks before it reaches a garland on the local network or reads its token from the keychain asked of it,
-# not of the terminal that started it. The bundle is made again from the file the build counted, whose
-# manifest stands for it: the same file, icon and version make the same bundle. It is signed ad hoc, by no
-# one: the project has no Developer ID, so macOS asks once, on the first start of a bundle downloaded,
-# whether to open it, as docs/guides/utility.md says.
+# not of the terminal that started it. So on macOS the build's file, which its manifest names and a release
+# publishes, is the bundle zipped, csiGarland.app in it, by csg_tool bundle-zip: the same program, icon and
+# version make the same bundle, and the same zip, to the byte. It is signed ad hoc, by no one: the project
+# has no Developer ID, so macOS asks once, on the first start of a bundle downloaded, whether to open it, as
+# docs/guides/utility.md says.
 
 # The bundle's identifier: what macOS keeps the owner's answers and the keychain's items by. Never change it,
 # or every Mac asks them all again.
@@ -22,12 +23,11 @@ CSG_MACOS_BUNDLE_ID='am.csilab.csigarland'
 # What macOS 12 runs, the oldest Go supports.
 CSG_MACOS_MINIMUM='12.0'
 
-# csg_macos_bundle <file> <version> <bundle version> <short version> <icon>: makes <file>.app from the file
-# built, replacing one of that name, and prints its path. The version is the build's own, such as
-# 1.3.0.27-dev, the bundle version its plain numbers, and the short version its base, such as 1.3.0.
+# csg_macos_bundle <program> <bundle> <version> <bundle version> <short version> <icon>: makes the bundle,
+# such as csiGarland.app, from the program built, replacing one there. The version is the build's own, such
+# as 1.3.0.27-dev, the bundle version its plain numbers, and the short version its base, such as 1.3.0.
 csg_macos_bundle() {
-    local file="$1" version="$2" bundle_version="$3" short_version="$4" icon="$5"
-    local bundle="$file.app"
+    local file="$1" bundle="$2" version="$3" bundle_version="$4" short_version="$5" icon="$6"
     local contents="$bundle/Contents"
     [ -f "$file" ] || csg_die "No $file to make a bundle of."
     [ -f "$icon" ] || csg_die "No icon $icon for the bundle: make it with cmd/csigarland/generate_icon.go."
@@ -84,5 +84,19 @@ EOF
     codesign --force --sign - --identifier "$CSG_MACOS_BUNDLE_ID" --timestamp=none "$bundle" >/dev/null 2>&1 ||
         csg_die "codesign could not sign $bundle."
     codesign --verify --strict "$bundle" >/dev/null 2>&1 || csg_die "The signature of $bundle does not hold."
-    printf '%s\n' "$bundle"
+}
+
+# csg_macos_unzip_beside <zip> <into>: the bundle a build's zip holds, put at <into>, such as the zip's path
+# with .app for .zip, replacing one there, for deploy/run.sh to start: what is started is what is published.
+csg_macos_unzip_beside() {
+    local zip="$1" into="$2" unpacked
+    mkdir -p "$CSG_REPO_ROOT/temp" || csg_die "Could not make $CSG_REPO_ROOT/temp."
+    unpacked="$(mktemp -d "$CSG_REPO_ROOT/temp/utility-app.XXXXXX")" || csg_die 'Could not make a folder to unzip the bundle in.'
+    if ! ditto -x -k "$zip" "$unpacked" || [ ! -d "$unpacked/csiGarland.app" ]; then
+        rm -rf "$unpacked"
+        csg_die "$zip holds no csiGarland.app."
+    fi
+    rm -rf "$into"
+    mv "$unpacked/csiGarland.app" "$into" || csg_die "Could not put the bundle at $into."
+    rm -rf "$unpacked"
 }

@@ -8,9 +8,9 @@
 # Needs Go, and a C++20 compiler on the PATH for cgo, as the effect engine is the firmware's own
 # code: MinGW-w64 on Windows. The result is one file with nothing to install beside it.
 #
-# Its bash twin, deploy/build-utility.sh, on macOS also wraps the file in a bundle signed ad hoc, as
+# Its bash twin, deploy/build-utility.sh, on macOS makes the file a bundle signed ad hoc and zipped, as
 # deploy/lib/macos_bundle.sh says. cgo builds only for the system it runs on, and only a Mac signs a
-# bundle, so this one, on Windows, makes none.
+# bundle, so this one refuses to build on macOS, and names that one.
 #
 # The utility and the firmware are built apart and each counts its own builds. The base version is
 # in cmd/csigarland/version.go, and a build is it with its number, such as 1.0.0.27. Sources the
@@ -83,6 +83,9 @@ $BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind utility
 $number = Get-csiGarlandBuildNumber -CounterPath $CounterPath
 $system = (& go env GOOS)
 $machine = (& go env GOARCH)
+if ($system -eq 'darwin') {
+    throw 'On macOS the utility is a bundle zipped, which only deploy/build-utility.sh makes: bash deploy/build-utility.sh. Nothing was built.'
+}
 $extension = if ($system -eq 'windows') { '.exe' } else { '' }
 # The compiler the releases for this platform are made with. Another one builds as well, and makes
 # another file; a platform with none named has no release yet, and this build is no release's.

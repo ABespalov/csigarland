@@ -33,12 +33,19 @@ UTILITY_PATHS = (
     "deploy/build-utility.ps1", "deploy/BuildVersion.psm1", "deploy/new-third-party-notices.ps1", "deploy/licences",
     "deploy/build-utility.sh", "deploy/new-third-party-notices.sh", "deploy/lib/common.sh",
     "deploy/lib/build_version.sh", "deploy/lib/csg_tool.py", "deploy/lib/csg_notices.py",
+    "deploy/lib/macos_bundle.sh",
 )
 RELEASE_COMPILERS = {
     "windows-amd64": "gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0",
     # Ubuntu 24.04's, as the container of docs/guides/utility.md has it on Windows and Ubuntu itself on Linux.
     "linux-amd64": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    # The clang of Apple's command line tools for macOS 26, which builds for either processor of a Mac.
+    "darwin-amd64": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "darwin-arm64": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
 }
+# A zip's entries all say this time, as a bundle zipped again must be the same to the byte: 1980, the first
+# a zip can say.
+ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 UTILITY_PLATFORMS = OrderedDict([
     ("windows-amd64", "Windows x64"),
     ("linux-amd64", "Linux x64"),
@@ -423,6 +430,38 @@ def hold_lock(path: str, wait: float, status: str, owner: int) -> int:
     return 0
 
 
+def bundle_zip(bundle: str, out: str) -> None:
+    """A macOS bundle as a zip, the same from the same bytes on any computer: the folder by its name, its
+    entries in the order of their paths, all of one time, each with its mode as macOS reads it back, an
+    executable bit and a link kept, and nothing compressed, as another zlib packs the same bytes otherwise."""
+    import os
+    import stat
+    import zipfile
+    root = Path(bundle)
+    if not root.is_dir() or root.is_symlink():
+        raise Refusal(f"{bundle} is not a bundle's folder.")
+    paths = sorted([root, *root.rglob("*")], key=lambda path: path.relative_to(root.parent).as_posix())
+    temporary = Path(f"{out}.partial")
+    with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as archive:
+        for path in paths:
+            name = path.relative_to(root.parent).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                kind, data = stat.S_IFLNK | 0o755, os.readlink(path).encode("utf-8")
+            elif stat.S_ISDIR(mode):
+                name, kind, data = name + "/", stat.S_IFDIR | 0o755, b""
+            elif stat.S_ISREG(mode):
+                kind, data = stat.S_IFREG | (0o755 if mode & 0o111 else 0o644), path.read_bytes()
+            else:
+                raise Refusal(f"{path} is neither a file, a folder nor a link, and no zip holds it.")
+            entry = zipfile.ZipInfo(name, date_time=ZIP_TIME)
+            entry.create_system = 3  # Unix, so that the mode is read.
+            entry.external_attr = kind << 16 | (0x10 if stat.S_ISDIR(kind) else 0)
+            entry.compress_type = zipfile.ZIP_STORED
+            archive.writestr(entry, data)
+    temporary.replace(out)
+
+
 def _say(value) -> None:
     if value is not None:
         sys.stdout.write(f"{value}\n")
@@ -502,6 +541,8 @@ def main(argv: list[str]) -> int:
         found = re.findall(r"(?m)^(\S[^\r\n(]*?\.a)\(", Path(args[0]).read_text(encoding="utf-8", errors="replace"))
         for name in sorted({re.split(r"[\\/]", path)[-1] for path in found}):
             _say(name)
+    elif command == "bundle-zip":
+        bundle_zip(args[0], args[1])
     elif command == "lock-hold":
         return hold_lock(args[0], float(args[1]), args[2], int(args[3]))
     elif command == "json-check":

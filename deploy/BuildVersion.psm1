@@ -303,6 +303,9 @@ $ReleaseCompilers = @{
     'windows-amd64' = 'gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.1.0'
     # Ubuntu 24.04's, as the container of docs/guides/utility.md has it on Windows and Ubuntu itself on Linux.
     'linux-amd64'   = 'gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0'
+    # The clang of Apple's command line tools for macOS 26, which builds for either processor of a Mac.
+    'darwin-amd64'  = 'Apple clang version 21.0.0 (clang-2100.1.1.101)'
+    'darwin-arm64'  = 'Apple clang version 21.0.0 (clang-2100.1.1.101)'
 }
 function Get-csiGarlandReleaseCompiler {
     param([string]$Platform = 'windows-amd64')
@@ -362,7 +365,7 @@ function Get-csiGarlandUtilitySourceDigest {
     # what checks its notices, the script and the licence texts it reads, as its manifest says they held. The
     # bash twins of all of these too, as deploy/lib/csg_tool.py lists them the same: a path a tag does not
     # hold adds nothing, so the digests of releases before them stay as they were.
-    return Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Revision $Revision -Paths @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1', 'deploy/BuildVersion.psm1', 'deploy/new-third-party-notices.ps1', 'deploy/licences', 'deploy/build-utility.sh', 'deploy/new-third-party-notices.sh', 'deploy/lib/common.sh', 'deploy/lib/build_version.sh', 'deploy/lib/csg_tool.py', 'deploy/lib/csg_notices.py')
+    return Get-csiGarlandTreeDigest -RepoRoot $RepoRoot -Revision $Revision -Paths @('cmd', 'internal', 'firmware/app/effects', 'firmware/app/src', 'go.mod', 'go.sum', 'deploy/build-utility.ps1', 'deploy/BuildVersion.psm1', 'deploy/new-third-party-notices.ps1', 'deploy/licences', 'deploy/build-utility.sh', 'deploy/new-third-party-notices.sh', 'deploy/lib/common.sh', 'deploy/lib/build_version.sh', 'deploy/lib/csg_tool.py', 'deploy/lib/csg_notices.py', 'deploy/lib/macos_bundle.sh')
 }
 
 # The utility for Windows links these of the compiler's libraries statically, each under one of three
