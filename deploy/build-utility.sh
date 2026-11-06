@@ -85,11 +85,8 @@ base_suffix="$(printf '%s' "$base_line" | sed -E 's/.*Version = "([0-9]+\.[0-9]+
 
 # One utility build of this checkout at a time, from reading the counter to writing it.
 csg_lock utility
-stored="$(stored_text "$counter_path")"
-case "$stored" in
-    '' | *[!0-9]*) number=0 ;;
-    *) number=$((10#$stored)) ;;
-esac
+# 0 with none; one there that holds no number is refused, as starting again would give numbers out twice.
+number="$(csg_build_number "$counter_path")"
 system="$(go env GOOS)"
 machine="$(go env GOARCH)"
 extension=''
@@ -211,16 +208,39 @@ csg_temp_dir work utility-build keep
 output="$work/$(basename "$final")"
 placed=0
 built=0
+# A pair there already, of a number named again, moved aside into this run's folder until the build stands.
+aside=()
+# What was moved aside comes back, so the file and its manifest stay of one build. False if any of it
+# could not, which then stays in this run's folder.
+put_back_aside() {
+    local there previous failed=0
+    for there in ${aside[@]+"${aside[@]}"}; do
+        previous="$work/previous-$(basename "$there")"
+        if [ -e "$previous" ] && ! mv -f "$previous" "$there"; then
+            failed=1
+        fi
+    done
+    return "$failed"
+}
 finish() {
+    local keep_work=0
     if [ "$built" -eq 0 ]; then
-        if [ "$placed" -eq 1 ] && [ "$named_number" -lt 0 ]; then
+        # A file put in place, under a number not spent or with no manifest beside it, is no build: it goes,
+        # and its manifest, before what was there comes back.
+        if [ "$placed" -eq 1 ]; then
             rm -f "$final" "$final.manifest.json"
+        fi
+        if ! put_back_aside; then
+            keep_work=1
+            csg_warn "The build that was there could not all be put back: what is left of it is in $work."
         fi
         if [ "$named_number" -lt 0 ]; then
             csg_warn "The build failed, so build number $number is not spent: the next build takes it."
         fi
     fi
-    rm -rf "$work"
+    if [ "$keep_work" -eq 0 ]; then
+        rm -rf "$work"
+    fi
 }
 csg_on_exit finish
 
@@ -272,26 +292,22 @@ csg_tool json-build \
     "${commit_args[@]}" >"$output.manifest.json"
 
 # The file first, then its manifest, each replacing any of that name: a pair there already, of a number
-# named again, is moved aside first and put back if either move fails.
-aside=()
+# named again, is moved aside first, and finish puts it back if anything fails or stops the run before the
+# build stands. Named before it is moved, so a stop in between leaves nothing out of the count.
 for there in "$final" "$final.manifest.json"; do
     if [ -e "$there" ]; then
-        mv -f "$there" "$work/previous-$(basename "$there")" || csg_die "Could not move $there aside."
         aside[${#aside[@]}]="$there"
+        mv -f "$there" "$work/previous-$(basename "$there")" || csg_die "Could not move $there aside."
     fi
 done
 placed=1
 if ! mv -f "$output" "$final" || ! mv -f "$output.manifest.json" "$final.manifest.json"; then
-    rm -f "$final" "$final.manifest.json"
-    for there in ${aside[@]+"${aside[@]}"}; do
-        mv -f "$work/previous-$(basename "$there")" "$there"
-    done
-    placed=0
     csg_die "Could not put $final in place."
 fi
-# The counter is what spends the number. Once it is written the build stands.
+# The counter is what spends the number. Once it is written the build stands. Whole or not at all: a write
+# that fails keeps the number before, and finish the pair before.
 if [ "$named_number" -lt 0 ]; then
-    printf '%s\n' "$number" >"$counter_path"
+    csg_set_build_number "$counter_path" "$number" "$work" || csg_die "Could not write the build counter $counter_path."
 fi
 built=1
 if [ "$named_number" -lt 0 ] && ! printf '%s\n' "$fingerprint" >"$fingerprint_path"; then

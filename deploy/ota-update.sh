@@ -173,13 +173,21 @@ protect_token() {
 protect_token
 token=''
 if [ -f "$token_path" ]; then token="$(csg_trim "$(cat "$token_path")")"; fi
+# The token goes to curl in a file of this user's alone, never on its command line, which anyone on the
+# computer can read in the list of processes for as long as curl runs.
+auth_header="$work/auth.header"
+write_auth_header() {
+    (umask 077 && printf 'Cookie: csig=%s\n' "$token" >"$auth_header") ||
+        csg_die "The token could not be handed to curl in $auth_header. Nothing was sent."
+}
+write_auth_header
 # One request: the body to a file, the status in http_status, and curl's own exit as the result, so a
 # connection that broke, which has no status, is told from a refusal, which has one.
 http_status=''
 request() {
     local timeout="$1" out="$2"
     shift 2
-    http_status="$(curl -sS --max-time "$timeout" ${tls[@]+"${tls[@]}"} -H "Cookie: csig=$token" -o "$out" -w '%{http_code}' "$@")"
+    http_status="$(curl -sS --max-time "$timeout" ${tls[@]+"${tls[@]}"} -H "@$auth_header" -o "$out" -w '%{http_code}' "$@")"
 }
 
 # Asks the owner at the panel, and keeps the token the garland gives this script.
@@ -192,11 +200,14 @@ request_token() {
     seconds="$(csg_tool json-get "$work/asked.json" seconds 60)"
     id="$(csg_tool json-get "$work/asked.json" request '')"
     csg_say "If the garland shows the code $code, press POWER and SPEED together there."
+    # The request's id is what the token is handed over for, so it goes in a file as the token does.
+    (umask 077 && printf '{"request":%s}' "$(printf '%s' "$id" | csg_python -c 'import json, sys; print(json.dumps(sys.stdin.read()))')" \
+        >"$work/wait-body.json") || csg_die 'The request for access could not be written. Nothing was sent.'
     deadline=$(($(date +%s) + ${seconds%.*}))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 2
         request 15 "$work/wait.json" -D "$work/wait.headers" -X POST -H 'Content-Type: application/json' \
-            --data "{\"request\":$(printf '%s' "$id" | csg_python -c 'import json, sys; print(json.dumps(sys.stdin.read()))')}" "$base/api/auth/wait" ||
+            --data "@$work/wait-body.json" "$base/api/auth/wait" ||
             csg_die 'The garland stopped answering while access was asked. Nothing was sent.'
         state="$(csg_tool json-get "$work/wait.json" state '')"
         if [ "$state" = approved ]; then
@@ -210,6 +221,7 @@ request_token() {
                 rm -f "$token_path.$$.new"
                 csg_die "The token could not be kept in $token_path. Nothing was sent."
             }
+            write_auth_header
             return 0
         fi
         [ "$state" = waiting ] || break

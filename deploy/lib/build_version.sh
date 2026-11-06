@@ -9,7 +9,8 @@
 # Sourced after common.sh. Each function is its namesake in BuildVersion.psm1, and the digests and
 # identities are worked out by deploy/lib/csg_tool.py, the same to the byte as the module's.
 
-# The number a counter file holds, 0 for none; a counter that holds anything else is refused.
+# The number a counter file holds, 0 for none; a counter that holds anything else is refused, an empty one
+# among them: a write cut short leaves one, and the numbers would start again.
 csg_build_number() {
     local raw
     if [ ! -f "$1" ]; then
@@ -21,6 +22,17 @@ csg_build_number() {
         '' | *[!0-9]*) csg_die "Invalid csiGarland build counter: $1" ;;
     esac
     printf '%s\n' "$((10#$raw))"
+}
+
+# Writes a counter whole or not at all, as Set-csiGarlandBuildNumber: the number into a file in the scratch
+# folder, on the same disk, which then takes the counter's place. Fails, the counter as it was, if either fails.
+csg_set_build_number() {
+    local counter="$1" number="$2" next="$3/build-counter.next"
+    if printf '%s\n' "$number" >"$next" && mv -f "$next" "$counter"; then
+        return 0
+    fi
+    rm -f "$next"
+    return 1
 }
 
 # A build that failed spends no number: the counter goes back to before, but only while it holds the one

@@ -14,12 +14,33 @@ function Get-csiGarlandBuildNumber {
     if (-not (Test-Path -LiteralPath $CounterPath)) {
         return 0
     }
-    $raw = (Get-Content -LiteralPath $CounterPath -Raw -Encoding UTF8).Trim()
+    # An empty file is no counter of 0: a write cut short leaves one, and the numbers would start again.
+    $raw = "$(Get-Content -LiteralPath $CounterPath -Raw -Encoding UTF8)".Trim()
     $parsed = 0
-    if (-not [int]::TryParse($raw, [ref]$parsed) -or $parsed -lt 0) {
+    if ($raw -notmatch '^[0-9]+$' -or -not [int]::TryParse($raw, [ref]$parsed)) {
         throw "Invalid csiGarland build counter: $CounterPath"
     }
     return $parsed
+}
+
+# Writes a counter whole or not at all: the number into a file in Scratch, a folder on the same disk, which
+# then takes the counter's place, so a write that fails or is stopped leaves the number there before.
+function Set-csiGarlandBuildNumber {
+    param(
+        [Parameter(Mandatory = $true)][string]$CounterPath,
+        [Parameter(Mandatory = $true)][int]$Number,
+        [Parameter(Mandatory = $true)][string]$Scratch
+    )
+
+    $next = Join-Path $Scratch 'build-counter.next'
+    try {
+        [System.IO.File]::WriteAllText($next, "$Number`n", [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::Move($next, $CounterPath, $true)
+    } finally {
+        if (Test-Path -LiteralPath $next) {
+            Remove-Item -LiteralPath $next -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # The lock of one kind of build in this checkout, firmware or utility, as a file under temp\ held open
@@ -450,6 +471,7 @@ Export-ModuleMember -Function `
     Copy-csiGarlandSources, `
     Set-csiGarlandEngineSources, `
     Get-csiGarlandBuildNumber, `
+    Set-csiGarlandBuildNumber, `
     Undo-csiGarlandBuildNumber, `
     Get-csiGarlandPlatformIOCore, `
     Get-csiGarlandPlatformIOPackages, `

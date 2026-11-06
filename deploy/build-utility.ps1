@@ -56,7 +56,7 @@ function Get-StoredText {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if (Test-Path -LiteralPath $Path) {
-        return (Get-Content -Raw -LiteralPath $Path).Trim()
+        return "$(Get-Content -Raw -LiteralPath $Path)".Trim()
     }
     return ''
 }
@@ -75,8 +75,8 @@ if (-not $base.Success) {
 # One utility build of this checkout at a time, from reading the counter to writing it: two would take
 # one number, and share the link map's folder. Held until this process ends.
 $BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind utility
-$stored = Get-StoredText -Path $CounterPath
-$number = if ($stored -match '^\d+$') { [int]$stored } else { 0 }
+# 0 with none; one there that holds no number is refused, as starting again would give numbers out twice.
+$number = Get-csiGarlandBuildNumber -CounterPath $CounterPath
 $system = (& go env GOOS)
 $machine = (& go env GOARCH)
 $extension = if ($system -eq 'windows') { '.exe' } else { '' }
@@ -210,6 +210,8 @@ $work = Join-Path $RepoRoot "temp\utility-build-$([guid]::NewGuid().ToString('N'
 $output = Join-Path $work (Split-Path -Leaf $final)
 $placed = $false
 $built = $false
+# A pair there already, of a number named again, moved aside into this run's folder until the build stands.
+$previous = @()
 try {
     $env:CGO_ENABLED = '1'
     # -mod=readonly, in both links: a vendor folder Go would otherwise take is no source the digest or a copy
@@ -294,37 +296,25 @@ try {
     [System.IO.File]::WriteAllText("$output.manifest.json", (($manifest | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
     # The file first, then its manifest, each replacing any of that name: a manifest never names a file
     # that is not in place.
-    # A pair there already, of a number named again, is moved aside first and put back if either move
-    # fails, so the file and its manifest are always of one build.
-    $previous = @()
-    try {
-        foreach ($there in $final, "$final.manifest.json") {
-            if (Test-Path -LiteralPath $there) {
-                $aside = Join-Path $work ('previous-' + (Split-Path -Leaf $there))
-                [System.IO.File]::Move($there, $aside)
-                $previous += , @($there, $aside)
-            }
+    # A pair there already, of a number named again, is moved aside first, and the finally below puts it
+    # back if anything fails or stops the run before the build stands, so the file and its manifest are
+    # always of one build. Named before it is moved, so a stop in between leaves nothing out of the count.
+    foreach ($there in $final, "$final.manifest.json") {
+        if (Test-Path -LiteralPath $there) {
+            $aside = Join-Path $work ('previous-' + (Split-Path -Leaf $there))
+            $previous += , @($there, $aside)
+            [System.IO.File]::Move($there, $aside)
         }
-        $placed = $true
-        [System.IO.File]::Move($output, $final)
-        [System.IO.File]::Move("$output.manifest.json", "$final.manifest.json")
-    } catch {
-        foreach ($left in $final, "$final.manifest.json") {
-            if ($placed -and (Test-Path -LiteralPath $left)) {
-                Remove-Item -LiteralPath $left -Force
-            }
-        }
-        foreach ($pair in $previous) {
-            [System.IO.File]::Move($pair[1], $pair[0], $true)
-        }
-        $placed = $false
-        throw
     }
+    $placed = $true
+    [System.IO.File]::Move($output, $final)
+    [System.IO.File]::Move("$output.manifest.json", "$final.manifest.json")
     $output = $final
     # The counter is what spends the number. Once it is written the build stands, and the fingerprint
     # only lets a later build keep it: one that fails to be written means only that the next builds again.
+    # Whole or not at all: a write that fails keeps the number before, and the finally the pair before.
     if (-not $named) {
-        [System.IO.File]::WriteAllText($CounterPath, "$number`n")
+        Set-csiGarlandBuildNumber -CounterPath $CounterPath -Number $number -Scratch $work
     }
     $built = $true
     if (-not $named) {
@@ -336,20 +326,36 @@ try {
         }
     }
 } finally {
+    $keepWork = $false
     if (-not $built) {
-        # A file put in place under a number not spent is no build of it: it goes, and its manifest.
-        if ($placed -and -not $named) {
+        # A file put in place, under a number not spent or with no manifest beside it, is no build: it goes,
+        # and its manifest, before what was there comes back.
+        if ($placed) {
             foreach ($left in $final, "$final.manifest.json") {
                 if (Test-Path -LiteralPath $left) {
-                    Remove-Item -LiteralPath $left -Force
+                    Remove-Item -LiteralPath $left -Force -ErrorAction SilentlyContinue
                 }
             }
+        }
+        foreach ($pair in $previous) {
+            if (Test-Path -LiteralPath $pair[1]) {
+                try {
+                    [System.IO.File]::Move($pair[1], $pair[0], $true)
+                } catch {
+                    $keepWork = $true
+                }
+            }
+        }
+        if ($keepWork) {
+            Write-Warning "The build that was there could not all be put back: what is left of it is in $work."
         }
         if (-not $named) {
             Write-Warning "The build failed, so build number $number is not spent: the next build takes it."
         }
     }
-    [System.IO.Directory]::Delete($work, $true)
+    if (-not $keepWork) {
+        [System.IO.Directory]::Delete($work, $true)
+    }
 }
 Write-Host "$output, $([int]((Get-Item -LiteralPath $output).Length / 1KB)) KB, SHA-256 $hash"
 # For deploy/run.ps1.
