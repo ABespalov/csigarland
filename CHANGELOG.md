@@ -9,6 +9,10 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+### Build and release
+
+- `build-utility.ps1`, `flash-device.ps1` and `ota-update.ps1` let go of their build lock however they end, also when run inside another script's PowerShell, as `run.ps1` runs `build-utility.ps1`: a build after it, the Linux one in its container too, found the lock held until that PowerShell was closed.
+
 ## [1.3.0] - 2026-11-06
 
 A release of the utility alone, for Windows, Linux and now macOS. It works with the firmware 1.1.0 and 1.1.1 alike.

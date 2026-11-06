@@ -188,55 +188,62 @@ function Get-BuildVersionProblem {
 }
 
 $UpdateName = if ($FirmwareOnly) { 'firmware-only.ota' } else { 'firmware.ota' }
-if ($File) {
-    $UpdatePath = $File
-} elseif ($EffectsOnly) {
-    $UpdatePath = New-EffectsUpdate
-} else {
-    # The firmware build lock of this checkout, from the build, or the look at the last one, to the bytes
-    # read: another build would replace the file in between, with one this run did not make or check.
-    $BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware
-    if (-not $NoBuild) {
-        & pwsh -File (Join-Path $PSScriptRoot 'flash-device.ps1') -BuildOnly -BuildProfile $BuildProfile -LockHeld
-        if ($LASTEXITCODE -ne 0) {
-            throw "Build failed with exit code $LASTEXITCODE. Nothing was sent."
+# The firmware build lock of this checkout, when this builds or sends the last build: let go however this
+# ends, as a lock left to the end of the PowerShell this runs in, inside another script's, held back every
+# build after it.
+$BuildLock = $null
+try {
+    if ($File) {
+        $UpdatePath = $File
+    } elseif ($EffectsOnly) {
+        $UpdatePath = New-EffectsUpdate
+    } else {
+        # The firmware build lock of this checkout, from the build, or the look at the last one, to the bytes
+        # read: another build would replace the file in between, with one this run did not make or check.
+        $BuildLock = Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware
+        if (-not $NoBuild) {
+            & pwsh -File (Join-Path $PSScriptRoot 'flash-device.ps1') -BuildOnly -BuildProfile $BuildProfile -LockHeld
+            if ($LASTEXITCODE -ne 0) {
+                throw "Build failed with exit code $LASTEXITCODE. Nothing was sent."
+            }
+        } elseif (-not $PSBoundParameters.ContainsKey('BuildProfile')) {
+            # Each profile builds in its own folder, so "the last build" may be either: a Release left from
+            # long ago is no answer for a Dev built since. Only a file of the kind asked for, whose firmware is
+            # of its folder's profile and this checkout's base, counts.
+            $built = @('Release', 'Dev' | Where-Object {
+                    $candidate = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $_)\$UpdateName"
+                    if (-not (Test-Path -LiteralPath $candidate)) {
+                        return $false
+                    }
+                    try {
+                        $held = Get-UpdateContents -Bytes ([System.IO.File]::ReadAllBytes($candidate)) -Path $candidate
+                    } catch {
+                        return $false
+                    }
+                    # And signed under this repository's root: a test build's throwaway chain is no candidate.
+                    $null -eq (Get-BuildVersionProblem -Version $held.Version -BuildProfile $_) -and
+                    (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $candidate)
+                })
+            if ($built.Count -gt 1) {
+                throw 'Both a Release and a Dev build of this version are here: name the one to send with -BuildProfile Release or -BuildProfile Dev. Nothing was sent.'
+            }
+            if ($built.Count -eq 1) {
+                $BuildDir = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $built[0])"
+                Write-Host "Sending the last $($built[0]) build, the only one of this version here."
+            }
         }
-    } elseif (-not $PSBoundParameters.ContainsKey('BuildProfile')) {
-        # Each profile builds in its own folder, so "the last build" may be either: a Release left from
-        # long ago is no answer for a Dev built since. Only a file of the kind asked for, whose firmware is
-        # of its folder's profile and this checkout's base, counts.
-        $built = @('Release', 'Dev' | Where-Object {
-                $candidate = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $_)\$UpdateName"
-                if (-not (Test-Path -LiteralPath $candidate)) {
-                    return $false
-                }
-                try {
-                    $held = Get-UpdateContents -Bytes ([System.IO.File]::ReadAllBytes($candidate)) -Path $candidate
-                } catch {
-                    return $false
-                }
-                # And signed under this repository's root: a test build's throwaway chain is no candidate.
-                $null -eq (Get-BuildVersionProblem -Version $held.Version -BuildProfile $_) -and
-                (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $candidate)
-            })
-        if ($built.Count -gt 1) {
-            throw 'Both a Release and a Dev build of this version are here: name the one to send with -BuildProfile Release or -BuildProfile Dev. Nothing was sent.'
-        }
-        if ($built.Count -eq 1) {
-            $BuildDir = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $built[0])"
-            Write-Host "Sending the last $($built[0]) build, the only one of this version here."
-        }
+        $UpdatePath = Join-Path $BuildDir $UpdateName
     }
-    $UpdatePath = Join-Path $BuildDir $UpdateName
-}
-if (-not (Test-Path -LiteralPath $UpdatePath)) {
-    throw "No update file at $UpdatePath. Build first."
-}
-# Read once, here: a build may replace the file while this waits for the owner, and what goes out
-# has to be what was shown, and what the garland is then held to.
-$UpdateBytes = [System.IO.File]::ReadAllBytes($UpdatePath)
-if (Get-Variable -Name BuildLock -Scope Script -ErrorAction SilentlyContinue) {
-    $BuildLock.Dispose()
+    if (-not (Test-Path -LiteralPath $UpdatePath)) {
+        throw "No update file at $UpdatePath. Build first."
+    }
+    # Read once, here: a build may replace the file while this waits for the owner, and what goes out
+    # has to be what was shown, and what the garland is then held to.
+    $UpdateBytes = [System.IO.File]::ReadAllBytes($UpdatePath)
+} finally {
+    if ($BuildLock) {
+        $BuildLock.Dispose()
+    }
 }
 $contents = Get-UpdateContents -Bytes $UpdateBytes -Path $UpdatePath
 # A file from a build folder is held to its folder's profile and to this checkout's base, by the version

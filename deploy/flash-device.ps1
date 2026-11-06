@@ -495,32 +495,36 @@ function Invoke-VerifiedUpload {
     return [pscustomobject]@{ Exit = (Invoke-Esptool -ToolArgs $toolArgs); Target = $current }
 }
 
-# A write over USB takes the files of the build folder after their checks: held until this script ends,
+# A write over USB takes the files of the build folder after their checks: held until the write is done,
 # the lock keeps another build of this checkout from replacing them in between.
 $script:FirmwareLock = if ($LockHeld) { $null } else { Lock-csiGarlandBuild -RepoRoot $RepoRoot -Kind firmware }
-if ($EffectsOnly) {
-    Confirm-EsptoolRuns
-    $image = New-EffectsOnlyImage
-    Assert-BoardHasPackSlots -PortName $target.Port
-} else {
-    $image = Invoke-NumberedFirmwareBuild
-    # Asked only of a write over USB, which runs it: a build alone, for staging or OTA, needs no esptool.
-    Confirm-EsptoolRuns
-}
+try {
+    if ($EffectsOnly) {
+        Confirm-EsptoolRuns
+        $image = New-EffectsOnlyImage
+        Assert-BoardHasPackSlots -PortName $target.Port
+    } else {
+        $image = Invoke-NumberedFirmwareBuild
+        # Asked only of a write over USB, which runs it: a build alone, for staging or OTA, needs no esptool.
+        Confirm-EsptoolRuns
+    }
 
-$upload = Invoke-VerifiedUpload
-if ($upload.Exit -ne 0) {
-    # The image is built and verified; a failed upload is the port or the board.
-    Write-Host ''
-    Write-Host 'Upload failed; retrying once with the same verified image.'
-    Start-Sleep -Seconds 2
     $upload = Invoke-VerifiedUpload
-}
-# The build folder's files are no longer needed: the log that follows holds no lock, so a staging or a
-# build elsewhere need not wait for it to close.
-if ($script:FirmwareLock) {
-    $script:FirmwareLock.Dispose()
-    $script:FirmwareLock = $null
+    if ($upload.Exit -ne 0) {
+        # The image is built and verified; a failed upload is the port or the board.
+        Write-Host ''
+        Write-Host 'Upload failed; retrying once with the same verified image.'
+        Start-Sleep -Seconds 2
+        $upload = Invoke-VerifiedUpload
+    }
+} finally {
+    # The build folder's files are no longer needed: the log that follows holds no lock, so a staging or a
+    # build elsewhere need not wait for it to close. Let go however this ends, as a lock left to the end of
+    # the PowerShell this runs in, when it runs inside another script's, held back every build after it.
+    if ($script:FirmwareLock) {
+        $script:FirmwareLock.Dispose()
+        $script:FirmwareLock = $null
+    }
 }
 if ($upload.Exit -ne 0) {
     throw ("Upload failed with exit code $($upload.Exit). If the board is not responding, " +
