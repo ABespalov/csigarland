@@ -60,6 +60,9 @@ JsonPtr portal_read_json(httpd_req_t* req);
 // The HTTPS server is up, rather than its certificates merely being in place.
 bool portal_https_running();
 
+// The request came to the HTTPS server, not to plain HTTP: what a page's origin is held to.
+bool portal_request_is_secure(httpd_req_t* req);
+
 inline esp_err_t send_json(httpd_req_t* req, const cJSON* json) {
     const std::unique_ptr<char, JsonTextDeleter> text(cJSON_PrintUnformatted(json));
     if (text == nullptr) {

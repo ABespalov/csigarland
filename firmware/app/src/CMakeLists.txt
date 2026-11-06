@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "main.cpp"
         "buttons.cpp"
+        "clock.cpp"
         "display.cpp"
         "display_view.cpp"
         "effect_algorithms.cpp"
@@ -17,6 +18,7 @@ idf_component_register(
         "garland_output.cpp"
         "garland_probe.cpp"
         "lighting_task.cpp"
+        "looks.cpp"
         "network.cpp"
         "ota.cpp"
         "portal.cpp"
@@ -34,6 +36,7 @@ idf_component_register(
         "scheduler.cpp"
         "screensaver.cpp"
         "settings.cpp"
+        "settings_looks.cpp"
         "trial_log.cpp"
     INCLUDE_DIRS "." "../generated"
     PRIV_REQUIRES

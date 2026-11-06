@@ -15,6 +15,7 @@
 
 #include "esp_log.h"
 #include "garland_state.h"
+#include "looks.h"
 #include "network.h"
 #include "network_logic.h"
 #include "portal_common.h"
@@ -309,7 +310,11 @@ esp_err_t portal_handle_time_set(httpd_req_t* req) {
 }
 
 esp_err_t portal_handle_display_get(httpd_req_t* req) {
-    const auto& state = *static_cast<const State*>(req->user_ctx);
+    auto& state = *static_cast<State*>(req->user_ctx);
+    // Settings not read are the defaults, which a form would save back, and a backup keep, as the owner's.
+    if (!looks_display_read(state)) {
+        return portal_send_status(req, "503 Service Unavailable", "The screen settings could not be read yet: ask again");
+    }
     const JsonPtr root(cJSON_CreateObject());
     if (root == nullptr) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
@@ -353,6 +358,11 @@ esp_err_t portal_handle_display_set(httpd_req_t* req) {
     if (!is_backlight_percent(screen) || !is_backlight_percent(saver_level)) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "brightness must be 5 to 100 percent");
     }
+    auto& state = *static_cast<State*>(req->user_ctx);
+    // Every part is saved, and one not read yet would go to the default the page was shown.
+    if (!looks_display_read(state)) {
+        return portal_send_status(req, "503 Service Unavailable", "The screen settings could not be read yet: ask again");
+    }
     DisplaySettings settings;
     settings.saver = found->kind;
     settings.saver_delay_seconds = static_cast<uint16_t>(delay->valueint);
@@ -363,7 +373,6 @@ esp_err_t portal_handle_display_set(httpd_req_t* req) {
         ESP_LOGE(TAG, "saving the screen settings failed: %s", esp_err_to_name(err));
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save");
     }
-    auto& state = *static_cast<State*>(req->user_ctx);
     state.set_backlight_levels(settings.screen_percent, settings.saver_percent);
     // A new type or delay restarts the idle count; a new level alone should show on what
     // is on the screen right now.

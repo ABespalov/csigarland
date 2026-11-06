@@ -36,8 +36,12 @@ bool auth_setup_host_is_foreign(httpd_req_t* req);
 // which that network's DNS sends here: the token a pairing makes would go to that page.
 bool auth_open_route_allows(httpd_req_t* req);
 
-// A paired browser's cookie, or the setup network.
-bool auth_allows(httpd_req_t* req);
+// Allowed with a paired browser's cookie or program's token, or on the setup network. Unreadable when the
+// token was looked for in a list of paired browsers that is there and could not be read yet, so the client
+// may be paired all the same: told 503, not 401, which a program takes to mean its token is gone and lets
+// it go. Of this request's own look, as another request may read the list in a moment after it.
+enum class AuthAnswer : uint8_t { Allowed, NotPaired, Unreadable };
+AuthAnswer auth_check(httpd_req_t* req);
 
 // What a request was let in under, for a long one to be held to later: see auth_grant_holds.
 AuthGrant auth_grant_of(httpd_req_t* req);

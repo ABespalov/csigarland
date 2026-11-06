@@ -423,17 +423,26 @@ public:
         return resumed;
     }
 
-    // At a start, as it was left, at its first effect: nothing chosen, nothing turned on.
-    void resume_playlist() {
-        const std::lock_guard<std::mutex> guard(playlist_lock_);
-        if (playlist_count_.load() > 0) {
-            const uint16_t first = playlist_effects_[0].load();
-            change_play([first](Play& play) {
-                play.playlist = true;
-                play.effect = first;
-                count_start(play);
-            });
+    // What a start brings back, all at once, as apply_action takes it: unless the owner has chosen anything
+    // since the start, by a button, a page or a program, which is newer. A choice notes itself before it
+    // changes anything, so one that comes after the look still comes after this, and stands. Read late,
+    // with tasks running, a check made apart from the change would leave room for a choice in between.
+    // The playlist stopped, an effect gone from the catalog too: whether it was left playing is resumed apart,
+    // and one a scheduled step started meanwhile is that step's, which the replay does again after this.
+    // True when it was put on.
+    bool restore_unless_chosen(uint8_t brightness_percent, uint8_t speed_x4, int effect, int power) {
+        bool restored = false;
+        change_play([&](Play& play) {
+            restored = !owner_chose_.load();
+            if (restored) {
+                apply_parts(play, brightness_percent, speed_x4, effect, power);
+                play.playlist = false;
+            }
+        });
+        if (restored && power >= 0) {
+            notify_power_listener();
         }
+        return restored;
     }
 
     // From the lighting task: on to next, only if the playlist still plays from expected, and from the
@@ -480,11 +489,6 @@ public:
             effect = effect_without;
             power = power_without;
         }
-        // Before the change, so that a resume of what was left, coming after it, finds it: a step that
-        // chooses what plays is newer than what was left.
-        if (starts || effect >= 0) {
-            scheduled_play_.store(true);
-        }
         uint32_t word = play_.load();
         uint32_t updated = 0;
         do {
@@ -499,6 +503,12 @@ public:
             }
             updated = pack(next);
         } while (!play_.compare_exchange_weak(word, updated));
+        // Only once it took, and still under the lock, which a resume of what was left takes too, so none
+        // comes between: a step that chooses what plays is newer than what was left, and one that gave way to
+        // the owner chose nothing.
+        if (starts || effect >= 0) {
+            scheduled_play_.store(true);
+        }
         if (power >= 0) {
             notify_power_listener();
         }
@@ -527,6 +537,7 @@ public:
     // the values, as choosing the same again, or going back to them, leaves those as they were.
     // Not from the schedule, and not from what a start restores.
     void note_owner_choice() {
+        owner_chose_.store(true);
         uint32_t (*const clock)() = choice_clock_.load();
         owner_choice_ms_.store(clock != nullptr ? clock() : 0);
         change_play([](Play& play) { play.chosen_since_look = true; });
@@ -544,6 +555,8 @@ public:
         return was_chosen;
     }
     uint32_t owner_choice_ms() const { return owner_choice_ms_.load(); }
+    // Whether the owner has chosen anything since the start.
+    bool owner_chose() const { return owner_chose_.load(); }
 
     // A choice of what plays, an effect or the playlist, started or stopped: one of the power, brightness or
     // speed alone says nothing of it.
@@ -888,6 +901,8 @@ private:
     std::atomic<uint8_t> consumed_buttons_{0};
     std::atomic<uint32_t> activity_{0};
     std::atomic<uint32_t> owner_choice_ms_{0};
+    // Set once the owner has chosen anything since the start: the moment above may be 0 with no clock.
+    std::atomic<bool> owner_chose_{false};
     std::atomic<bool> owner_play_{false};
     // Set once a scheduled step has chosen what plays, an effect or the playlist, since the start.
     std::atomic<bool> scheduled_play_{false};

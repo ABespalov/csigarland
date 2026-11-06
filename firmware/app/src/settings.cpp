@@ -8,6 +8,7 @@
  */
 
 #include "settings.h"
+#include "settings_nvs.h"
 
 #include <array>
 #include <cstddef>
@@ -31,13 +32,12 @@ namespace {
 const char* const TAG = "settings";
 
 char s_ap_password[kApPasswordLength + 1] = "";
+// NVS itself came up, which says nothing yet of whether what it holds can be read.
+bool s_storage_ready = false;
 
-const char* const kNamespace = "garland";
+const char* const kNamespace = kSettingsNamespace;
 const char* const kEncryptedMarkerKey = "encrypted";
 const char* const kApPasswordKey = "ap_password";
-const char* const kLedCountKey = "led_count";
-// A new key, so the catalog's new default favourites replace what earlier firmware saved.
-const char* const kFavoritesKey = "favorites_v2";
 const char* const kTimeZoneKey = "time_zone";
 // The version is in the key: the blob is ScheduleEntry's memory layout.
 const char* const kScheduleKey = "schedule_v1";
@@ -50,10 +50,6 @@ const char* const kPlaylistRecordKey = "playlist_rec";
 // erased at the first save of a list.
 const char* const kPlaylistTextKey = "playlist";
 const char* const kPlaylistOldMarkKey = "playlist_with";
-const char* const kSaverKindKey = "saver_kind";
-const char* const kSaverDelayKey = "saver_delay";
-const char* const kScreenLevelKey = "screen_level";
-const char* const kSaverLevelKey = "saver_level";
 const char* const kRememberedKey = "remembered";
 
 const char* const kWifiSsidKey = "wifi_ssid";
@@ -107,9 +103,14 @@ public:
     PlaylistGuard& operator=(const PlaylistGuard&) = delete;
 };
 
+// An erase of a partition in use takes it out of use first, so whatever fails here leaves no NVS at all.
 esp_err_t erase_and_init() {
-    const esp_err_t err = nvs_flash_erase();
-    return err == ESP_OK ? nvs_flash_init() : err;
+    esp_err_t err = nvs_flash_erase();
+    if (err == ESP_OK) {
+        err = nvs_flash_init();
+    }
+    s_storage_ready = err == ESP_OK;
+    return err;
 }
 
 // A firmware from before the encryption left its settings in the clear, the Wi-Fi
@@ -192,49 +193,22 @@ esp_err_t settings_init() {
         ESP_LOGW(TAG, "settings unusable: %s", esp_err_to_name(err));
         err = erase_and_init();
     }
+    s_storage_ready = err == ESP_OK;
     if (err == ESP_OK) {
         err = purge_plain_settings();
     }
-    if (err == ESP_OK) {
-        load_ap_password();
-    }
+    // Whatever came of the rest: the setup network, its password on the screen, is how a closed garland
+    // whose settings cannot be read still takes the next update. One not saved changes at the next start.
+    load_ap_password();
     return err;
+}
+
+bool settings_storage_ready() {
+    return s_storage_ready;
 }
 
 const char* settings_ap_password() {
     return s_ap_password;
-}
-
-uint16_t settings_load_led_count() {
-    nvs_handle_t handle = 0;
-    if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-        return kLedCountAuto;
-    }
-    uint16_t setting = kLedCountAuto;
-    const esp_err_t err = nvs_get_u16(handle, kLedCountKey, &setting);
-    nvs_close(handle);
-    if (err != ESP_OK || !led_setting_is_valid(setting, CSIGARLAND_MAX_LEDS)) {
-        return kLedCountAuto;
-    }
-    return setting;
-}
-
-esp_err_t settings_save_led_count(uint16_t setting) {
-    nvs_handle_t handle = 0;
-    esp_err_t err = nvs_open(kNamespace, NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = nvs_set_u16(handle, kLedCountKey, setting);
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
-    return err;
-}
-
-bool settings_load_favorites(char* out, size_t out_size) {
-    return read_string(kFavoritesKey, out, out_size);
 }
 
 // The record of the playlist through handle, into record, and its length; for a garland that has only
@@ -352,20 +326,6 @@ esp_err_t settings_save_playlist(const char* text, const uint32_t* expected, uin
     }
     return err;
 }
-esp_err_t settings_save_favorites(const char* text) {
-    nvs_handle_t handle = 0;
-    esp_err_t err = nvs_open(kNamespace, NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = nvs_set_str(handle, kFavoritesKey, text);
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
-    return err;
-}
-
 bool settings_load_timezone(char* out, size_t out_size) {
     return read_string(kTimeZoneKey, out, out_size);
 }
@@ -531,53 +491,6 @@ esp_err_t settings_save_schedule(const ScheduleEntry* entries, size_t count) {
         if (nvs_set_blob(handle, kScheduleRiseKey, own, sizeof(own)) != ESP_OK) {
             ESP_LOGW(TAG, "the mark of the list before stays: it holds only for those bytes");
         }
-    }
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
-    return err;
-}
-
-void settings_load_display(DisplaySettings& out) {
-    nvs_handle_t handle = 0;
-    if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-        return;
-    }
-    uint8_t saved_kind = 0;
-    uint16_t saved_delay = 0;
-    uint8_t saved_screen = 0;
-    uint8_t saved_saver = 0;
-    if (nvs_get_u8(handle, kSaverKindKey, &saved_kind) == ESP_OK && saver_kind_is_valid(saved_kind)) {
-        out.saver = static_cast<SaverKind>(saved_kind);
-    }
-    if (nvs_get_u16(handle, kSaverDelayKey, &saved_delay) == ESP_OK && saver_delay_is_valid(saved_delay)) {
-        out.saver_delay_seconds = saved_delay;
-    }
-    if (nvs_get_u8(handle, kScreenLevelKey, &saved_screen) == ESP_OK && backlight_percent_is_valid(saved_screen)) {
-        out.screen_percent = saved_screen;
-    }
-    if (nvs_get_u8(handle, kSaverLevelKey, &saved_saver) == ESP_OK && backlight_percent_is_valid(saved_saver)) {
-        out.saver_percent = saved_saver;
-    }
-    nvs_close(handle);
-}
-
-esp_err_t settings_save_display(const DisplaySettings& settings) {
-    nvs_handle_t handle = 0;
-    esp_err_t err = nvs_open(kNamespace, NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = nvs_set_u8(handle, kSaverKindKey, static_cast<uint8_t>(settings.saver));
-    if (err == ESP_OK) {
-        err = nvs_set_u16(handle, kSaverDelayKey, settings.saver_delay_seconds);
-    }
-    if (err == ESP_OK) {
-        err = nvs_set_u8(handle, kScreenLevelKey, settings.screen_percent);
-    }
-    if (err == ESP_OK) {
-        err = nvs_set_u8(handle, kSaverLevelKey, settings.saver_percent);
     }
     if (err == ESP_OK) {
         err = nvs_commit(handle);
@@ -806,17 +719,22 @@ esp_err_t settings_save_hostname(const char* name) {
     return err;
 }
 
-void settings_load_auth(AuthDevice* out, size_t count) {
+StoredRead settings_load_auth(AuthDevice* out, size_t count) {
+
+    const size_t expected = sizeof(AuthDevice) * count;
+    size_t bytes = expected;
     nvs_handle_t handle = 0;
-    if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-        return;
+    const esp_err_t opened = nvs_open(kNamespace, NVS_READONLY, &handle);
+    esp_err_t got = ESP_FAIL;
+    if (opened == ESP_OK) {
+        got = nvs_get_blob(handle, kAuthKey, out, &bytes);
+        nvs_close(handle);
     }
-    size_t bytes = sizeof(AuthDevice) * count;
-    // Of another size it is from another layout, and the browsers pair again.
-    if (nvs_get_blob(handle, kAuthKey, out, &bytes) != ESP_OK || bytes != sizeof(AuthDevice) * count) {
-        std::memset(out, 0, sizeof(AuthDevice) * count);
+    const StoredRead read = auth_list_read(nvs_answer(opened), nvs_answer(got), bytes, expected);
+    if (read != StoredRead::Loaded) {
+        std::memset(out, 0, expected);
     }
-    nvs_close(handle);
+    return read;
 }
 
 esp_err_t settings_save_auth(const AuthDevice* devices, size_t count) {

@@ -22,6 +22,14 @@ void effect_store_start();
 // Where an upload's file goes: kMaxEffectFileBytes and its terminator. One request at a time.
 char* effect_store_body();
 
+// Reads again the effects saved before whose reading failed at the start, putting each read in the catalog,
+// through effect_store_body(): before a request's body goes there. True when any was read, and the catalog
+// may have changed.
+bool effect_store_read_unread();
+// While any is unread, one of them may hold an id not known, and come back after an upload under it is
+// deleted, as a second copy: such an upload is refused.
+bool effect_store_unread_may_hold(const char* id);
+
 // These read the file from effect_store_body() and return the problem as text, or nullptr.
 const char* effect_store_save(const char* id);
 const char* effect_store_preview();

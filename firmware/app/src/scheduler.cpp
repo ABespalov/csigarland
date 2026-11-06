@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: NTP time, the time zone, and the task that runs scheduled actions
+ * Purpose: The task that runs scheduled actions, and saves and brings back what the owner chose
  * Contributors: None
  */
 
@@ -29,12 +29,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "looks.h"
 #include "nvs.h"
 #include "ota.h"
 #include "playlist_resolver.h"
 #include "portal_tls.h"
 #include "rtc.h"
 #include "rtc_logic.h"
+#include "scheduler_clock.h"
 #include "settings.h"
 
 namespace garland {
@@ -42,30 +44,10 @@ namespace {
 
 const char* const TAG = "schedule";
 
-const char kNtpServer[] = "pool.ntp.org";
-const char kDefaultZone[] = "UTC0";
-constexpr size_t kZoneBytes = 49;
 
 constexpr uint32_t kStackBytes = 4096;
 constexpr UBaseType_t kPriority = tskIDLE_PRIORITY + 2;
 constexpr uint32_t kPollMs = 1000;
-constexpr uint32_t kNtpIntervalMs = 3600 * 1000;
-
-std::atomic<bool> s_synced{false};
-std::atomic<bool> s_ntp_arrived{false};
-std::atomic<ClockSource> s_clock_source{ClockSource::None};
-std::atomic<bool> s_zone_set{false};
-char s_zone[kZoneBytes] = "";
-// Its words, as a page may read them while they are set. Made with them, before any page.
-SemaphoreHandle_t s_zone_lock = nullptr;
-StaticSemaphore_t s_zone_lock_storage;
-
-constexpr int64_t kRtcReadBackSeconds = 2;
-// Seven registers go over the bus one acknowledged byte at a time, so setting them can stop half
-// way with the module looking perfectly well. This says so across a restart until it is seen done.
-std::atomic<bool> s_rtc_unfinished{false};
-SemaphoreHandle_t s_rtc_lock = nullptr;
-StaticSemaphore_t s_rtc_lock_storage;
 
 std::array<ScheduleEntry, kMaxScheduleEntries> s_entries{};
 size_t s_entry_count = 0;
@@ -83,6 +65,10 @@ std::atomic<int64_t> s_last_step_epoch{0};
 // The first minute whose step waits for the playlist to be read, -1 for none: a save of what the steps
 // before it did is dated just before it, so that a start in between still has it to do. See save_epoch.
 std::atomic<int64_t> s_steps_wait_from{-1};
+// The start's replay, at a start or again after a late read, not yet begun: its steps wait too, so a save
+// before it, as of a playlist resumed while the schedule cannot be read, is dated before the first of them,
+// and neither the replay nor the next start passes them by. The scheduler's task alone reads and sets it.
+bool s_replay_pending = true;
 // A restart asked for, and what came of saving the settings ahead of it, see scheduler_save_before_restart.
 enum class RestartSave : uint8_t { None, Asked, Held, Failed };
 std::atomic<RestartSave> s_restart_save{RestartSave::None};
@@ -101,6 +87,8 @@ SemaphoreHandle_t s_lock = nullptr;
 StaticSemaphore_t s_lock_storage;
 TaskHandle_t s_task = nullptr;
 int64_t s_choice_epoch = kNoChoiceYet;
+// What flash held of the remembered choice at the start, as start_scheduler took it.
+Remembered s_saved_at_start;
 // What the next action was last found to be. Finding it can take a thousand times what a page
 // needs to read it, and the scheduler looks each minute. It stands until that action has come, or
 // the list, the zone or the clock changes: see next_action_still_holds.
@@ -113,19 +101,6 @@ struct NextActionCache {
     uint16_t catalog = 0;
 };
 NextActionCache s_next;
-
-void apply_zone(const char* zone) {
-    setenv("TZ", zone, 1);
-    tzset();
-}
-
-// In the network's task, which must not wait on the I2C bus: the scheduler task takes it on.
-void on_time_synced(timeval*) {
-    s_ntp_arrived.store(true);
-    if (!s_synced.exchange(true)) {
-        ESP_LOGI(TAG, "time synced");
-    }
-}
 
 LocalMinute to_local_minute(int64_t minutes_since_epoch);
 
@@ -206,70 +181,6 @@ void forget_next_action() {
     }
 }
 
-void set_system_clock(int64_t epoch) {
-    const timeval now = {static_cast<time_t>(epoch), 0};
-    settimeofday(&now, nullptr);
-    forget_next_action();
-}
-
-// Holds the module for one whole change of the time: reading it, choosing, writing it and the
-// system clock. So a time set by hand never lands between NTP's look and its write, to be put back.
-class RtcGuard {
-public:
-    RtcGuard() : lock_(s_rtc_lock) {
-        if (lock_ != nullptr) {
-            xSemaphoreTake(lock_, portMAX_DELAY);
-        }
-    }
-    ~RtcGuard() {
-        if (lock_ != nullptr) {
-            xSemaphoreGive(lock_);
-        }
-    }
-    RtcGuard(const RtcGuard&) = delete;
-    RtcGuard& operator=(const RtcGuard&) = delete;
-
-private:
-    SemaphoreHandle_t lock_;
-};
-
-// Marked as under way until it reads back as what was set. The caller holds RtcGuard.
-bool write_rtc_checked(int64_t epoch) {
-    bool done = settings_save_rtc_unfinished(true) == ESP_OK;
-    if (done) {
-        s_rtc_unfinished.store(true);
-        int64_t read_back = 0;
-        bool trusted = false;
-        done = rtc_write(epoch) && rtc_read(read_back, trusted) && trusted && std::llabs(read_back - epoch) <= kRtcReadBackSeconds;
-    }
-    if (done) {
-        // Not done until saved: the next start with no network would not believe the module.
-        done = settings_save_rtc_unfinished(false) == ESP_OK;
-        s_rtc_unfinished.store(!done);
-    }
-    return done;
-}
-
-// NTP is the better clock, so the module follows it when it has drifted or lost time. The time is
-// taken under the guard, after any setting by hand that came first.
-void pass_ntp_time_to_rtc() {
-    const RtcGuard guard;
-    const auto ntp_epoch = static_cast<int64_t>(std::time(nullptr));
-    int64_t rtc_epoch = 0;
-    bool trusted = false;
-    if (!rtc_read(rtc_epoch, trusted) || s_rtc_unfinished.load()) {
-        trusted = false;
-    }
-    if (rtc_needs_correction(trusted, rtc_epoch, ntp_epoch)) {
-        if (!write_rtc_checked(ntp_epoch)) {
-            ESP_LOGW(TAG, "setting the clock module failed");
-            return;
-        }
-        ESP_LOGI(TAG, "clock module set from NTP");
-    }
-    s_clock_source.store(ClockSource::Ntp);
-}
-
 LocalMinute to_local_minute(int64_t minutes_since_epoch) {
     const time_t seconds = static_cast<time_t>(minutes_since_epoch * 60);
     tm local = {};
@@ -309,10 +220,6 @@ void apply(State& state, const ResolvedAction& resolved) {
     s_last_step_epoch.store(static_cast<int64_t>(std::time(nullptr)));
     ESP_LOGI(TAG, "applied: power=%d bright=%u speed=%u effect=%d playlist=%d", static_cast<int>(resolved.power),
              resolved.brightness_percent, resolved.speed_x4, resolved.effect, resolved.playlist ? 1 : 0);
-}
-
-Remembered remembered_from(const Snapshot& now, uint16_t effect) {
-    return Remembered{effect, now.brightness_percent, now.speed_x4, now.power_chosen, now.playlist};
 }
 
 uint64_t pack_remembered(const Remembered& r) {
@@ -378,6 +285,20 @@ int64_t note_first_known_epoch() {
     return known;
 }
 
+// The first minute a replay not yet begun goes from, by the choice saved, or -1 for none.
+int64_t replay_start(int64_t first_known_epoch, int64_t now) {
+    const int64_t first = s_choice_epoch == 0 ? first_known_epoch / 60 + 1 : replay_first_minute(s_choice_epoch, now);
+    return first >= 0 ? std::max(first, now - kReplayMinutes + 1) : first;
+}
+
+// The first minute whose step waits, for the playlist or for the replay, -1 for none: see save_epoch.
+int64_t first_minute_waiting(int64_t first_known_epoch) {
+    const int64_t held = s_steps_wait_from.load();
+    const int64_t now = now_in_minutes();
+    const int64_t first = s_replay_pending ? replay_start(first_known_epoch, now) : -1;
+    return first < 0 || first > now || (held >= 0 && held < first) ? held : first;
+}
+
 void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
     // A save writes every field, and the ones not read yet would be lost to what the state holds.
     if (s_remembered_unread.load()) {
@@ -399,10 +320,11 @@ void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& rea
     }
     // When it was chosen, see save_epoch. The first time known is taken here if the pass has not yet.
     int64_t chosen_at = 0;
-    if (s_synced.load()) {
-        const int64_t choice = state.owner_choice_ms() != 0 ? epoch_of_last_choice(state) : -1;
-        chosen_at = save_epoch(static_cast<int64_t>(std::time(nullptr)), choice, note_first_known_epoch(), s_last_step_epoch.load(),
-                               s_steps_wait_from.load());
+    if (time_is_synced()) {
+        const int64_t choice = state.owner_chose() ? epoch_of_last_choice(state) : -1;
+        const int64_t first_known = note_first_known_epoch();
+        chosen_at = save_epoch(static_cast<int64_t>(std::time(nullptr)), choice, first_known, s_last_step_epoch.load(),
+                               first_minute_waiting(first_known));
     }
     // While the mark of playing waits, unread or read and waiting for the list to resume it, a save the
     // owner or a step did not make about what plays, of the power, brightness or speed alone among them,
@@ -440,26 +362,51 @@ uint32_t uptime_ms() {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
 }
 
-// What was remembered, read now that it can be: put on the state as at a start, unless the owner chose or a
-// step was done since, which are newer, and saves go on from it.
-void read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
+// What was remembered, read now that it can be: put on the state as at a start, unless the owner chose
+// since, which is newer, and saves go on from it. True when the start's replay is to be done again: worked
+// out with no choice known, it took only the steps after the first time known, and those that came due with
+// no power, after the choice now read, are still to do. Steps done meanwhile come after that choice, so the
+// replay does them again, on top of what was remembered: one of the speed alone sets no power, and must not
+// keep the rest from coming back.
+bool read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
     StoredSettings remembered;
     const esp_err_t read = settings_read_remembered(remembered);
     if (read != ESP_OK && read != ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGW(TAG, "reading the remembered choice failed again: %s", esp_err_to_name(read));
-        return;
+        return false;
     }
-    if (read == ESP_OK && state.owner_choice_ms() == 0 && s_last_step_epoch.load() == 0) {
-        remembered_apply(state, remembered);
-        playlist_restore_playing(state);
-        real_effect = state.snapshot().effect;
+    bool untouched = !state.owner_chose();
+    if (read == ESP_OK) {
+        // The time of the record as flash holds it, whatever is put on the state, until a save replaces it:
+        // a time given now to a choice that has one would move it past the steps it missed.
         s_choice_epoch = remembered.choice_epoch;
-        timer = MemorySaveTimer(remembered_from(state.snapshot(), real_effect));
-        ESP_LOGI(TAG, "the remembered choice was read late, and taken");
-    } else if (read == ESP_ERR_NVS_NOT_FOUND) {
+        const Snapshot before = state.snapshot();
+        untouched = untouched && remembered_apply(state, remembered);
+        // Whatever the owner chose since: only a choice of what plays keeps the playlist from coming back, as
+        // the resume itself says; one of the power, brightness or speed alone leaves it to.
+        const bool plays_on = playlist_restore_playing(state);
+        // What flash holds, not what the state holds, whether or not it was put on: a choice made meanwhile,
+        // as a turn off, has to stay a change to save, at once if it is one of those. The owner's choice is
+        // newer, and stays a choice to save.
+        const int index = catalog_find(remembered.effect_id);
+        const uint16_t saved_effect = index >= 0 ? static_cast<uint16_t>(index) : real_effect;
+        real_effect = untouched ? saved_effect : real_effect;
+        timer.saved(Remembered{
+            saved_effect,
+            remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : before.brightness_percent,
+            manual_speed_x4_is_valid(remembered.speed_x4) ? remembered.speed_x4 : before.speed_x4,
+            remembered.playing != 0,
+            plays_on,
+        });
+        if (state.owner_chose()) {
+            timer.note_choice();
+        }
+        ESP_LOGI(TAG, "the remembered choice was read late%s", untouched ? ", and taken" : ", after a choice since");
+    } else {
         s_choice_epoch = kNoChoiceYet;
     }
     s_remembered_unread.store(false);
+    return untouched;
 }
 
 // A look round comes up to a second later, and a step can fall due in between, so it takes the
@@ -537,14 +484,15 @@ void scheduler_task(void* arg) {
     State& state = *static_cast<State*>(arg);
     s_task = xTaskGetCurrentTaskHandle();
     state.set_power_listener(wake_to_save);
-    state.set_choice_clock(uptime_ms);
     int64_t last_minute = -1;
     int64_t choice_minute = -1;
     int64_t first_known_epoch = 0;
     bool tried_choice_time = false;
     uint32_t choice_time_tried_ms = 0;
-    uint16_t real_effect = state.snapshot().effect;
-    MemorySaveTimer memory_timer(remembered_from(state.snapshot(), real_effect));
+    // From what flash held, not the state now: the buttons started before this task, and a choice of
+    // theirs is a change to save.
+    uint16_t real_effect = s_saved_at_start.effect;
+    MemorySaveTimer memory_timer(s_saved_at_start);
     uint32_t schedule_tried_ms = uptime_ms();
     uint32_t remembered_tried_ms = uptime_ms();
     // The start's replay, stopped before a step that waits for the playlist, goes on from there.
@@ -554,9 +502,14 @@ void scheduler_task(void* arg) {
         // A turn on or off is saved right away, not at the next look round.
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPollMs));
         playlist_retry_if_stale(state, uptime_ms());
+        looks_retry_if_unread(state, uptime_ms());
         if (s_remembered_unread.load() && uptime_ms() - remembered_tried_ms >= kRememberedRetryMs) {
             remembered_tried_ms = uptime_ms();
-            read_remembered_late(state, memory_timer, real_effect);
+            if (read_remembered_late(state, memory_timer, real_effect)) {
+                last_minute = -1;
+                replay_from = -1;
+                s_replay_pending = true;
+            }
         }
         if (!s_schedule_read.load() && uptime_ms() - schedule_tried_ms >= kScheduleRetryMs) {
             schedule_tried_ms = uptime_ms();
@@ -568,6 +521,7 @@ void scheduler_task(void* arg) {
             choice_minute = minute_of_last_choice(state);
             memory_timer.note_choice();
         }
+        // Before a replay not begun too, as before a step waiting for the playlist: dated before its steps.
         remember_settings(state, memory_timer, real_effect);
         // A restart waits for this, a little: see scheduler_saved_before_restart.
         if (s_restart_save.load() != RestartSave::None) {
@@ -581,13 +535,13 @@ void scheduler_task(void* arg) {
                 s_restart_save.store(RestartSave::Failed);
             }
         }
-        if (s_ntp_arrived.exchange(false)) {
+        if (time_take_ntp_arrival()) {
             if (rtc_present()) {
-                pass_ntp_time_to_rtc();
+                time_pass_ntp_to_rtc();
             }
             renew_certificate_if_due(state);
         }
-        if (!s_synced.load()) {
+        if (!time_is_synced()) {
             continue;
         }
         const int64_t now = now_in_minutes();
@@ -615,14 +569,13 @@ void scheduler_task(void* arg) {
             // to be, is newer than the one saved, and the steps up to it yield to it.
             // Once begun, the replay goes on from where it stopped, whatever its own steps saved meanwhile
             // as the choice, which would put the bound past the steps still to do.
-            int64_t first = replay_from >= 0                ? replay_from
-                            : s_choice_epoch == 0           ? first_known_epoch / 60 + 1
-                                                            : replay_first_minute(s_choice_epoch, now);
+            int64_t first = replay_from >= 0 ? replay_from : replay_start(first_known_epoch, now);
+            s_replay_pending = false;
             // No more than the day the replay ever takes, a clock set late or corrected in between too.
             if (first >= 0) {
                 first = std::max(first, now - kReplayMinutes + 1);
             }
-            const int64_t chosen = state.owner_choice_ms() != 0 ? minute_of_last_choice(state) : -1;
+            const int64_t chosen = state.owner_chose() ? minute_of_last_choice(state) : -1;
             if (first >= 0 && chosen >= first) {
                 first = chosen + 1;
             }
@@ -650,7 +603,8 @@ void scheduler_task(void* arg) {
             }
             done = held >= 0 ? std::max(last_minute, held - 1) : now;
         }
-        const bool holds = memory_timer.holds(remembered_from(state.snapshot(), real_effect));
+        // A choice not read yet has no time known to be missing: the record may hold one.
+        const bool holds = !s_remembered_unread.load() && memory_timer.holds(remembered_from(state.snapshot(), real_effect));
         if (choice_time_is_due(s_choice_epoch, holds, tried_choice_time, uptime_ms() - choice_time_tried_ms)) {
             tried_choice_time = true;
             choice_time_tried_ms = uptime_ms();
@@ -667,165 +621,23 @@ void scheduler_task(void* arg) {
 
 }  // namespace
 
-void time_load_zone() {
-    s_zone_lock = xSemaphoreCreateMutexStatic(&s_zone_lock_storage);
-    const bool saved = settings_load_timezone(s_zone, sizeof(s_zone)) && time_zone_is_plausible(s_zone);
-    s_zone_set.store(saved);
-    if (!saved) {
-        std::snprintf(s_zone, sizeof(s_zone), "%s", kDefaultZone);
-    }
-    apply_zone(s_zone);
-}
-
-esp_err_t time_sync_init() {
-    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(kNtpServer);
-    config.start = false;
-    config.sync_cb = on_time_synced;
-    const esp_err_t err = esp_netif_sntp_init(&config);
-    if (err == ESP_OK) {
-        esp_sntp_set_sync_interval(kNtpIntervalMs);
-    }
-    return err;
-}
-
-void time_load_from_rtc() {
-    s_rtc_lock = xSemaphoreCreateMutexStatic(&s_rtc_lock_storage);
-    if (!rtc_start()) {
-        return;
-    }
-    const RtcGuard guard;
-    s_rtc_unfinished.store(settings_load_rtc_unfinished());
-    int64_t epoch = 0;
-    bool trusted = false;
-    if (rtc_read(epoch, trusted) && trusted && !s_rtc_unfinished.load()) {
-        set_system_clock(epoch);
-        s_synced.store(true);
-        s_clock_source.store(ClockSource::Module);
-        ESP_LOGI(TAG, "time taken from the clock module");
-    } else {
-        // Connecting to the home network starts NTP, whose first answer sets the module.
-        ESP_LOGW(TAG, "the clock module lost time; waiting for NTP");
-    }
-}
-
-RtcStatus time_rtc_status() {
-    RtcStatus status;
-    status.present = rtc_present();
-    status.source = s_clock_source.load();
-    int64_t epoch = 0;
-    bool trusted = false;
-    // Not between the registers of a setting under way.
-    const RtcGuard guard;
-    if (status.present && rtc_read(epoch, trusted)) {
-        status.trusted = trusted && !s_rtc_unfinished.load();
-        const auto seconds = static_cast<time_t>(epoch);
-        tm local = {};
-        localtime_r(&seconds, &local);
-        std::strftime(status.now, sizeof(status.now), "%Y-%m-%d %H:%M:%S", &local);
-    }
-    return status;
-}
-
-bool time_set_rtc(int64_t epoch, ClockSource source) {
-    const RtcGuard guard;
-    if (!write_rtc_checked(epoch)) {
-        return false;
-    }
-    set_system_clock(epoch);
-    s_synced.store(true);
-    s_clock_source.store(source);
-    ESP_LOGI(TAG, "clock module set from the portal");
-    return true;
-}
-
-bool time_set_rtc_local(const LocalDateTime& local, ClockSource source) {
-    tm fields = {};
-    fields.tm_year = local.year - 1900;
-    fields.tm_mon = local.month - 1;
-    fields.tm_mday = local.day;
-    fields.tm_hour = local.hour;
-    fields.tm_min = local.minute;
-    fields.tm_sec = local.second;
-    fields.tm_isdst = -1;
-    return time_set_rtc(static_cast<int64_t>(std::mktime(&fields)), source);
-}
-
-void time_sync_now() {
-    esp_sntp_restart();
-}
-
-void time_sync_on_connected() {
-    const esp_err_t err = esp_netif_sntp_start();
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "NTP start failed: %s", esp_err_to_name(err));
-    }
-}
-
-bool time_is_synced() {
-    return s_synced.load();
-}
-
-bool time_zone_is_set() {
-    return s_zone_set.load();
-}
-
-void time_zone_get(char* out, size_t out_size) {
-    xSemaphoreTake(s_zone_lock, portMAX_DELAY);
-    std::snprintf(out, out_size, "%s", s_zone);
-    xSemaphoreGive(s_zone_lock);
-}
-
-esp_err_t time_zone_set(const char* zone) {
-    ESP_RETURN_ON_ERROR(settings_save_timezone(zone), TAG, "save");
-    xSemaphoreTake(s_zone_lock, portMAX_DELAY);
-    std::snprintf(s_zone, sizeof(s_zone), "%s", zone);
-    apply_zone(s_zone);
-    xSemaphoreGive(s_zone_lock);
-    s_zone_set.store(true);
+void schedule_forget_next_action() {
     forget_next_action();
-    return ESP_OK;
 }
 
-void time_format_local(char* out, size_t out_size) {
-    if (out_size == 0) {
-        return;
-    }
-    out[0] = '\0';
-    if (!s_synced.load()) {
-        return;
-    }
-    const time_t now = std::time(nullptr);
-    tm local = {};
-    localtime_r(&now, &local);
-    std::strftime(out, out_size, "%Y-%m-%d %H:%M", &local);
+bool remembered_apply(State& state, const StoredSettings& remembered) {
+    const uint8_t brightness = remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : 0;
+    const uint8_t speed = manual_speed_x4_is_valid(remembered.speed_x4) ? remembered.speed_x4 : 0;
+    return state.restore_unless_chosen(brightness, speed, catalog_find(remembered.effect_id), remembered.playing != 0 ? kPowerOn : kPowerOff);
 }
 
-bool time_format_clock(char* out, size_t out_size) {
-    if (!s_synced.load()) {
-        return false;
-    }
-    const time_t now = std::time(nullptr);
-    tm local = {};
-    localtime_r(&now, &local);
-    return std::strftime(out, out_size, "%H:%M:%S", &local) != 0;
+uint32_t choice_clock_ms() {
+    return uptime_ms();
 }
 
-void remembered_apply(State& state, const StoredSettings& remembered) {
-    const int index = catalog_find(remembered.effect_id);
-    if (index >= 0) {
-        state.set_effect(static_cast<uint16_t>(index));
-    }
-    if (remembered_brightness_is_valid(remembered.brightness_percent)) {
-        state.set_brightness(remembered.brightness_percent);
-    }
-    if (manual_speed_x4_is_valid(remembered.speed_x4)) {
-        state.set_speed(remembered.speed_x4);
-    }
-    state.set_power(remembered.playing != 0);
-}
-
-bool start_scheduler(State& state, int64_t choice_epoch, bool remembered_unread) {
+bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved, bool remembered_unread) {
     s_remembered_unread.store(remembered_unread);
+    s_saved_at_start = saved;
     s_lock = xSemaphoreCreateMutexStatic(&s_lock_storage);
     // From anywhere, so that a page left open across a restart does not match by chance.
     s_schedule_revision = esp_random();
@@ -837,7 +649,7 @@ bool start_scheduler(State& state, int64_t choice_epoch, bool remembered_unread)
 
 
 bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool playlist_ready, uint16_t catalog) {
-    if (!s_synced.load()) {
+    if (!time_is_synced()) {
         return false;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -875,7 +687,7 @@ int schedule_timeline_now(TimelineEvent* out, size_t max_events, bool playlist_r
     if (!s_schedule_read.load()) {
         return -2;
     }
-    if (!s_synced.load()) {
+    if (!time_is_synced()) {
         return -1;
     }
     // A copy, as the walk takes a day of conversions and nothing else should wait for it. Static, off

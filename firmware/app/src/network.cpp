@@ -304,7 +304,13 @@ esp_err_t network_start(State& state) {
     ESP_RETURN_ON_ERROR(esp_netif_set_hostname(station, s_hostname), TAG, "hostname");
     ESP_RETURN_ON_ERROR(time_sync_init(), TAG, "NTP");
 
-    const wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
+    // With no NVS the driver would fail to start, and the setup network is then the only way left to send
+    // a closed garland its next update. It keeps its settings in RAM in any case, see below.
+    if (!settings_storage_ready()) {
+        ESP_LOGW(TAG, "no NVS: Wi-Fi starts without it");
+        init_config.nvs_enable = 0;
+    }
     ESP_RETURN_ON_ERROR(esp_wifi_init(&init_config), TAG, "Wi-Fi init");
     ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), TAG, "Wi-Fi storage");
     ESP_RETURN_ON_ERROR(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, nullptr, nullptr),

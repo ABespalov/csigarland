@@ -156,29 +156,29 @@ bool playlist_mark_is_pending() {
     return s_playing_unknown || s_resume;
 }
 
-void playlist_restore_playing(State& state) {
+bool playlist_restore_playing(State& state) {
     for (int attempt = 0; attempt < kReadAttempts; ++attempt) {
         bool playing = false;
         const esp_err_t read = settings_read_playlist_playing(playing);
         if (read == ESP_OK) {
-            if (playing) {
-                playlist_resume_when_read(state);
-            }
-            return;
+            return playing && playlist_resume_when_read(state);
         }
         ESP_LOGW(TAG, "reading whether the playlist played failed: %s", esp_err_to_name(read));
         vTaskDelay(pdMS_TO_TICKS(kReadRetryMs));
     }
     playlist_playing_unknown();
+    return false;
 }
 
-void playlist_resume_when_read(State& state) {
+bool playlist_resume_when_read(State& state) {
     const std::lock_guard<std::mutex> guard(s_lock);
     if (s_stale.load() || nothing_to_play_yet(state)) {
         s_resume = true;
-    } else {
-        state.resume_playlist();
+        return false;
     }
+    // Read late, a choice of what plays may have come during the reads: it stands. At a start, with
+    // nothing chosen yet, this is the plain resume.
+    return state.resume_playlist_unless_chosen();
 }
 
 }  // namespace garland

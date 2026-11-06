@@ -21,6 +21,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "garland_state.h"
+#include "looks.h"
 #include "network_logic.h"
 #include "nvs.h"
 #include "playlist_resolver.h"
@@ -263,18 +264,22 @@ esp_err_t portal_handle_set_leds(httpd_req_t* req) {
     }
     const auto setting = static_cast<uint16_t>(count->valueint);
     auto& state = *static_cast<State*>(req->user_ctx);
-    const esp_err_t err = settings_save_led_count(setting);
+    const esp_err_t err = looks_save_led_count(state, setting);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "saving the LED count failed: %s", esp_err_to_name(err));
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save");
     }
-    state.set_led_setting(setting);
     ESP_LOGI(TAG, "LED count setting: %u", setting);
     return send_state(req, state);
 }
 
 esp_err_t portal_handle_effects(httpd_req_t* req) {
-    const Snapshot s = static_cast<const State*>(req->user_ctx)->snapshot();
+    auto& state = *static_cast<State*>(req->user_ctx);
+    // Favourites not read are the defaults, which a page would save back, and a backup keep, as the owner's.
+    if (!looks_favorites_read(state)) {
+        return portal_send_status(req, "503 Service Unavailable", "The favourites could not be read yet: ask again");
+    }
+    const Snapshot s = state.snapshot();
     ChunkedJson json(req);
     json.add("{\"effects\":[");
     bool first = true;
@@ -336,6 +341,9 @@ esp_err_t portal_handle_favorite(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "needs a known id and a favorite flag");
     }
     auto& state = *static_cast<State*>(req->user_ctx);
+    if (!looks_favorites_read(state)) {
+        return portal_send_status(req, "503 Service Unavailable", "The favourites could not be read yet: ask again");
+    }
     EffectMask updated = state.snapshot().favorites;
     updated.set(static_cast<size_t>(index), cJSON_IsTrue(favorite));
     if (!updated.any()) {
@@ -375,7 +383,19 @@ esp_err_t portal_handle_effect_read(httpd_req_t* req) {
 // Body: the effect's file. Query: ?id=my-effect. Replaces an effect of the same id.
 esp_err_t portal_handle_effect_upload(httpd_req_t* req) {
     char id[kMaxEffectIdLength + 1];
-    if (!read_id_query(req, id) || !portal_read_text(req, effect_store_body(), kMaxEffectFileBytes)) {
+    if (!read_id_query(req, id)) {
+        return ESP_OK;
+    }
+    // Before the body, which goes where they are read: those read now count, the upload taken or not.
+    if (effect_store_read_unread()) {
+        auto& state = *static_cast<State*>(req->user_ctx);
+        state.note_catalog_changed();
+        playlist_resolve(state);
+    }
+    if (effect_store_unread_may_hold(id)) {
+        return portal_send_status(req, "503 Service Unavailable", "Uploaded effects saved before could not all be read yet, and one may have this id: ask again");
+    }
+    if (!portal_read_text(req, effect_store_body(), kMaxEffectFileBytes)) {
         return ESP_OK;
     }
     const char* const problem = effect_store_save(id);
@@ -433,6 +453,9 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, problem);
     }
     if (leaves_the_catalog) {
+        // Favourites not read yet are only defaults, not to be saved over the list there, which, naming an
+        // effect gone, is read as if it did not.
+        const bool favorites_read = looks_favorites_read(state);
         const Snapshot now = state.snapshot();
         EffectMask updated = now.favorites;
         updated.set(position, false);
@@ -440,7 +463,9 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
             const EffectMask kept = updated.any() ? updated : catalog_default_favorites();
             // A saved list naming a gone effect is read as if it did not, so failing costs nothing.
             state.set_favorites(kept);
-            save_favorites(state, kept);
+            if (favorites_read) {
+                save_favorites(state, kept);
+            }
         }
         if (now.effect == position) {
             state.select_first_favorite();

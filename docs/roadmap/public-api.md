@@ -54,7 +54,7 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 
 * Bodies are JSON, but for an update file or an effect file, as under `/api/`.
 * A failure is the right HTTP status, with the body `{"error": {"code": "not_found", "message": "unknown effect"}}`. The `code` is stable, for the program, and the `message` is for a person. The codes are `bad_request`, `not_paired`, `not_found`, `method_not_allowed`, `timeout`, `conflict`, `too_large`, `try_later`, `internal` and `failed`.
-* 401 means pair again, and 409 means the list changed since it was read. 429 with `Retry-After` means wait, as after a refused request. 413 means a body over its route's limit, and 405 a route that does not take that method.
+* 401 means pair again, and 409 means the list changed since it was read. 503 with `Retry-After` on any route that wants pairing means the garland cannot read its paired clients for now: the token may still be good, so keep it and try again. 429 with `Retry-After` means wait, as after a refused request. 413 means a body over its route's limit, and 405 a route that does not take that method.
 * An update the garland refuses says whose problem it is: 400 for the file, 408 for a connection lost on the way, 409 for a garland on trial or restarting, 500 for the garland itself.
 * A garland that takes an update answers and then restarts, so a client whose upload ended with no answer cannot tell whether it was taken. It compares `boot`, `image` and `pack_digest` from `GET /api/v1/firmware` with those from before. The same `boot` well past the restart's 1.5 s means it was not.
 * The body of most requests is bounded at 192 bytes, so a client does not make it longer than JSON has to.
@@ -71,11 +71,11 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 | `GET`, `POST` | `/api/v1/state` | Power, brightness, speed, effect, whether the playlist plays (`playlist`) and where it stands (`playlist_at` from 1, 0 when what plays is not in it, and `playlist_size`), all three new after 1.0.0, LED count, and `steps_done_until`, new after 1.0.0, the unix second up to which the scheduler has done its steps, 0 before its first pass: a step of the timeline due before it is done, whatever the power came to since | `/api/state` |
 | `GET` | `/api/v1/events` | Push updates, new after 1.0.0: Server-Sent Events, `event: state` with what `/api/v1/state` answers, at once and on every change, and `event: alive` with `data: {}` within every 15 s of a stream's own silence, whatever the other stream hears: a reader passes over an event it does not know, and one that hears nothing for 45 s may take the stream as lost. Two at a time; 503 for a third, during an update, and when the garland is busy for a moment. A stream ends once its client is forgotten or out of its days. A client keeps its own connection for it, and asks for the state now and then whenever it has none | `/api/events` |
 | `POST` | `/api/v1/power` | `{"on": true}` turns on or off, and answers with the state | New |
-| `GET` | `/api/v1/effects` | The effects, with favourite and active flags | `/api/effects` |
+| `GET` | `/api/v1/effects` | The effects, with favourite and active flags. 503 while the favourites saved could not be read, as the flags would be the defaults | `/api/effects` |
 | `POST` | `/api/v1/effects/play` | Plays one, `{"id": "..."}` | `/api/effect` |
-| `POST` | `/api/v1/effects/favorite` | Ticks or unticks one | `/api/favorites` |
+| `POST` | `/api/v1/effects/favorite` | Ticks or unticks one. 503, nothing changed, while the favourites saved could not be read | `/api/favorites` |
 | `GET` | `/api/v1/effects/file?id=` | The file of any effect, as it stands on this garland | New |
-| `POST`, `DELETE` | `/api/v1/effects/file?id=` | Saves or deletes an uploaded effect | `/api/effects/file` |
+| `POST`, `DELETE` | `/api/v1/effects/file?id=` | Saves or deletes an uploaded effect. A `POST` under an id the garland does not know is 503 while a file saved before could not be read, as it may hold that id | `/api/effects/file` |
 | `POST` | `/api/v1/effects/preview` | Plays a file without saving it | `/api/effects/preview` |
 | `GET` | `/api/v1/effects/store` | Room left for uploads | `/api/effects/store` |
 | `GET`, `POST` | `/api/v1/schedule` | The list, whole, with its revision. An action's `power` is `on`, `off`, or `rise`, on rising from dark over a minute, and in place of an `effect` it can hold `"playlist": true`, which starts the playlist, turning on only if it has effects; both new after 1.0.0. The answer has `"schema": 2`. A `POST` without `"schema": 2` is refused with 409 while the list holds a rise or a playlist step, as a client of 1.0.0 would drop them unseen. The answer has `missing`, new after 1.0.0, the effects the actions name that this garland lacks, which it keeps, and a `POST` may send back, but cannot add one. Both answer 503 while the garland could not read its schedule yet, which it tries every minute: what it would show is no empty list, and a list saved over it would replace the real one | `/api/schedule` |
@@ -84,7 +84,7 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 | `POST` | `/api/v1/playlist/play` | `{"play": true}` starts the playlist, turning the garland on at its first effect, and `false` stops it. 409 for an empty list, and 503, the list unreadable, with nothing done. New after 1.0.0 | `/api/playlist/play` |
 | `GET`, `POST` | `/api/v1/time` | Clock and zone | `/api/time` |
 | `POST` | `/api/v1/time/rtc` | Sets the clock module | `/api/time/rtc` |
-| `GET`, `POST` | `/api/v1/display` | Screen and screensaver | `/api/display` |
+| `GET`, `POST` | `/api/v1/display` | Screen and screensaver. 503, nothing changed, while the settings saved could not be read | `/api/display` |
 | `POST` | `/api/v1/leds` | LED count, 0 for automatic | `/api/leds` |
 | `GET`, `POST` | `/api/v1/wifi` | The home network | `/api/wifi` |
 | `GET`, `POST` | `/api/v1/wifi/scan` | The networks in reach | `/api/wifi/scan` |
@@ -107,5 +107,5 @@ For a sealed unit with no USB. It wants paired access, or the setup network, and
 * **Routes:** `v1` takes one wildcard entry per method in the server's table, and its own table in `portal.cpp`, rather than doubling them.
 * **Answers:** `portal_send_err` and `portal_send_status` are the one way to fail: plain text on the portal, `{"error": ...}` on `v1`.
 * **Sharing the handlers:** where a shape is the same, `v1` calls the portal's handler, so one fix serves both. So a change for the portal's sake that alters a shape must be looked at for `v1`. A test in `internal/api` fails if the firmware stops saying any field of its types, which is less than holding a whole shape still.
-* **Authorization:** `find_caller` takes the Bearer header ahead of the cookie. A token is sent only by a program, so a Bearer request is not asked for its `Origin`. A cookie counts only with the request's `Origin` that of the portal itself, by its `Host`, or with none: `SameSite=Strict` tells sites apart, not origins, so a page on another name under the owner's own domain would otherwise have its requests carry the cookie (`auth_cookie_origin_ok` in `auth_logic.h`). On the setup network, which has no pairing, `Host` and `Origin` are checked instead.
+* **Authorization:** `find_caller` takes the Bearer header ahead of the cookie. A token is sent only by a program, so a Bearer request is not asked for its `Origin`. A cookie counts only with the request's `Origin` that of the portal itself, by its `Host` and the scheme of the server it came to, `https://` on HTTPS and `http://` on plain HTTP, or with none: `SameSite=Strict` tells sites apart, not origins, so a page on another name under the owner's own domain would otherwise have its requests carry the cookie (`auth_cookie_origin_ok` in `auth_logic.h`). On the setup network, which has no pairing, `Host` and `Origin` are checked instead.
 

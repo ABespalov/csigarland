@@ -36,13 +36,16 @@ char s_blob[kBlobBytes];
 bool s_available = false;
 StoreKeys s_keys;
 size_t s_refused_keys = 0;
+UnreadStoreKeys s_unread;
 
-void load_entry(nvs_handle_t handle, const char* key) {
+// True when the blob was read, kept or refused; false, and nothing known of it, when it could not be. Too
+// short to hold an id is read all the same: it holds none, and is left as it is.
+bool load_entry(nvs_handle_t handle, const char* key) {
     size_t bytes = sizeof(s_blob);
     const esp_err_t err = nvs_get_blob(handle, key, s_blob, &bytes);
     if (err != ESP_OK || bytes <= kIdBytes) {
         ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
-        return;
+        return err == ESP_OK;
     }
     s_blob[kIdBytes - 1] = '\0';
     s_blob[bytes - 1] = '\0';
@@ -61,6 +64,7 @@ void load_entry(nvs_handle_t handle, const char* key) {
         s_refused_keys += kept ? 0 : 1;
         s_keys.add(s_blob, key);
     }
+    return true;
 }
 
 void load_all() {
@@ -73,7 +77,9 @@ void load_all() {
     while (err == ESP_OK) {
         nvs_entry_info_t info;
         nvs_entry_info(entry, &info);
-        load_entry(handle, info.key);
+        if (!load_entry(handle, info.key)) {
+            s_unread.add(info.key);
+        }
         err = nvs_entry_next(&entry);
     }
     nvs_release_iterator(entry);
@@ -117,6 +123,31 @@ char* effect_store_body() {
     return s_blob + kIdBytes;
 }
 
+bool effect_store_read_unread() {
+    if (!s_available || !s_unread.any()) {
+        return false;
+    }
+    nvs_handle_t handle = 0;
+    if (nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle) != ESP_OK) {
+        return false;
+    }
+    bool read = false;
+    s_unread.read_again([handle, &read](const char* key) {
+        const bool now = load_entry(handle, key);
+        read = read || now;
+        return now;
+    });
+    nvs_close(handle);
+    if (read) {
+        ESP_LOGI(TAG, "uploaded effects read late: %u in all", static_cast<unsigned>(catalog_uploaded_count()));
+    }
+    return read;
+}
+
+bool effect_store_unread_may_hold(const char* id) {
+    return s_keys.find(id) == nullptr && s_unread.any();
+}
+
 const char* effect_store_read(const char* id) {
     const char* const key = s_keys.find(id);
     nvs_handle_t handle = 0;
@@ -151,6 +182,9 @@ const char* effect_store_save(const char* id) {
     std::snprintf(s_blob, kIdBytes, "%s", id);
 
     const char* const known_key = s_keys.find(id);
+    if (effect_store_unread_may_hold(id)) {
+        return "uploaded effects saved before could not all be read yet, and one may have this id: try again";
+    }
     if (known_key == nullptr && !s_keys.has_room()) {
         return "no room: delete an uploaded effect first";
     }

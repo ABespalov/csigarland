@@ -53,6 +53,26 @@ struct TlsIdentity {
 // made in its place would replace the root every browser and program trusts.
 enum class StoredRead : uint8_t { Missing, Loaded, Unreadable };
 
+// What NVS said to each step of reading a setting: opening the namespace, and getting a key from it.
+enum class NvsAnswer : uint8_t { Ok, NotFound, TooLong, Failed };
+
+// What the setting came to. None there, of the namespace or the key, or one too long for the place it is read
+// into, which is another layout's, is Missing. Any other failure says nothing of what is there, and is
+// Unreadable: one saved over it would lose it.
+constexpr StoredRead stored_read(NvsAnswer opened, NvsAnswer got) {
+    if (opened != NvsAnswer::Ok) {
+        return opened == NvsAnswer::NotFound ? StoredRead::Missing : StoredRead::Unreadable;
+    }
+    return got == NvsAnswer::Ok ? StoredRead::Loaded : got == NvsAnswer::Failed ? StoredRead::Unreadable : StoredRead::Missing;
+}
+
+// One setting kept in two keys or more, read key by key: unreadable if any is, else there if any is.
+constexpr StoredRead stored_read_with(StoredRead read, StoredRead next) {
+    return read == StoredRead::Unreadable || next == StoredRead::Unreadable ? StoredRead::Unreadable
+           : read == StoredRead::Loaded || next == StoredRead::Loaded     ? StoredRead::Loaded
+                                                                           : StoredRead::Missing;
+}
+
 constexpr bool tls_may_make_identity(StoredRead read) {
     return read != StoredRead::Unreadable;
 }

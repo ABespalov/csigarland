@@ -143,7 +143,12 @@ inline constexpr char kPageDevice[] = R"html(
     $('current').textContent = '';
     report('status', `Could not read the garland state: ${error.message}`, true);
   });
-  request('/api/display').then(showSaver).catch((error) => report('saver-status', error.message, true));
+  // Closed until the garland has said what it saved: a form left at its defaults would save them back.
+  $('saver-form').inert = true;
+  request('/api/display').then((display) => {
+    showSaver(display);
+    $('saver-form').inert = false;
+  }).catch((error) => report('saver-status', error.message, true));
 </script>
 )html";
 

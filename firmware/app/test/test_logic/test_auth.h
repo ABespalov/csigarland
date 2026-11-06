@@ -67,21 +67,32 @@ static void test_only_the_setup_networks_own_clients_count_as_on_it() {
 }
 
 static void test_a_page_may_send_to_the_setup_network_only_from_its_own_address() {
-    TEST_ASSERT_TRUE(auth_origin_is_own("http://192.168.4.1", "192.168.4.1"));
-    TEST_ASSERT_TRUE(auth_origin_is_own("https://garland.example.com:8443", "garland.example.com:8443"));
-    TEST_ASSERT_FALSE(auth_origin_is_own("https://evil.example", "192.168.4.1"));
-    TEST_ASSERT_FALSE(auth_origin_is_own("http://192.168.4.1.evil.example", "192.168.4.1"));
+    TEST_ASSERT_TRUE(auth_origin_is_own("http://192.168.4.1", "192.168.4.1", false));
+    TEST_ASSERT_TRUE(auth_origin_is_own("https://garland.example.com:8443", "garland.example.com:8443", true));
+    TEST_ASSERT_FALSE(auth_origin_is_own("https://evil.example", "192.168.4.1", true));
+    TEST_ASSERT_FALSE(auth_origin_is_own("http://192.168.4.1.evil.example", "192.168.4.1", false));
     // A sandboxed frame or a local file says this.
-    TEST_ASSERT_FALSE(auth_origin_is_own("null", "192.168.4.1"));
+    TEST_ASSERT_FALSE(auth_origin_is_own("null", "192.168.4.1", false));
+    TEST_ASSERT_FALSE(auth_origin_is_own("ftp://192.168.4.1", "192.168.4.1", false));
+}
+
+// Firefox and Safari send the HTTPS cookie with a request of a page on plain HTTP under the same name, so
+// whoever stands in for the plain page must not pass for the portal on HTTPS, nor the other way round.
+static void test_an_origin_counts_only_by_the_scheme_of_the_server_it_came_to() {
+    TEST_ASSERT_TRUE(auth_origin_is_own("https://csigarland.local", "csigarland.local", true));
+    TEST_ASSERT_FALSE(auth_origin_is_own("http://csigarland.local", "csigarland.local", true));
+    TEST_ASSERT_TRUE(auth_origin_is_own("http://csigarland.local", "csigarland.local", false));
+    TEST_ASSERT_FALSE(auth_origin_is_own("https://csigarland.local", "csigarland.local", false));
+    TEST_ASSERT_FALSE(auth_cookie_origin_ok("http://csigarland.local", "csigarland.local", true));
 }
 
 // A paired browser's cookie goes with a sibling origin's request under the same domain too.
 static void test_a_cookie_counts_only_from_the_portals_own_origin() {
-    TEST_ASSERT_TRUE(auth_cookie_origin_ok("https://garland.example.com", "garland.example.com"));
-    TEST_ASSERT_TRUE(auth_cookie_origin_ok(nullptr, "garland.example.com"));
-    TEST_ASSERT_FALSE(auth_cookie_origin_ok("https://evil.example.com", "garland.example.com"));
-    TEST_ASSERT_FALSE(auth_cookie_origin_ok("http://garland.example.com", "garland.example.com:8443"));
-    TEST_ASSERT_FALSE(auth_cookie_origin_ok("null", "csigarland.local"));
+    TEST_ASSERT_TRUE(auth_cookie_origin_ok("https://garland.example.com", "garland.example.com", true));
+    TEST_ASSERT_TRUE(auth_cookie_origin_ok(nullptr, "garland.example.com", true));
+    TEST_ASSERT_FALSE(auth_cookie_origin_ok("https://evil.example.com", "garland.example.com", true));
+    TEST_ASSERT_FALSE(auth_cookie_origin_ok("http://garland.example.com", "garland.example.com:8443", false));
+    TEST_ASSERT_FALSE(auth_cookie_origin_ok("null", "csigarland.local", true));
 }
 
 static void test_the_name_in_a_host_header_is_read_without_its_port() {
@@ -558,6 +569,35 @@ static void test_a_mirrored_turned_wipe_opens_from_the_middle() {
     TEST_ASSERT_EQUAL_UINT8(0, frame[31].r);
 }
 
+static void test_a_paired_list_not_read_is_told_from_one_not_there() {
+    using A = AuthListAnswer;
+    constexpr size_t kList = sizeof(AuthDevice) * kMaxAuthDevices;
+    TEST_ASSERT_TRUE(auth_list_read(A::Ok, A::Ok, kList, kList) == StoredRead::Loaded);
+    // None there, on a new board, or another layout's, which the browsers pair again from.
+    TEST_ASSERT_TRUE(auth_list_read(A::NotFound, A::Failed, kList, kList) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(auth_list_read(A::Ok, A::NotFound, kList, kList) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(auth_list_read(A::Ok, A::TooLong, kList, kList) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(auth_list_read(A::Ok, A::Ok, kList - 1, kList) == StoredRead::Missing);
+    // A failure says nothing of what is there, and nothing may be saved over it.
+    TEST_ASSERT_TRUE(auth_list_read(A::Failed, A::Ok, kList, kList) == StoredRead::Unreadable);
+    TEST_ASSERT_TRUE(auth_list_read(A::Ok, A::Failed, kList, kList) == StoredRead::Unreadable);
+}
+
+static void test_a_setting_not_read_is_told_from_none_saved() {
+    using A = NvsAnswer;
+    TEST_ASSERT_TRUE(stored_read(A::Ok, A::Ok) == StoredRead::Loaded);
+    TEST_ASSERT_TRUE(stored_read(A::NotFound, A::Failed) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(stored_read(A::Ok, A::NotFound) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(stored_read(A::Ok, A::TooLong) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(stored_read(A::Failed, A::Ok) == StoredRead::Unreadable);
+    TEST_ASSERT_TRUE(stored_read(A::Ok, A::Failed) == StoredRead::Unreadable);
+    // The screen's settings, key by key: one key not read makes all of them so, as all are saved at once.
+    TEST_ASSERT_TRUE(stored_read_with(StoredRead::Loaded, StoredRead::Missing) == StoredRead::Loaded);
+    TEST_ASSERT_TRUE(stored_read_with(StoredRead::Missing, StoredRead::Missing) == StoredRead::Missing);
+    TEST_ASSERT_TRUE(stored_read_with(StoredRead::Loaded, StoredRead::Unreadable) == StoredRead::Unreadable);
+    TEST_ASSERT_TRUE(stored_read_with(StoredRead::Unreadable, StoredRead::Missing) == StoredRead::Unreadable);
+}
+
 static void run_auth_tests() {
     RUN_TEST(test_what_a_browser_sends_is_held_to_the_rules);
     RUN_TEST(test_certificate_dates_and_names);
@@ -581,6 +621,7 @@ static void run_auth_tests() {
     RUN_TEST(test_only_the_setup_networks_own_clients_count_as_on_it);
     RUN_TEST(test_a_page_may_send_to_the_setup_network_only_from_its_own_address);
     RUN_TEST(test_a_cookie_counts_only_from_the_portals_own_origin);
+    RUN_TEST(test_an_origin_counts_only_by_the_scheme_of_the_server_it_came_to);
     RUN_TEST(test_the_name_in_a_host_header_is_read_without_its_port);
     RUN_TEST(test_the_setup_network_answers_only_to_the_portals_own_names);
     RUN_TEST(test_forgetting_everyone_ends_what_pairing_has_under_way);
@@ -593,4 +634,6 @@ static void run_auth_tests() {
     RUN_TEST(test_tokens_travel_as_exact_hex);
     RUN_TEST(test_a_label_is_cleaned_and_cut);
     RUN_TEST(test_the_access_screen_comes_after_an_update_only);
+    RUN_TEST(test_a_paired_list_not_read_is_told_from_one_not_there);
+    RUN_TEST(test_a_setting_not_read_is_told_from_none_saved);
 }

@@ -192,6 +192,8 @@ const char* receive_part(httpd_req_t* req, uint32_t bytes, const std::array<uint
     size_t digest_length = 0;
     if (psa_hash_finish(&hash, digest.data(), digest.size(), &digest_length) != PSA_SUCCESS ||
         digest_length != digest.size()) {
+        // A finish that failed leaves the operation to be aborted, and the hardware it holds let go.
+        psa_hash_abort(&hash);
         return "could not check the file";
     }
     return digest == expected ? nullptr : "this file was changed after signing";

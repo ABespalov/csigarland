@@ -110,4 +110,51 @@ private:
     std::array<Entry, kMaxUploadedEffects + kMaxRefusedStoreKeys> entries_{};
 };
 
+// Keys whose blob could not be read at the start. Any may hold the id an upload takes for new, and a second
+// copy saved beside it would come back at the next start once the upload is deleted, so none is uploaded
+// under an id not known while any is left. Read again before each such upload. More than it can hold
+// leaves it unread for good, until a restart.
+constexpr size_t kMaxUnreadStoreKeys = 8;
+
+class UnreadStoreKeys {
+public:
+    void add(const char* key) {
+        for (auto& held : keys_) {
+            if (held[0] == '\0') {
+                std::snprintf(held, sizeof(held), "%s", key);
+                return;
+            }
+        }
+        overflowed_ = true;
+    }
+
+    bool any() const {
+        if (overflowed_) {
+            return true;
+        }
+        for (const auto& held : keys_) {
+            if (held[0] != '\0') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // read(key) is true when that key's blob was read now, and so is no longer unread.
+    template <typename Read>
+    void read_again(Read read) {
+        for (auto& held : keys_) {
+            if (held[0] != '\0' && read(static_cast<const char*>(held))) {
+                held[0] = '\0';
+            }
+        }
+    }
+
+private:
+    // Any key NVS holds, ours or not: its longest, 15 characters, and the terminator.
+    static constexpr size_t kKeyBytes = 16;
+    std::array<char[kKeyBytes], kMaxUnreadStoreKeys> keys_{};
+    bool overflowed_ = false;
+};
+
 }  // namespace garland

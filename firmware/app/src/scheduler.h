@@ -63,17 +63,32 @@ void time_format_local(char* out, size_t out_size);
 // "18:05:33" in local time. False, with nothing written, before the first sync.
 bool time_format_clock(char* out, size_t out_size);
 
+// What a save of the remembered choice writes of the state, with the effect as given: the one the owner
+// chose, which the playlist moving on or a preview leaves as it was.
+inline Remembered remembered_from(const Snapshot& now, uint16_t effect) {
+    return Remembered{effect, now.brightness_percent, now.speed_x4, now.power_chosen, now.playlist};
+}
+
 // False if the task could not be started: then nothing is scheduled or remembered.
 // choice_epoch: when the owner's remembered choice was made, as main read it, kNoChoiceYet with none
 // saved; 0 for one there that could not be read, which then outranks every step until the clock is known.
+// saved: what flash holds of it, as put on the state before the buttons started, so that a choice of theirs
+// before the task starts is still a change to save, at once if it turns the garland on or off.
 // remembered_unread: what was remembered is there and could not be read. Nothing is saved over it, and it is
-// read again every few seconds: read, it is put on the state as at a start, unless the owner chose or a step
-// was done since, either of which is newer.
-bool start_scheduler(State& state, int64_t choice_epoch, bool remembered_unread);
+// read again every few seconds: read, it is put on the state as at a start, unless the owner chose since,
+// which is newer, and saves go on from what flash holds either way. Put on, or found to be none, the steps
+// after it are done as at a start, which the replay without it could not tell, those done meanwhile again on
+// top of it, before anything is saved. Its time is not given a new one meanwhile.
+bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved, bool remembered_unread);
+
+// The uptime clock in ms that the scheduler reads the moment of a choice by. On the state before the
+// buttons start, so that no choice of theirs goes without its moment.
+uint32_t choice_clock_ms();
 
 // The remembered effect, levels and power on the state, as at a start. What this firmware no longer
-// accepts keeps its default, such as an effect gone from a newer catalog.
-void remembered_apply(State& state, const StoredSettings& remembered);
+// accepts keeps its default, such as an effect gone from a newer catalog. In one change, and only if the owner
+// has chosen nothing since the start: false when they have, and nothing changed.
+bool remembered_apply(State& state, const StoredSettings& remembered);
 
 size_t schedule_copy(ScheduleEntry* out);
 

@@ -35,15 +35,23 @@ struct WifiCredentials {
 // holding the board from flashing a program that asks the chip to decrypt it.
 esp_err_t settings_init();
 
-// This board's setup network password, made once. Never logged.
+// Whether NVS came up and is still in use, which the Wi-Fi driver needs to keep data of its own there.
+// False when it did not come up, or when settings_init erased it and that, or bringing it up again, failed.
+bool settings_storage_ready();
+
+// This board's setup network password, made once, and made again at each start that cannot save it,
+// so there is always one, whatever came of settings_init. Never logged.
 const char* settings_ap_password();
 
-// The saved LED count setting, or kLedCountAuto if there is none or it is out of range.
-uint16_t settings_load_led_count();
+// The LED count, favourites and screen settings, in settings_looks.cpp. Each read tells none saved, Missing,
+// from one there and not read, Unreadable, which a save would write over: see looks.h.
+// The saved LED count setting into out, kLedCountAuto if there is none or it is out of range.
+StoredRead settings_read_led_count(uint16_t& out);
 esp_err_t settings_save_led_count(uint16_t setting);
 
-// False when nothing was ever saved, which is different from an empty list.
-bool settings_load_favorites(char* out, size_t out_size);
+// The text of the favourites, empty unless Loaded. Missing when nothing was ever saved, which is different
+// from an empty list.
+StoredRead settings_read_favorites(char* out, size_t out_size);
 esp_err_t settings_save_favorites(const char* text);
 
 // The playlist as playlist_to_text writes it. False when none was ever saved, or it could not be read.
@@ -64,8 +72,8 @@ esp_err_t settings_save_timezone(const char* zone);
 size_t settings_load_schedule(ScheduleEntry* out, size_t max_entries);
 esp_err_t settings_save_schedule(const ScheduleEntry* entries, size_t count);
 
-// Leaves the defaults in place for whatever was not saved or is not valid.
-void settings_load_display(DisplaySettings& out);
+// Leaves what out holds in place for whatever was not saved, is not valid, or could not be read.
+StoredRead settings_read_display(DisplaySettings& out);
 esp_err_t settings_save_display(const DisplaySettings& settings);
 
 // The last effect, brightness and speed. False when none were saved. The fields are as
@@ -108,8 +116,9 @@ esp_err_t settings_clear_wifi();
 bool settings_load_hostname(char* out, size_t out_size);
 esp_err_t settings_save_hostname(const char* name);
 
-// The browsers allowed on the portal. Only hashes of their tokens, in encrypted NVS.
-void settings_load_auth(AuthDevice* out, size_t count);
+// The browsers allowed on the portal. Only hashes of their tokens, in encrypted NVS. out is empty unless
+// Loaded, and Unreadable says a list may be there all the same: see auth_list_read.
+StoredRead settings_load_auth(AuthDevice* out, size_t count);
 esp_err_t settings_save_auth(const AuthDevice* devices, size_t count);
 
 // The portal's own keys and certificates, and the owner's one domain for them.

@@ -16,6 +16,7 @@
 #include <cJSON.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -56,6 +57,11 @@ SemaphoreHandle_t s_save_lock = nullptr;
 StaticSemaphore_t s_save_lock_storage;
 AuthDevices s_devices{};
 AuthDevices s_to_save{};
+// The list in flash is there and could not be read: the one in memory knows none of it. Under s_save_lock
+// once the servers are up.
+std::atomic<bool> s_unread{false};
+constexpr int kReadAttempts = 3;
+constexpr uint32_t kReadRetryMs = 50;
 Pairing s_pairing;
 esp_timer_handle_t s_clear_timer = nullptr;
 constexpr size_t kMaxOriginBytes = 96;  // A portal's own is far shorter.
@@ -87,8 +93,31 @@ bool hash_of(const uint8_t* token, std::array<uint8_t, kAuthHashBytes>& out) {
            length == out.size();
 }
 
+// The list in flash, read again where it could not be, and taken in place of the one in memory, which knew
+// none of it. Until it is, nothing is written over it: an empty list saved there would forget every browser
+// paired. True once it is read, or was. The caller holds s_save_lock.
+bool list_is_read() {
+    if (!s_unread.load()) {
+        return true;
+    }
+    if (settings_load_auth(s_to_save.data(), s_to_save.size()) == StoredRead::Unreadable) {
+        // Not logged: a request comes here each time, and the start said so once.
+        return false;
+    }
+    {
+        Guard guard;
+        s_devices = s_to_save;
+    }
+    s_unread.store(false);
+    ESP_LOGI(TAG, "the paired browsers were read late");
+    return true;
+}
+
 // Writes the list as it is in memory now. The caller holds s_save_lock.
 esp_err_t save_current() {
+    if (!list_is_read()) {
+        return ESP_ERR_INVALID_STATE;
+    }
     {
         Guard guard;
         s_to_save = s_devices;
@@ -107,19 +136,30 @@ bool cookie_origin_ok(httpd_req_t* req) {
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
         return false;
     }
+    const bool secure = portal_request_is_secure(req);
     const size_t origin_bytes = httpd_req_get_hdr_value_len(req, "Origin");
     if (origin_bytes == 0) {
-        return auth_cookie_origin_ok(nullptr, host);
+        return auth_cookie_origin_ok(nullptr, host, secure);
     }
     return origin_bytes < sizeof(origin) && httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin)) == ESP_OK &&
-           auth_cookie_origin_ok(origin, host);
+           auth_cookie_origin_ok(origin, host, secure);
 }
 
 // The paired client a request comes from, and the hash of its token into hash_out if given, or -1. A
 // program gives its token as a bearer, alone; a browser its HTTPS cookie, and the one plain HTTP gave it
 // should HTTPS have failed for a while, each tried in turn: an old HTTPS cookie of a pairing forgotten or
 // out of its days, which the browser still sends, does not hide the pairing it made on plain HTTP since.
-int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out = nullptr) {
+// unread_out, if given, says whether a token was looked for in a list not read yet: taken with the look, so
+// that a list read by another request since cannot turn this one's refusal into "not paired".
+int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out = nullptr, bool* unread_out = nullptr) {
+    if (unread_out != nullptr) {
+        *unread_out = false;
+    }
+    // A browser paired before comes back once the list can be read, with no restart.
+    if (s_unread.load()) {
+        Guard saving(s_save_lock);
+        list_is_read();
+    }
     // "Bearer " and the token.
     char header[kAuthTokenBytes * 2 + 1 + 8] = "";
     const char* bearer = nullptr;
@@ -155,6 +195,11 @@ int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out 
             Guard guard;
             settled = auth_settle_clock(s_devices, now) || settled;
             found = auth_find(s_devices, hash, now);
+            // Under the guard the list is taken in under, and cleared after it: a list still unread here is
+            // the one just looked in.
+            if (found < 0 && unread_out != nullptr && s_unread.load()) {
+                *unread_out = true;
+            }
         }
         if (hash_out != nullptr) {
             *hash_out = hash;
@@ -180,7 +225,7 @@ bool comes_from_this_portal(httpd_req_t* req) {
         return true;
     }
     return origin_bytes < sizeof(origin) && httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin)) == ESP_OK &&
-           auth_origin_is_own(origin, host);
+           auth_origin_is_own(origin, host, portal_request_is_secure(req));
 }
 
 void show_nothing(void*) {
@@ -226,6 +271,10 @@ MadeDevice make_device(uint32_t approved_generation, const char (&label)[kAuthLa
     }
     const int64_t now = now_epoch();
     Guard saving(s_save_lock);
+    // A browser added to a list not read would be saved over the rest of it.
+    if (!list_is_read()) {
+        return MadeDevice::Failed;
+    }
     size_t slot = 0;
     {
         Guard guard;
@@ -266,6 +315,8 @@ void forget_task(void*) {
             s_devices = AuthDevices{};
             s_pairing.revoke();
         }
+        // The owner asked for none, which needs nothing of the list that could not be read.
+        s_unread.store(false);
         err = save_current();
     }
     s_state->set_pair_display(err == ESP_OK ? kPairDisplayForgotten : kPairDisplayForgetFailed);
@@ -292,7 +343,17 @@ void auth_set_secure_cookies(bool secure) {
 
 void auth_load_devices() {
     psa_crypto_init();
-    settings_load_auth(s_to_save.data(), s_to_save.size());
+    StoredRead read = StoredRead::Unreadable;
+    for (int attempt = 0; attempt < kReadAttempts && read == StoredRead::Unreadable; ++attempt) {
+        if (attempt > 0) {
+            vTaskDelay(pdMS_TO_TICKS(kReadRetryMs));
+        }
+        read = settings_load_auth(s_to_save.data(), s_to_save.size());
+    }
+    if (read == StoredRead::Unreadable) {
+        ESP_LOGE(TAG, "the paired browsers cannot be read: none is let in, and none saved over them, until they are");
+    }
+    s_unread.store(read == StoredRead::Unreadable);
     Guard guard;
     s_devices = s_to_save;
 }
@@ -323,8 +384,15 @@ bool auth_open_route_allows(httpd_req_t* req) {
     return !auth_on_setup_network(req) || comes_from_this_portal(req);
 }
 
-bool auth_allows(httpd_req_t* req) {
-    return auth_on_setup_network(req) ? comes_from_this_portal(req) : find_caller(req) >= 0;
+AuthAnswer auth_check(httpd_req_t* req) {
+    if (auth_on_setup_network(req)) {
+        return comes_from_this_portal(req) ? AuthAnswer::Allowed : AuthAnswer::NotPaired;
+    }
+    bool unread = false;
+    if (find_caller(req, nullptr, &unread) >= 0) {
+        return AuthAnswer::Allowed;
+    }
+    return unread ? AuthAnswer::Unreadable : AuthAnswer::NotPaired;
 }
 
 AuthGrant auth_grant_of(httpd_req_t* req) {
@@ -515,6 +583,10 @@ esp_err_t auth_handle_forget(httpd_req_t* req) {
     esp_err_t err = ESP_OK;
     {
         Guard saving(s_save_lock);
+        // Read first: the list that could not be read is the one this browser is in.
+        if (!list_is_read()) {
+            return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "the paired browsers cannot be read now, so try again");
+        }
         {
             Guard guard;
             s_devices[static_cast<size_t>(id->valueint)] = AuthDevice{};

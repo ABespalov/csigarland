@@ -34,8 +34,8 @@ void playlist_apply_saved(State& state, const PlaylistSettings& saved);
 bool playlist_is_stale();
 
 // At a start, for a list left playing: resumed now if the list was read, else once it is, unless the owner
-// has chosen something by then, which outranks what was left.
-void playlist_resume_when_read(State& state);
+// has chosen something by then, which outranks what was left. True when it plays on now.
+bool playlist_resume_when_read(State& state);
 
 // At a start whose reading of whether the list was left playing failed: that is no "not playing", and it
 // is read again until it is known, and then played on as playlist_resume_when_read does.
@@ -47,7 +47,8 @@ void playlist_playing_unknown();
 bool playlist_mark_is_pending();
 
 // Whether the list was left playing, read with what was remembered: playing, it resumes once the list is
-// read; a reading that fails is no "not playing", and is tried again, as the list is.
-void playlist_restore_playing(State& state);
+// read; a reading that fails is no "not playing", and is tried again, as the list is. True when it plays
+// on now, as it was left.
+bool playlist_restore_playing(State& state);
 
 }  // namespace garland

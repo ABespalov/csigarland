@@ -159,6 +159,26 @@ static void test_the_store_has_room_for_every_upload_beside_refused_files() {
     TEST_ASSERT_FALSE(keys.add("one-more", "e00000000"));
 }
 
+static void test_files_not_read_at_the_start_hold_back_uploads_until_read() {
+    UnreadStoreKeys unread;
+    TEST_ASSERT_FALSE(unread.any());
+    unread.add("e00000001");
+    unread.add("e00000002");
+    TEST_ASSERT_TRUE(unread.any());
+    // One read now, one not: the other still holds uploads under ids not known back.
+    unread.read_again([](const char* key) { return std::strcmp(key, "e00000001") == 0; });
+    TEST_ASSERT_TRUE(unread.any());
+    unread.read_again([](const char*) { return true; });
+    TEST_ASSERT_FALSE(unread.any());
+    // More than it can hold: no reading again can say the rest were all read.
+    UnreadStoreKeys many;
+    for (size_t i = 0; i <= kMaxUnreadStoreKeys; ++i) {
+        many.add("e00000003");
+    }
+    many.read_again([](const char*) { return true; });
+    TEST_ASSERT_TRUE(many.any());
+}
+
 static void test_a_built_in_effect_can_be_replaced_and_restored() {
     load_shipped_catalog();
     const CatalogText id = catalog_id(0);
@@ -279,6 +299,7 @@ static void run_upload_tests() {
     RUN_TEST(test_two_changes_between_looks_are_still_seen);
     RUN_TEST(test_ids_that_share_a_hash_keep_their_own_keys);
     RUN_TEST(test_the_store_has_room_for_every_upload_beside_refused_files);
+    RUN_TEST(test_files_not_read_at_the_start_hold_back_uploads_until_read);
     RUN_TEST(test_a_built_in_effect_can_be_replaced_and_restored);
     RUN_TEST(test_uploads_stop_at_the_limit_and_replacing_still_works);
     RUN_TEST(test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack);

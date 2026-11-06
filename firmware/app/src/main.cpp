@@ -17,6 +17,7 @@
 #include "garland_output.h"
 #include "garland_state.h"
 #include "lighting_task.h"
+#include "looks.h"
 #include "nvs.h"
 #include "ota.h"
 #include "playlist_logic.h"
@@ -34,6 +35,7 @@ static garland::State s_state(CSIGARLAND_LED_COUNT);
 // When the remembered choice was made, as read at the start, for the scheduler: see start_scheduler.
 static int64_t s_choice_epoch_at_start = garland::kNoChoiceYet;
 static bool s_remembered_unread = false;
+static garland::Remembered s_saved_at_start;
 
 extern "C" void app_main(void) {
     garland::trial_log_start();
@@ -55,35 +57,25 @@ extern "C" void app_main(void) {
     });
     ESP_LOGI(TAG, " Effects: %u", static_cast<unsigned>(effects));
     s_state.set_effect_count(static_cast<uint16_t>(garland::catalog_positions()));
-    garland::EffectMask favorites = garland::catalog_default_favorites();
 
     const esp_err_t err = garland::settings_init();
-    if (err == ESP_OK) {
-        // Before favourites and the remembered effect, which may be among these.
-        garland::effect_store_start();
-        s_state.set_led_setting(garland::settings_load_led_count());
-        static char s_favorites_text[garland::kFavoritesTextBytes];
-        if (garland::settings_load_favorites(s_favorites_text, sizeof(s_favorites_text))) {
-            // Every saved effect may be gone from a newer catalog; then the defaults count again.
-            const garland::EffectMask saved = garland::favorites_from_text(s_favorites_text);
-            favorites = saved.any() ? saved : favorites;
-        }
-        // A reading that fails is tried again, here and later: a list left out is no empty list, and the
-        // schedule and Play would find it empty.
-        garland::playlist_resolve(s_state);
-        garland::DisplaySettings display;
-        garland::settings_load_display(display);
-        s_state.set_saver(display.saver, display.saver_delay_seconds);
-        s_state.set_backlight_levels(display.screen_percent, display.saver_percent);
-    } else {
+    if (err != ESP_OK) {
         ESP_LOGE(TAG, "settings unavailable: %s", esp_err_to_name(err));
     }
-    s_state.set_favorites(favorites);
+    // Whatever came of the settings, which do not hold these: their own partition. Before favourites, the
+    // playlist and the remembered effect, which may name them.
+    garland::effect_store_start();
+    // With the settings unreadable too, as each of these: a reading that fails is tried again, here and later,
+    // and nothing is saved over what is there meanwhile. A list left out is no empty list, and the schedule,
+    // Play and a list left playing would find it empty.
+    garland::looks_load(s_state);
+    garland::playlist_resolve(s_state);
     s_state.select_first_favorite();
     // Read once, for the state and the scheduler alike, and tried again if the reading fails: the owner's
     // choice outranks the schedule's steps from before it, and the scheduler must know when it was made.
     garland::StoredSettings remembered;
-    esp_err_t remembered_read = ESP_ERR_NVS_NOT_FOUND;
+    // Settings that could not be read at all may hold a choice all the same: not to be saved over.
+    esp_err_t remembered_read = err == ESP_OK ? ESP_ERR_NVS_NOT_FOUND : err;
     for (int attempt = 0; err == ESP_OK && attempt < 3; ++attempt) {
         remembered_read = garland::settings_read_remembered(remembered);
         if (remembered_read == ESP_OK || remembered_read == ESP_ERR_NVS_NOT_FOUND) {
@@ -100,7 +92,10 @@ extern "C" void app_main(void) {
         garland::playlist_restore_playing(s_state);
     }
     // Not read, and there: nothing is saved over it until it is, as the scheduler tries again.
-    s_remembered_unread = err == ESP_OK && remembered_read != ESP_OK && remembered_read != ESP_ERR_NVS_NOT_FOUND;
+    s_remembered_unread = remembered_read != ESP_OK && remembered_read != ESP_ERR_NVS_NOT_FOUND;
+    // What flash holds of it, as now on the state, before any button can change that: see start_scheduler.
+    const garland::Snapshot at_start = s_state.snapshot();
+    s_saved_at_start = garland::remembered_from(at_start, at_start.effect);
 
     // The lighting task comes first: it probes the garland before the first button or the
     // remembered state can turn it on.
@@ -111,22 +106,25 @@ extern "C" void app_main(void) {
     const bool display_running = garland::start_display(s_state);
     // Before the buttons, which ask it about requests from their first press.
     garland::auth_init(s_state);
+    // Before the buttons too: a choice they make before the scheduler starts still has its moment.
+    s_state.set_choice_clock(garland::choice_clock_ms);
     const bool buttons_running = garland::start_buttons(s_state);
-    bool portal_running = false;
-    bool scheduler_running = false;
-    if (err == ESP_OK) {
-        garland::time_load_zone();
-        garland::time_load_from_rtc();
-        s_state.set_clock_module(garland::rtc_present());
-        scheduler_running = garland::start_scheduler(s_state, s_choice_epoch_at_start, s_remembered_unread);
-        if (!scheduler_running) {
-            ESP_LOGE(TAG, "no scheduler task");
-        }
-        // The Wi-Fi driver needs NVS.
-        portal_running = garland::start_portal(s_state);
+    // With the settings unreadable too. Their reads fail and are tried again, the time is UTC, and the
+    // scheduler and the portal start all the same, as the portal's pages share their locks. A closed
+    // garland has no other way in: with no home network known it opens its setup network, whose password
+    // is on the screen, and plain HTTP there takes the next update.
+    garland::time_load_zone();
+    garland::time_load_from_rtc();
+    s_state.set_clock_module(garland::rtc_present());
+    const bool scheduler_running = garland::start_scheduler(s_state, s_choice_epoch_at_start, s_saved_at_start, s_remembered_unread);
+    if (!scheduler_running) {
+        ESP_LOGE(TAG, "no scheduler task");
     }
-    // A firmware without its portal could never be replaced by the next update, one short of its
-    // tasks is out of memory at every start, and one without its buttons or screen cannot stand
-    // alone or approve a browser. Outside a trial it carries on as far as it can.
-    garland::ota_start_trial(portal_running && lighting_running && scheduler_running && display_running && buttons_running);
+    const bool portal_running = garland::start_portal(s_state);
+    // A firmware without its portal could never be replaced by the next update, one that cannot read its
+    // settings may have broken them, one short of its tasks is out of memory at every start, and one
+    // without its buttons or screen cannot stand alone or approve a browser. Outside a trial it carries
+    // on as far as it can.
+    garland::ota_start_trial(err == ESP_OK && portal_running && lighting_running && scheduler_running && display_running &&
+                             buttons_running);
 }

@@ -330,7 +330,9 @@ esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
     }
     // Open ones share nothing and can be sent to by anyone, who must not be able to hold up the
     // rest, an update's report among them, by sending a body slowly.
-    const bool allowed = route.open ? auth_open_route_allows(req) : auth_allows(req);
+    const AuthAnswer answer = route.open ? (auth_open_route_allows(req) ? AuthAnswer::Allowed : AuthAnswer::NotPaired)
+                                         : auth_check(req);
+    const bool allowed = answer == AuthAnswer::Allowed;
     if (allowed && route.open) {
         return portal_end_of_request(req, route.handler(req));
     }
@@ -338,6 +340,11 @@ esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
         httpd_resp_set_hdr(req, "Cache-Control", "no-store");
         // Refused before a byte of its body is read, which the server then never reads.
         portal_mark_body_unread(req);
+        if (answer == AuthAnswer::Unreadable) {
+            httpd_resp_set_hdr(req, "Retry-After", "5");
+            return portal_end_of_request(
+                req, portal_send_status(req, "503 Service Unavailable", "the paired browsers cannot be read now, so try again"));
+        }
         return portal_end_of_request(req, portal_send_status(req, "401 Unauthorized", "this browser is not paired"));
     }
     // The handlers share static buffers, as they were written for one server task.
@@ -660,6 +667,10 @@ JsonPtr portal_read_json(httpd_req_t* req) {
 
 bool portal_https_running() {
     return s_secure_running;
+}
+
+bool portal_request_is_secure(httpd_req_t* req) {
+    return s_plain_server == nullptr || req->handle != s_plain_server;
 }
 
 bool start_portal(State& state) {

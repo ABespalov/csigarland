@@ -19,6 +19,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "tls_logic.h"
+
 namespace garland {
 
 constexpr int64_t kAuthValiditySeconds = 100LL * 24 * 60 * 60;
@@ -104,6 +106,17 @@ inline size_t auth_slot_for_new(const AuthDevices& devices, int64_t now_epoch) {
         }
     }
     return oldest;
+}
+
+// What a reading of the paired list from flash said, each of its two steps: the namespace opened, and
+// the list got from it.
+using AuthListAnswer = NvsAnswer;
+
+// What the list came to, as stored_read says, and a list of another size, which is another layout's and the
+// browsers pair again from, is Missing too. A list saved over one Unreadable would forget every browser paired.
+constexpr StoredRead auth_list_read(AuthListAnswer opened, AuthListAnswer got, size_t bytes, size_t expected) {
+    const StoredRead read = stored_read(opened, got);
+    return read == StoredRead::Loaded && bytes != expected ? StoredRead::Missing : read;
 }
 
 constexpr int auth_hex_digit(char c) {
@@ -198,18 +211,22 @@ inline bool auth_host_is_own(const char* host, const char* address, const char* 
 }
 
 // Whatever a page sends that changes something, its browser names where the page came from, which
-// then has to be the name asked for. Tools send no origin, and pass: they had the password too.
-inline bool auth_origin_is_own(const char* origin, const char* host) {
-    const char* const scheme_end = std::strstr(origin, "://");
-    return scheme_end != nullptr && std::strcmp(scheme_end + 3, host) == 0;
+// then has to be the name asked for, by the scheme of the server it came to: secure for HTTPS. Firefox
+// and Safari count http:// and https:// of one name as one site, and send a cookie of the one with a
+// request of the other, so a page someone put in place of the plain HTTP one must not pass for the
+// portal's own. Tools send no origin, and pass: they had the password too.
+inline bool auth_origin_is_own(const char* origin, const char* host, bool secure) {
+    const char* const scheme = secure ? "https://" : "http://";
+    const size_t scheme_bytes = std::strlen(scheme);
+    return std::strncmp(origin, scheme, scheme_bytes) == 0 && std::strcmp(origin + scheme_bytes, host) == 0;
 }
 
 // A browser sends its cookie with any request to this site, also one a page of another origin under
 // the same domain makes, as SameSite tells sites apart and not origins. So a cookie counts only from
 // this portal's own origin, or with none, which a browser leaves out of no request that changes
 // anything. origin is nullptr when there is none.
-inline bool auth_cookie_origin_ok(const char* origin, const char* host) {
-    return origin == nullptr || auth_origin_is_own(origin, host);
+inline bool auth_cookie_origin_ok(const char* origin, const char* host, bool secure) {
+    return origin == nullptr || auth_origin_is_own(origin, host, secure);
 }
 
 // The token in an Authorization header, or nullptr. As the public API's clients send it.

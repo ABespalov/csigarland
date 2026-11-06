@@ -13,6 +13,29 @@ tell builds apart by the hashes of what they hold.
 
 - The figurines' order along the cable, which effects use to find a figurine by name, is now tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, repeated, chosen so that neither colours nor shapes bunch together. A garland assembled in the order before lights other figurines in `Figurine Colors`, `Ring the Bells`, `Star Shine` and `Figurine Parade`; nothing it saved changes.
 - `Figurine Colors` and `Figurine Parade` light each figurine in the colour of its new filament.
+- A garland whose settings cannot be read at a start keeps a way to its next update: it opens its setup network, the password on the screen, where plain HTTP takes an update, instead of starting no network at all. What it saved stays as it is, its playlist is read again until it can be, and a new firmware that cannot read its settings still goes back. Its uploaded effects still load, and its LED count, favourites and screen settings are read again until they can be, with nothing saved over them meanwhile: until then the portal and the utility are told 503 for the effects list and the screen settings, rather than shown the defaults as what is saved, which a page or a backup would keep.
+- An update whose check of its last bytes fails lets go of what the check held.
+- A button pressed while the garland is still starting outranks the schedule's steps missed before it, as a later choice does, instead of an older missed step overriding it, and a turn on or off made then is saved at once.
+- A scheduled step that gave way to a choice made while it was worked out no longer keeps a playlist left playing from coming back at a start.
+- A remembered choice read only after a start's first tries failed now brings back the schedule's steps missed with no power since it, which were lost for good before, a step done meanwhile among them, and keeps the time it was saved with instead of being dated by that start.
+- What a start brings back late, the remembered choice and a playlist left playing, gives way to a choice made with a button or a page while it was being read, instead of overriding it, and a turn off made then is saved at once. A turn on or off, or a change of the brightness or speed, no longer keeps that playlist from coming back.
+- A playlist resumed while the schedule cannot be read no longer passes by the steps missed before the start, such as an Off, once the schedule is read.
+- An uploaded effect whose file could not be read at a start no longer comes back after the same effect is uploaded again and deleted: until it is read, an upload under an id the garland does not know is refused, 503.
+- Paired browsers that cannot be read at a start are no longer taken for none: pairing a new browser no longer saves over them, so they are not forgotten, and they are let in again once a later request reads them. Meanwhile the garland answers 503, not 401, so the utility keeps its token.
+
+### Portal
+
+- A paired browser's cookie counts only from a page of the same scheme as the server it reaches: a page on plain HTTP under the garland's name can no longer act with the cookie of HTTPS, which Firefox and Safari would send with it, so whoever intercepts plain HTTP cannot use it. The portal's own pages send what they did.
+
+### Site
+
+- On a phone the picture preview's buttons are glyphs in one row that fits the screen, 1:1 pressed a second time fits the picture again, the four screens stand in the middle, and the navigation runs in rows from the left rather than out to both edges.
+
+### Build and release
+
+- `ota-update.sh` hands curl the token, and the id it is collected with, in files of yours alone, no longer on its command line, where anyone on the computer could read them in the list of processes. It needs curl 7.55 or later, as Linux and macOS have it.
+- `build-utility.ps1` and `build-utility.sh`, building a number named again, put back the build that was there when the run fails or is stopped while moving it aside, instead of deleting it, and leave it in the run's folder under `temp/` if it cannot be put back.
+- The utility's build counter is written whole or not at all, so a run that fails or is stopped while writing it keeps the number before, and a counter that holds no number, empty included, stops the build instead of numbering from 1 again, which gave out numbers already used.
 
 ## [1.2.0] - 2026-11-05
 

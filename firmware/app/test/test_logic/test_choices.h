@@ -102,6 +102,121 @@ static void test_a_resume_yields_to_a_choice_of_what_plays_made_with_the_mark_up
     TEST_ASSERT_FALSE(state.snapshot().playlist);
 }
 
+static void test_a_late_restore_comes_whole_and_yields_to_any_choice_since_the_start() {
+    State restored(32);
+    restored.set_effect_count(3);
+    const uint8_t brightness = restored.snapshot().brightness_percent;
+    // Zero leaves a part as it is, as a value this firmware does not accept does.
+    TEST_ASSERT_TRUE(restored.restore_unless_chosen(0, 8, 2, kPowerOn));
+    TEST_ASSERT_EQUAL_UINT16(2, restored.snapshot().effect);
+    TEST_ASSERT_EQUAL_UINT8(8, restored.snapshot().speed_x4);
+    TEST_ASSERT_EQUAL_UINT8(brightness, restored.snapshot().brightness_percent);
+    TEST_ASSERT_TRUE(restored.snapshot().power_chosen);
+
+    State chosen(32);
+    chosen.set_effect_count(3);
+    chosen.set_power(true);
+    chosen.click_speed();
+    const uint8_t speed = chosen.snapshot().speed_x4;
+    const uint16_t effect = chosen.snapshot().effect;
+    // The schedule's look round has taken the mark since: the choice still outranks what was left.
+    TEST_ASSERT_TRUE(chosen.take_owner_choice());
+    TEST_ASSERT_TRUE(chosen.owner_chose());
+    TEST_ASSERT_FALSE(chosen.restore_unless_chosen(40, 12, 2, kPowerOff));
+    TEST_ASSERT_EQUAL_UINT16(effect, chosen.snapshot().effect);
+    TEST_ASSERT_EQUAL_UINT8(speed, chosen.snapshot().speed_x4);
+    TEST_ASSERT_TRUE(chosen.snapshot().power_chosen);
+}
+
+static void test_a_late_restore_stops_a_playlist_a_step_started_meanwhile() {
+    const uint16_t effects[] = {2, 1};
+    State state(32);
+    state.set_effect_count(3);
+    state.set_playlist(effects, 2, 60);
+    // The step turned the garland on with the playlist while what was left could not be read. Left off,
+    // with an effect gone from the catalog since: the playlist stops all the same, for the replay to start.
+    TEST_ASSERT_TRUE(state.apply_scheduled(0, 0, -1, kPowerOn, true));
+    TEST_ASSERT_TRUE(state.snapshot().playlist);
+    TEST_ASSERT_TRUE(state.restore_unless_chosen(0, 0, -1, kPowerOff));
+    TEST_ASSERT_FALSE(state.snapshot().playlist);
+    TEST_ASSERT_FALSE(state.snapshot().power_chosen);
+}
+
+static void test_a_late_restore_after_a_power_choice_still_resumes_the_playlist() {
+    const uint16_t effects[] = {2, 1};
+    State state(32);
+    state.set_effect_count(3);
+    state.set_playlist(effects, 2, 60);
+    // POWER pressed while what was left could not be read: the record is not put on, as the owner chose since.
+    state.click_power();
+    TEST_ASSERT_TRUE(state.owner_chose());
+    TEST_ASSERT_FALSE(state.restore_unless_chosen(40, 12, 0, kPowerOff));
+    // A choice of the power alone says nothing of what plays: the playlist left playing comes back, on.
+    TEST_ASSERT_TRUE(state.resume_playlist_unless_chosen());
+    TEST_ASSERT_TRUE(state.snapshot().playlist);
+    TEST_ASSERT_TRUE(state.snapshot().power_chosen);
+    // One of an effect stands.
+    State chosen(32);
+    chosen.set_effect_count(3);
+    chosen.set_playlist(effects, 2, 60);
+    chosen.activate_effect(1);
+    TEST_ASSERT_FALSE(chosen.restore_unless_chosen(40, 12, 0, kPowerOff));
+    TEST_ASSERT_FALSE(chosen.resume_playlist_unless_chosen());
+    TEST_ASSERT_EQUAL_UINT16(1, chosen.snapshot().effect);
+}
+
+static void test_a_save_before_a_replay_not_begun_leaves_its_steps_to_do() {
+    // Chosen an hour before the start; the schedule cannot be read yet, and a playlist resumed meanwhile is
+    // saved: dated just before the replay's first minute, it leaves that minute, and the Off in it, to do.
+    constexpr int64_t kNow = 29000000;
+    constexpr int64_t kChosen = (kNow - 60) * 60;
+    const int64_t first = replay_first_minute(kChosen, kNow);
+    TEST_ASSERT_EQUAL_INT64(kNow - 59, first);
+    const int64_t saved = save_epoch(kNow * 60 + 30, -1, kNow * 60, 0, first);
+    TEST_ASSERT_EQUAL_INT64(first * 60 - 1, saved);
+    TEST_ASSERT_EQUAL_INT64(first, replay_first_minute(saved, kNow));
+    // Dated now, as before, it would have left none of them.
+    TEST_ASSERT_EQUAL_INT64(-1, replay_first_minute(kNow * 60 + 30, kNow));
+}
+
+static void test_a_scheduled_step_that_gave_way_chose_nothing_of_what_plays() {
+    const uint16_t effects[] = {2, 1};
+    State state(32);
+    state.set_effect_count(3);
+    state.set_playlist(effects, 2, 60);
+    state.set_power(true);
+    // The owner changed the brightness alone while the step choosing an effect was worked out.
+    state.note_owner_choice();
+    state.apply_action(40, 0, -1, -1);
+    TEST_ASSERT_FALSE(state.apply_scheduled(0, 0, 1, kPowerKeep));
+    TEST_ASSERT_FALSE(state.scheduled_play());
+    // So the playlist left playing still comes back once its mark is read.
+    TEST_ASSERT_TRUE(state.resume_playlist_unless_chosen());
+    TEST_ASSERT_TRUE(state.snapshot().playlist);
+    // One that took counts, and a resume after it yields.
+    State stepped(32);
+    stepped.set_effect_count(3);
+    stepped.set_playlist(effects, 2, 60);
+    TEST_ASSERT_TRUE(stepped.apply_scheduled(0, 0, 1, kPowerKeep));
+    TEST_ASSERT_TRUE(stepped.scheduled_play());
+    TEST_ASSERT_FALSE(stepped.resume_playlist_unless_chosen());
+}
+
+static void test_a_choice_against_what_flash_holds_is_saved_at_once() {
+    // Flash holds on, and the owner turned off before it could be read, or before the scheduler began:
+    // against what flash holds, that is a turn off, saved at once, whatever the state held before.
+    const Remembered in_flash{1, 50, 4, true};
+    Remembered chosen = in_flash;
+    chosen.playing = false;
+    MemorySaveTimer timer(in_flash);
+    timer.note_choice();
+    TEST_ASSERT_TRUE(timer.should_save(chosen, 1000));
+    // The other way, as a garland left off and turned on by a button during the start.
+    MemorySaveTimer off(chosen);
+    off.note_choice();
+    TEST_ASSERT_TRUE(off.should_save(in_flash, 1000));
+}
+
 static void test_a_change_not_yet_saved_is_told_apart() {
     const Remembered saved{1, 50, 4, true};
     Remembered changed = saved;
@@ -111,6 +226,20 @@ static void test_a_change_not_yet_saved_is_told_apart() {
     TEST_ASSERT_FALSE(timer.holds(changed));
     timer.saved(changed);
     TEST_ASSERT_TRUE(timer.holds(changed));
+}
+
+// A late restore builds its timer from what flash holds: a turn off made while the playlist's mark was read
+// is a turn off to save at once, which a timer built from the state after those reads would take as saved.
+static void test_a_turn_off_during_a_late_restore_is_saved_at_once() {
+    const Remembered in_flash{1, 50, 4, true, false};
+    Remembered turned_off = in_flash;
+    turned_off.playing = false;
+    MemorySaveTimer from_flash(in_flash);
+    from_flash.note_choice();
+    TEST_ASSERT_TRUE(from_flash.should_save(turned_off, 1000));
+    MemorySaveTimer from_state(turned_off);
+    from_state.note_choice();
+    TEST_ASSERT_FALSE(from_state.should_save(turned_off, 1000));
 }
 
 // The first time known comes while it waits: holds() false means no step is carried out for it.
@@ -398,6 +527,13 @@ static void run_choice_tests() {
     RUN_TEST(test_a_choice_outranks_schedule_steps_from_before_it);
     RUN_TEST(test_a_choice_with_no_clock_takes_the_first_time_known);
     RUN_TEST(test_a_change_not_yet_saved_is_told_apart);
+    RUN_TEST(test_a_late_restore_comes_whole_and_yields_to_any_choice_since_the_start);
+    RUN_TEST(test_a_late_restore_stops_a_playlist_a_step_started_meanwhile);
+    RUN_TEST(test_a_late_restore_after_a_power_choice_still_resumes_the_playlist);
+    RUN_TEST(test_a_save_before_a_replay_not_begun_leaves_its_steps_to_do);
+    RUN_TEST(test_a_scheduled_step_that_gave_way_chose_nothing_of_what_plays);
+    RUN_TEST(test_a_choice_against_what_flash_holds_is_saved_at_once);
+    RUN_TEST(test_a_turn_off_during_a_late_restore_is_saved_at_once);
     RUN_TEST(test_choosing_the_same_again_counts_as_a_choice);
     RUN_TEST(test_going_away_and_back_before_a_save_counts_as_a_choice);
     RUN_TEST(test_only_the_owner_makes_a_choice);
