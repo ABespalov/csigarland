@@ -2,9 +2,11 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: One window at a time on Linux: the first listens on a socket of this user's, and a second
-// start asks it there to come to the front, and ends.
+// Purpose: One window at a time on Linux and macOS: the first listens on a socket of this user's, and a
+// second start asks it there to come to the front, and ends.
 // Contributors: None
+
+//go:build linux || darwin
 
 package ui
 
@@ -40,7 +42,8 @@ var (
 )
 
 // instancePath is the socket, in the folder the session gives this user alone, or one of the user's own
-// in the temporary folder where there is none.
+// in the temporary folder where there is none: on macOS always, whose temporary folder is the user's own.
+// A socket's path holds 104 bytes there, which this keeps well within.
 func instancePath() string {
 	folder := filepath.Join(os.TempDir(), fmt.Sprintf("%s-%d", instanceFolder, os.Getuid()))
 	if runtime := os.Getenv("XDG_RUNTIME_DIR"); runtime != "" {
@@ -130,8 +133,8 @@ func closeInstance() {
 // whenAskedToShow is what this window does when another start asks it to come to the front.
 func whenAskedToShow(show func()) { instanceShow.Store(&show) }
 
-// focusFirstInstance asks the other utility to come to the front. On X11 it does; on Wayland the
-// compositor decides, and GNOME's keeps it where it is.
+// focusFirstInstance asks the other utility to come to the front. On X11 and macOS it does; on Wayland
+// the compositor decides, and GNOME's keeps it where it is.
 func focusFirstInstance() {
 	conn, err := net.DialTimeout("unix", instancePath(), instanceWait)
 	if err != nil {

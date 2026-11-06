@@ -17,7 +17,9 @@ package engine
 // The only C here is cJSON, a third party's, left as it came.
 #cgo CFLAGS: -w
 #cgo windows LDFLAGS: -static-libstdc++ -static-libgcc -static
-#cgo !windows LDFLAGS: -lstdc++ -lm
+#cgo !windows,!darwin LDFLAGS: -lstdc++ -lm
+// Apple's clang links its own C++ runtime, libc++, and the system library holds libm: naming them again
+// only has the linker warn of a library named twice.
 #include <stdint.h>
 #include "bridge.h"
 */

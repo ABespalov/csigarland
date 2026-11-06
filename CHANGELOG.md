@@ -27,6 +27,11 @@ tell builds apart by the hashes of what they hold.
 
 - A paired browser's cookie counts only from a page of the same scheme as the server it reaches: a page on plain HTTP under the garland's name can no longer act with the cookie of HTTPS, which Firefox and Safari would send with it, so whoever intercepts plain HTTP cannot use it. The portal's own pages send what they did.
 
+### Utility
+
+- Runs on macOS: the token stays in the login keychain, files are chosen with the system's own panels, which open as a sheet over the window, and a second start brings the first window to the front, as on Linux. On macOS the build makes an application bundle, `csiGarland` with its icon in the Dock, which asks before it reaches a garland on the local network.
+- A Mac's name for itself loses the `.local` of its network on the garland's list of what has access, and with no name at all the utility is called `csiGarland on macOS` there.
+
 ### Site
 
 - On a phone the picture preview's buttons are glyphs in one row that fits the screen, 1:1 pressed a second time fits the picture again, the four screens stand in the middle, and the navigation runs in rows from the left rather than out to both edges.
@@ -35,6 +40,7 @@ tell builds apart by the hashes of what they hold.
 
 - `ota-update.sh` hands curl the token, and the id it is collected with, in files of yours alone, no longer on its command line, where anyone on the computer could read them in the list of processes. It needs curl 7.55 or later, as Linux and macOS have it.
 - `build-utility.ps1` and `build-utility.sh`, building a number named again, put back the build that was there when the run fails or is stopped while moving it aside, instead of deleting it, and leave it in the run's folder under `temp/` if it cannot be put back.
+- `build-utility.sh` on macOS wraps the utility in a bundle beside its file, `<file>.app`, with its icon, `Info.plist` and an ad hoc signature, made again from the file the build counted; `run.sh` starts the bundle. `cmd/csigarland/generate_icon.go` makes `app.icns` beside `app.ico`, whose bytes stay as they were.
 - The utility's build counter is written whole or not at all, so a run that fails or is stopped while writing it keeps the number before, and a counter that holds no number, empty included, stops the build instead of numbering from 1 again, which gave out numbers already used.
 
 ## [1.2.0] - 2026-11-05

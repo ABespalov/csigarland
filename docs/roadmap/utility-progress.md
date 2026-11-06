@@ -22,9 +22,13 @@ Where the public API and the Go + Gio utility stand, and what is planned. The AP
 - **Linux:** `internal/secret` keeps the token in the Secret Service, `internal/ui` chooses files with the desktop portal's dialog or zenity's, and a second start brings the first window forward over a socket. Host tests pass on Ubuntu 22.04 with GNOME on Wayland, the token against GNOME Keyring.
 - **Build:** `deploy/build-utility.sh` for Linux and macOS, with the same counter and manifest as the PowerShell script, and the Linux release built on Windows in a Docker container of Ubuntu 24.04, whose GCC is its release compiler.
 
+## Next
+
+- **macOS:** `internal/secret` keeps the token in the login keychain through the Security framework, `internal/ui` chooses files with AppKit's panels as a sheet over the window, and a second start brings the first window forward over the socket of Linux. `deploy/build-utility.sh` wraps the file in a bundle signed ad hoc, with `app.icns` and an `Info.plist` that asks for the local network. Host tests pass on macOS 26 on Apple silicon, the token against the login keychain.
+
 ## Seen on the Board
 
-The 1.0.0 utility against the owner's garland: pairing, the pages, updates and the log. What 1.1.0 adds is yet to be seen on it.
+The 1.0.0 utility against the owner's garland: pairing, the pages, updates and the log. What 1.1.0 adds is yet to be seen on it. On macOS, the next one: connecting and pairing, the effects, an upload, an update file chosen in the panel, a second start connecting at once by the token in the keychain, a new build asking once for it, then no more, a backup saved and restored through the panels, and a bundle downloaded and opened past Gatekeeper.
 
 - **Push updates:** `Events` reads the garland's stream on a connection of its own, and the window asks for no state while it is open.
 - **Notices for the `.exe`:** Go's own library and the C++ runtime it links statically are in `THIRD_PARTY_NOTICES.md`, and `deploy/build-utility.ps1` fails on a library of the compiler's that has no notice.
@@ -32,5 +36,5 @@ The 1.0.0 utility against the owner's garland: pairing, the pages, updates and t
 ## Planned
 
 - **Ubuntu:** released in 1.2.0; still to see against a garland.
-- **macOS:** Keychain, a file dialog.
+- **macOS:** a release of it, with its release compiler named and the bundle published.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

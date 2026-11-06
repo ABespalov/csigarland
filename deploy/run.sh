@@ -6,7 +6,8 @@
 # Purpose: Builds the csiGarland utility and runs it, refusing to run a build that failed.
 # Contributors: None
 #
-# The bash twin of deploy/run.ps1, for Linux and macOS. The build belongs to deploy/build-utility.sh.
+# The bash twin of deploy/run.ps1, for Linux and macOS. The build belongs to deploy/build-utility.sh. On
+# macOS it starts the bundle the build made beside the file, which the PowerShell twin, on Windows, has not.
 # A failed build leaves the previous file in assets/utility, and running that would open a window that
 # works and is not the code just written, which looks like success. So the run is reached only through
 # a build that returned. Touches no garland, and needs none to start. The script ends once the utility
@@ -65,6 +66,13 @@ fi
 earlier="$(ps -A -o args= 2>/dev/null | grep '/csigarland-[0-9]' | grep -v grep | grep -vF "$output" || true)"
 if [ -n "$earlier" ]; then
     csg_warn "An earlier build is running, ${earlier%%$'\n'*}. Close its window to see this one."
+fi
+# On macOS the bundle beside the file, as a Mac starts a program: with its icon, and the questions macOS
+# asks before the local network and the keychain asked of it, not of this terminal.
+if [ "$(csg_os)" = darwin ] && [ -d "$output.app" ]; then
+    open "$output.app" || csg_die "macOS would not open $output.app."
+    csg_say "Started $output.app."
+    exit 0
 fi
 # On its own from here: it has no terminal to keep, and logs nothing to one.
 nohup "$output" </dev/null >/dev/null 2>&1 &

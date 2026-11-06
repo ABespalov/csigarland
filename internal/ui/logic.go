@@ -446,9 +446,19 @@ func skipValue(decoder *json.Decoder) error {
 // What sx and ix are in a layer that leaves them out.
 const defaultLayerValue = 128
 
-// ClientLabel is what the Info page will call this program.
+// systemName is the name owners know a system by, where Go's differs from it.
+func systemName(system string) string {
+	if system == "darwin" {
+		return "macOS"
+	}
+	return system
+}
+
+// ClientLabel is what the Info page will call this program. A Mac names itself with the ".local" of
+// its network, which would only take room from the name.
 func ClientLabel(host string) string {
-	label := "csiGarland on " + runtime.GOOS
+	host = strings.TrimSuffix(host, ".local")
+	label := "csiGarland on " + systemName(runtime.GOOS)
 	if host != "" {
 		label = "csiGarland on " + host
 	}

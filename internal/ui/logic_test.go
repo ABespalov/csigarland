@@ -8,6 +8,7 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -147,6 +148,15 @@ func TestALabelFitsWhatTheFirmwareKeeps(t *testing.T) {
 	}
 	if ClientLabel("") == "" {
 		t.Error("no label")
+	}
+	if label := ClientLabel("Studio.local"); label != "csiGarland on Studio" {
+		t.Errorf("a Mac's name: %q", label)
+	}
+	if label := ClientLabel(".local"); label != "csiGarland on "+systemName(runtime.GOOS) {
+		t.Errorf("no name left: %q", label)
+	}
+	if systemName("darwin") != "macOS" || systemName("linux") != "linux" {
+		t.Error(systemName("darwin"), systemName("linux"))
 	}
 }
 

@@ -16,7 +16,9 @@ One Go + Gio code base for all of them. Where it stands is in [its status](utili
   - [x] Linux and macOS: the scripts of `deploy/` in bash, with the same checks and digests as the PowerShell ones.
   - [x] A release compiler for Linux, Ubuntu 24.04's GCC, named in `deploy/BuildVersion.psm1` and `deploy/lib/csg_tool.py`, and the Linux utility built on Windows in Docker, as [the utility's guide](../guides/utility.md#the-linux-utility-on-windows) says.
   - [ ] Ubuntu: see it working against a real garland, and the bash scripts against a real board.
-  - [ ] macOS: Keychain and a file dialog.
+  - [x] macOS: the login keychain, the system's file panels, one window at a time, and an application bundle signed ad hoc, with its icon and the question of the local network.
+  - [x] macOS: seen working against the owner's garland, on macOS 26 on Apple silicon: connecting and pairing, the effects, an upload, an update file chosen in the panel, a second start connecting at once by the token kept in the keychain, after a new build the keychain's question once, Always Allow, and no question at the start after it, a backup saved and restored through the panels, and a bundle downloaded and opened past Gatekeeper.
+  - [ ] macOS: a release, with the release compiler named for `darwin-arm64` and `darwin-amd64`, and the bundle published, zipped, beside the file. Two builds on one Mac, from copies at paths of other lengths, made the same file and the same bundle to the byte.
 - [ ] **Android and iOS applications** repeating the utility, on the same Go + Gio code.
 - [x] **Notices for the utility's own binary.** `deploy/new-third-party-notices.ps1` names Go's library and the compiler's libraries the `.exe` links statically, by the groups `deploy/build-utility.ps1` holds its link map to. The compiler ships no licence texts, so those of winpthreads and of mingw-w64's runtime, from mingw-w64 v14.0.0, which WinLibs GCC 16.1.0 r2 is built on, are kept in `deploy/licences/`.
 - [x] **Guide.** [The utility's guide](../guides/utility.md), and the principles of tuning in [section 14 of the Effects Guide](../guides/effects.md#14-the-settings-utility).

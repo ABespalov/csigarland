@@ -8,6 +8,10 @@
 # Needs Go, and a C++20 compiler on the PATH for cgo, as the effect engine is the firmware's own
 # code: MinGW-w64 on Windows. The result is one file with nothing to install beside it.
 #
+# Its bash twin, deploy/build-utility.sh, on macOS also wraps the file in a bundle signed ad hoc, as
+# deploy/lib/macos_bundle.sh says. cgo builds only for the system it runs on, and only a Mac signs a
+# bundle, so this one, on Windows, makes none.
+#
 # The utility and the firmware are built apart and each counts its own builds. The base version is
 # in cmd/csigarland/version.go, and a build is it with its number, such as 1.0.0.27. Sources the
 # same as the last build's, which the fingerprint tells, keep its number and its file. A build that

@@ -11,6 +11,9 @@
 #
 # Touches no garland, and needs none to start. The script ends once the utility has started.
 #
+# Its bash twin, deploy/run.sh, on macOS starts the bundle deploy/build-utility.sh made beside the
+# file. On Windows there is none, and this starts the file.
+#
 # Parameters
 #
 #   -Force

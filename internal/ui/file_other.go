@@ -2,10 +2,10 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: Choosing a file where no dialog is written yet, as on macOS.
+// Purpose: Choosing a file where no dialog is written, on a system other than Windows, Linux and macOS.
 // Contributors: None
 
-//go:build !windows && !linux
+//go:build !windows && !linux && !darwin
 
 package ui
 

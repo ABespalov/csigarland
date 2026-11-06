@@ -48,7 +48,7 @@ As for a browser, with the owner's press on the garland as the only approval.
 
 The device list, its limit of 8 and the 100 days are those of browsers: an application counts as one, and the Info page can forget it. A token that has run out answers 401, and the application asks the owner to pair again.
 
-The token goes in `Authorization: Bearer <token>` on each request. The utility keeps it in Credential Manager on Windows, the only system it runs on so far. Anywhere else it refuses to keep a token, until Secret Service and Keychain are written with those builds, as the [to-do list](../stubs/TODO.md#applications) has them.
+The token goes in `Authorization: Bearer <token>` on each request. The utility keeps it in the system's own store: Credential Manager on Windows, the Secret Service on Linux, and the login keychain on macOS. Anywhere else, or on a Linux with no Secret Service, it refuses to keep a token, and pairing lasts until it closes.
 
 ## Requests and Answers
 

@@ -1,6 +1,6 @@
 # The csiGarland Utility
 
-A program for your computer that does what the portal does, and two things it cannot: it tunes an effect with a preview drawn by the firmware's own engine, and it shows the garland's log. It runs on Windows and on Linux, written for Ubuntu with GNOME. macOS, Android and iOS come after, on the same code.
+A program for your computer that does what the portal does, and two things it cannot: it tunes an effect with a preview drawn by the firmware's own engine, and it shows the garland's log. It runs on Windows, on Linux, written for Ubuntu with GNOME, and on macOS 12 and later. Android and iOS come after, on the same code.
 
 It talks to the garland over its [public API](../stubs/PUBLIC-API.md), which every release of the firmware has.
 
@@ -8,7 +8,7 @@ The garland does not depend on it, as it does not on the portal: buttons, screen
 
 ## Build It
 
-You need Go and a C++20 compiler on the `PATH`, as the effect engine is the firmware's C++ code: MinGW-w64 on Windows, GCC on Linux. On Linux the window needs the development headers of Wayland, X11 and EGL as well, on Ubuntu as below; [Installing on Linux](build-and-flash.md#installing-on-linux) has the rest of what a first build needs:
+You need Go and a C++20 compiler on the `PATH`, as the effect engine is the firmware's C++ code: MinGW-w64 on Windows, GCC on Linux, and on macOS the clang of Apple's command line tools, `xcode-select --install`, which bring `codesign` as well. On Linux the window needs the development headers of Wayland, X11 and EGL as well, on Ubuntu as below; [Installing on Linux](build-and-flash.md#installing-on-linux) has the rest of what a first build needs:
 
 ```bash
 sudo apt install gcc g++ pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
@@ -24,7 +24,7 @@ On Linux and macOS:
 bash deploy/build-utility.sh
 ```
 
-The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed. On Linux it uses the system's own Wayland, X11 and EGL libraries, which a desktop has.
+The result is one file under `assets/utility`, with nothing to install beside it. No board or keys are needed. On Linux it uses the system's own Wayland, X11 and EGL libraries, which a desktop has. On macOS the build also wraps the file in an application bundle beside it, `<file>.app`, which is what to start there, as [On macOS](#on-macos) says.
 
 Each build has its own number, apart from the firmware's: its base is in `cmd/csigarland/version.go`, and sources the same as the last build's keep its number and its file. `-Force` spends a new one. A build that fails, or is stopped, spends none, and leaves no file. The manifest beside the file names its platform, such as `windows-amd64`; a platform with no release compiler named in `deploy/BuildVersion.psm1` builds, with a warning that no release takes it yet. `-BuildProfile Dev` keeps the symbols and debug information, for a debugger, and marks the version `-dev`.
 
@@ -38,7 +38,27 @@ or `bash deploy/run.sh` on Linux and macOS.
 
 `-NoRun` builds and stops.
 
-The icon is in `cmd/csigarland`, as `app.ico`, and `rsrc_windows_amd64.syso` puts it in the program. `generate_icon.go` there says how to make them again.
+The icon is in `cmd/csigarland`, as `app.ico`, and `rsrc_windows_amd64.syso` puts it in the program; on macOS it is `app.icns`, the same letters on a rounded square, which the build puts in the bundle. `generate_icon.go` there says how to make them again.
+
+## On macOS
+
+The bundle is signed ad hoc, by no one: the project has no Apple Developer ID, so macOS cannot tell who made it. One built on your Mac opens as it is. One downloaded is held back the first time, as from an unidentified developer:
+
+1. Open it, and close the window macOS shows instead.
+2. In System Settings, Privacy & Security, press **Open Anyway** beside its name, and confirm. From then on it opens as any other program.
+
+Or take the quarantine off in Terminal, with the bundle's path:
+
+```bash
+xattr -dr com.apple.quarantine csigarland-1.3.0.27-darwin-arm64.app
+```
+
+Then, once each:
+
+* **Local network.** The first time it looks for a garland or reaches one at its address, macOS asks whether csiGarland may find devices on your local network. Allow it, or it finds none and connects to none on your network. A garland reached over the internet, by its domain, needs no such leave. It can be changed later in System Settings, Privacy & Security, Local Network.
+* **The keychain.** The token stays in your login keychain, under `csiGarland/` and the garland's root. A utility of another build is another program to macOS, as nothing signs it lastingly, so after an update it asks once for each garland whether csiGarland may read its token: type your password and press **Always Allow**. **Deny** leaves the garland to pair again.
+
+Built from the sources, it is started with `bash deploy/run.sh`, which opens the bundle, or with `open` and the bundle's path. Its file alone, started from Terminal, works as well, but macOS then asks those questions of Terminal.
 
 ## The Linux Utility on Windows
 
@@ -128,7 +148,7 @@ Buttons show a glyph and what they do, side by side and on to a new line if the 
 
 A line too long for the footer is whole in the Journal, beside it, which keeps what the footer has said since the window opened, newest first. Its button turns red while there are errors you have not looked at.
 
-Only one utility runs at a time: starting it again brings the one already open to the front, and ends. On Linux under Wayland the compositor has the last word, and GNOME's leaves the window where it is. Its window is at least 1024 by 768, as csiPass's is, and the system's dialogs for choosing a file open over it. On Linux they are the desktop portal's, or zenity's on a desktop with no portal, and under Wayland they open on their own rather than over the window. Beside a hash or a MAC, a small button puts it on the clipboard.
+Only one utility runs at a time: starting it again brings the one already open to the front, and ends. On Linux under Wayland the compositor has the last word, and GNOME's leaves the window where it is. Its window is at least 1024 by 768, as csiPass's is, and the system's dialogs for choosing a file open over it. On Linux they are the desktop portal's, or zenity's on a desktop with no portal, and under Wayland they open on their own rather than over the window. On macOS they are the system's panels, as a sheet from the window's title, showing the files of the kind asked for. Beside a hash or a MAC, a small button puts it on the clipboard.
 
 ## Connect and Pair
 
@@ -145,7 +165,7 @@ For one not paired, the list proves nothing, as anything can say it is a garland
 
 ![Pairing](../images/utility/pair.png)
 
-The access token stays in Windows Credential Manager, or on Linux in the Secret Service, as GNOME Keyring and KWallet give it, and the addresses and roots in `%AppData%\csiGarland`, or `~/.config/csiGarland` on Linux. A Linux with no Secret Service keeps no token anywhere less safe: pairing lasts until the utility closes, and it says so. A locked keyring asks for its password when the utility first needs the token. Access lasts 100 days, as a browser's does, and then the utility asks you to pair again. If it says the garland no longer knows it, it was forgotten on the garland, or its time ran out. If it says the certificate is not valid at this computer's time, the garland is yours but a clock is wrong, on this computer or on the garland, which makes a new certificate once it knows the time: pairing again would not help, putting the clock right does.
+The access token stays in Windows Credential Manager, on Linux in the Secret Service, as GNOME Keyring and KWallet give it, or on macOS in the login keychain, and the addresses and roots in `%AppData%\csiGarland`, `~/.config/csiGarland` on Linux, or `~/Library/Application Support/csiGarland` on macOS. A Linux with no Secret Service keeps no token anywhere less safe: pairing lasts until the utility closes, and it says so. A locked keyring asks for its password when the utility first needs the token. Access lasts 100 days, as a browser's does, and then the utility asks you to pair again. If it says the garland no longer knows it, it was forgotten on the garland, or its time ran out. If it says the certificate is not valid at this computer's time, the garland is yours but a clock is wrong, on this computer or on the garland, which makes a new certificate once it knows the time: pairing again would not help, putting the clock right does.
 
 ## With No Garland
 

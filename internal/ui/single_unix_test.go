@@ -2,8 +2,10 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: Holds the Linux utility to one window: a second start finds the first and asks it forward.
+// Purpose: Holds the utility on Linux and macOS to one window: a second start finds the first and asks it forward.
 // Contributors: None
+
+//go:build linux || darwin
 
 package ui
 
@@ -15,10 +17,15 @@ import (
 	"time"
 )
 
-// A runtime folder of the test's own, and no utility listening once it ends.
+// A runtime folder of the test's own, and no utility listening once it ends. Not t.TempDir: its path, with
+// the test's name in it, can be longer than macOS lets a socket's be.
 func ownRuntime(t *testing.T) string {
 	t.Helper()
-	runtime := t.TempDir()
+	runtime, err := os.MkdirTemp("", "csg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtime) })
 	t.Setenv("XDG_RUNTIME_DIR", runtime)
 	t.Cleanup(func() {
 		closeInstance()

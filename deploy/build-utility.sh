@@ -9,7 +9,9 @@
 # The bash twin of deploy/build-utility.ps1, for Linux and macOS, with the same counter, fingerprint and
 # manifest: the two can take turns in one checkout. Needs Go, and a C++20 compiler on the PATH for cgo, as
 # the effect engine is the firmware's own code: GCC on Linux, the Xcode command line tools on macOS. On
-# Linux the result uses the system's Wayland, X11 and EGL libraries, which a desktop has.
+# Linux the result uses the system's Wayland, X11 and EGL libraries, which a desktop has. On macOS the file
+# is wrapped as well in a bundle beside it, <file>.app, signed ad hoc, which is what is started there:
+# deploy/lib/macos_bundle.sh says why. The PowerShell twin builds on Windows alone, and has no bundle.
 #
 # The utility and the firmware are built apart and each counts its own builds. The base version is in
 # cmd/csigarland/version.go, and a build is it with its number, such as 1.0.0.27. Sources the same as the
@@ -38,6 +40,7 @@ set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/lib/common.sh"
 . "$CSG_LIB_DIR/build_version.sh"
+. "$CSG_LIB_DIR/macos_bundle.sh"
 
 force=0
 named_number=-1
@@ -182,6 +185,10 @@ source_digest="$(csg_utility_source_digest "$repo")"
 notices_digests="$(csg_tool sha256 --upper "$repo/THIRD_PARTY_NOTICES.md" "$repo/LICENSE")"
 fingerprint_text="$profile"$'\n'"$go_version"$'\n'"$compiler"$'\n'"$cc"$'\n'"$cxx"$'\n'"$go_cc"$'\n'"$go_cxx"$'\n'"$(env_of GOAMD64)"$'\n'"$(env_of GOFLAGS)"$'\n'"$(env_of GOWORK)"$'\n'"$(env_of GOEXPERIMENT)"$'\n'"$(env_of GOFIPS140)"$'\n'"$cgo_values$notices_digests"
 fingerprint="$source_digest|$(printf '%s' "$fingerprint_text" | csg_tool sha256-text)"
+# On macOS, the bundle of a file built: made again from it each time, so one there is never of another file.
+make_bundle() {
+    csg_macos_bundle "$1" "$(output_version "$2")" "$base_number.$2" "$base_number" "$repo/cmd/csigarland/app.icns"
+}
 kept="$(output_path "$number")"
 kept_checked=false
 if [ -f "$kept.manifest.json" ]; then
@@ -190,6 +197,7 @@ fi
 if [ "$named_number" -lt 0 ] && [ "$force" -eq 0 ] && [ "$number" -gt 0 ] && [ "$kept_checked" = true ] &&
     [ "$fingerprint" = "$(stored_text "$fingerprint_path")" ] && [ -f "$kept" ]; then
     csg_say "Sources and tools unchanged, so $kept stands."
+    if [ "$system" = darwin ]; then make_bundle "$kept" "$number" >/dev/null; fi
     printf '%s\n' "$kept"
     exit 0
 fi
@@ -315,5 +323,8 @@ if [ "$named_number" -lt 0 ] && ! printf '%s\n' "$fingerprint" >"$fingerprint_pa
     rm -f "$fingerprint_path"
 fi
 csg_say "$final, $(($(csg_tool file-size "$final") / 1024)) KB, SHA-256 $hash"
+if [ "$system" = darwin ]; then
+    csg_say "$(make_bundle "$final" "$number"), to start on this Mac."
+fi
 # For deploy/run.sh.
 printf '%s\n' "$final"

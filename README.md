@@ -100,7 +100,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | [Building a Release Again](docs/guides/rebuild.md) | Building a published firmware and utility again from a clean fork, the same to the byte |
 | [User Guide](docs/guides/user-guide.md) | Buttons, the screen, portal access, every page, updates, troubleshooting |
 | [Effects Guide](docs/guides/effects.md) | The catalog, the file format, every algorithm, tuning |
-| [The csiGarland Utility](docs/guides/utility.md) | The program for your computer: control, tuning with a live preview, the log. Windows and Linux |
+| [The csiGarland Utility](docs/guides/utility.md) | The program for your computer: control, tuning with a live preview, the log. Windows, Linux and macOS |
 | [Public API](docs/stubs/PUBLIC-API.md) | `/api/v1/`, for programs of your own |
 | [Hardware Specification](docs/hardware/specification.md) and [Control Unit](docs/hardware/control-unit.md) | Electrical design, pins, power budget, the portal's API |
 | [Optical Design](docs/hardware/optical-design.md) and [Diffusers](docs/hardware/diffusers.md) | The figurines and how to slice and print them |
