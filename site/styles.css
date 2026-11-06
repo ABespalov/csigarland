@@ -217,6 +217,21 @@ main img.previewable:focus-visible {
 .lightbox-btn[hidden] {
   display: none;
 }
+.lightbox-glyph {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 1:1 pressed: the picture is at its own size, and a second press fits it again. */
+.lightbox-btn[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 .lightbox-btn:hover {
   background: #334155;
   border-color: var(--primary);
@@ -272,16 +287,16 @@ main img.previewable:focus-visible {
   .site-header-inner { padding: 10px 16px; gap: 8px 12px; justify-content: space-between; }
   .brand img { width: 136px; }
   .lang-switch { order: 2; }
+  /* Rows from the left, as text runs: spread out, a short last row would sit at both edges. */
   .nav {
     order: 3;
     width: 100%;
     margin-left: 0;
     padding-top: 6px;
     border-top: 1px solid var(--border);
-    gap: 4px 14px;
-    justify-content: space-between;
+    gap: 2px 18px;
+    justify-content: flex-start;
     font-size: 14px;
-    overflow-x: auto;
   }
   .section { padding: 32px 16px; }
   .lead { font-size: 16px; }
@@ -290,13 +305,16 @@ main img.previewable:focus-visible {
   .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .gallery figure { padding: 10px; }
   .gallery-shots { grid-template-columns: 1fr; gap: 14px; }
-  .screens { grid-template-columns: repeat(2, minmax(0, 148px)); gap: 10px; }
+  .screens { grid-template-columns: repeat(2, minmax(0, 148px)); gap: 10px; justify-content: center; }
   .download { grid-template-columns: 1fr; gap: 8px; padding: 10px 0; }
   .download .button { grid-row: auto; grid-column: 1; justify-self: start; width: 100%; }
   .product { padding: 14px 16px; }
   .lightbox-bar { padding: 8px 12px; gap: 8px; }
   .lightbox-caption { flex-basis: 100%; order: 2; font-size: 13px; white-space: normal; }
-  .lightbox-controls { width: 100%; justify-content: space-between; order: 1; }
+  /* Every button shares the width, so the bar fits the narrowest phone in one row. */
+  .lightbox-controls { width: 100%; justify-content: space-between; order: 1; gap: 4px; }
+  .lightbox-controls .lightbox-btn { flex: 1 1 0; min-width: 0; max-width: 48px; padding: 0; }
+  .lightbox-zoom { min-width: 40px; flex: 0 0 auto; }
   .lightbox-canvas { padding: 12px; }
 }
 

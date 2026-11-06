@@ -15,7 +15,7 @@ const UI = {
     'lightbox.zoomOut': 'Zoom out',
     'lightbox.zoomIn': 'Zoom in',
     'lightbox.fit': 'Fit',
-    'lightbox.oneToOne': '1:1',
+    'lightbox.oneToOne': 'Actual size; press again to fit',
     'lightbox.prev': 'Previous',
     'lightbox.next': 'Next',
     'lightbox.close': 'Close'
@@ -24,12 +24,33 @@ const UI = {
     'lightbox.zoomOut': 'Уменьшить',
     'lightbox.zoomIn': 'Увеличить',
     'lightbox.fit': 'Вписать',
-    'lightbox.oneToOne': '1:1',
+    'lightbox.oneToOne': 'Реальный размер; ещё раз, чтобы вписать',
     'lightbox.prev': 'Предыдущая',
     'lightbox.next': 'Следующая',
     'lightbox.close': 'Закрыть'
   }
 };
+
+// The buttons' glyphs, drawn in the button's own colour, so that the bar fits a phone in any language.
+const GLYPHS = {
+  prev: 'M15 5l-7 7 7 7',
+  next: 'M9 5l7 7-7 7',
+  zoomOut: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM15.5 15.5L20 20M7.5 10.5h6',
+  zoomIn: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM15.5 15.5L20 20M7.5 10.5h6M10.5 7.5v6',
+  fit: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
+  close: 'M6 6l12 12M18 6L6 18'
+};
+
+function glyph(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'lightbox-glyph');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', GLYPHS[name]);
+  svg.append(path);
+  return svg;
+}
 
 function uiText(key) {
   const table = document.documentElement.lang === 'ru' ? UI.ru : UI.en;
@@ -64,27 +85,44 @@ const MAX_ZOOM = 6;
 
 function updateLightboxLabels() {
   if (!lightbox) return;
-  lbBtnOut.setAttribute('aria-label', uiText('lightbox.zoomOut'));
-  lbBtnOut.title = uiText('lightbox.zoomOut');
-  lbBtnIn.setAttribute('aria-label', uiText('lightbox.zoomIn'));
-  lbBtnIn.title = uiText('lightbox.zoomIn');
-  lbBtnFit.textContent = uiText('lightbox.fit');
-  lbBtnOne.textContent = uiText('lightbox.oneToOne');
-  lbBtnPrev.setAttribute('aria-label', uiText('lightbox.prev'));
-  lbBtnPrev.title = uiText('lightbox.prev');
-  lbBtnNext.setAttribute('aria-label', uiText('lightbox.next'));
-  lbBtnNext.title = uiText('lightbox.next');
-  lbBtnClose.setAttribute('aria-label', uiText('lightbox.close'));
-  lbBtnClose.title = uiText('lightbox.close');
+  const labels = [
+    [lbBtnOut, 'lightbox.zoomOut'], [lbBtnIn, 'lightbox.zoomIn'], [lbBtnFit, 'lightbox.fit'],
+    [lbBtnOne, 'lightbox.oneToOne'], [lbBtnPrev, 'lightbox.prev'], [lbBtnNext, 'lightbox.next'],
+    [lbBtnClose, 'lightbox.close']
+  ];
+  for (const [button, key] of labels) {
+    button.setAttribute('aria-label', uiText(key));
+    button.title = uiText(key);
+  }
 }
 
-function makeButton(text, className, onClick) {
+// A button showing a glyph, or a short text where there is none, as 1:1.
+function makeButton(content, onClick) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = className;
-  btn.textContent = text;
+  btn.className = 'lightbox-btn';
+  if (GLYPHS[content]) {
+    btn.append(glyph(content));
+  } else {
+    btn.textContent = content;
+  }
   btn.addEventListener('click', onClick);
   return btn;
+}
+
+const ACTUAL_SIZE = 1;
+
+function atActualSize() {
+  return Math.abs(currentZoom - ACTUAL_SIZE) < 0.005;
+}
+
+// 1:1 and back: a second press fits the picture again, as one expects of a pressed button.
+function toggleActualSize() {
+  if (atActualSize()) {
+    zoomToFit();
+  } else {
+    setZoom(ACTUAL_SIZE);
+  }
 }
 
 function ensureLightbox() {
@@ -105,15 +143,16 @@ function ensureLightbox() {
   const controls = document.createElement('div');
   controls.className = 'lightbox-controls';
 
-  lbBtnOut = makeButton('−', 'lightbox-btn', () => stepZoom(1 / 1.35));
+  lbBtnOut = makeButton('zoomOut', () => stepZoom(1 / 1.35));
   lbZoomText = document.createElement('span');
   lbZoomText.className = 'lightbox-zoom';
-  lbBtnIn = makeButton('+', 'lightbox-btn', () => stepZoom(1.35));
-  lbBtnFit = makeButton('Fit', 'lightbox-btn', () => zoomToFit());
-  lbBtnOne = makeButton('1:1', 'lightbox-btn', () => setZoom(1));
-  lbBtnClose = makeButton('✕', 'lightbox-btn', () => closeLightbox());
-  lbBtnPrev = makeButton('‹', 'lightbox-btn', () => stepImage(-1));
-  lbBtnNext = makeButton('›', 'lightbox-btn', () => stepImage(1));
+  lbBtnIn = makeButton('zoomIn', () => stepZoom(1.35));
+  lbBtnFit = makeButton('fit', () => zoomToFit());
+  lbBtnOne = makeButton('1:1', () => toggleActualSize());
+  lbBtnOne.setAttribute('aria-pressed', 'false');
+  lbBtnClose = makeButton('close', () => closeLightbox());
+  lbBtnPrev = makeButton('prev', () => stepImage(-1));
+  lbBtnNext = makeButton('next', () => stepImage(1));
 
   controls.append(lbBtnPrev, lbBtnNext, lbBtnOut, lbZoomText, lbBtnIn, lbBtnFit, lbBtnOne, lbBtnClose);
   bar.append(lbCaption, controls);
@@ -160,6 +199,7 @@ function setZoom(nextZoom, focalX, focalY) {
   lbImg.width = Math.max(1, Math.round(natWidth * currentZoom));
   lbImg.height = Math.max(1, Math.round(natHeight * currentZoom));
   lbZoomText.textContent = `${Math.round(currentZoom * 100)}%`;
+  lbBtnOne.setAttribute('aria-pressed', atActualSize() ? 'true' : 'false');
 
   const nextImgRect = lbImg.getBoundingClientRect();
   lbStage.scrollLeft += (nextImgRect.left + relX * nextImgRect.width) - viewX;
