@@ -143,6 +143,8 @@ main img.previewable:focus-visible {
 
 /* No wider than the page: a long line, as the command under How to open, scrolls in its own box rather than
    widen the card, and the page with it, on a phone. */
+/* What a release on the roadmap was of, beside its number. */
+.card h3 .kind { margin-left: 6px; color: var(--muted); font-size: 0.85em; font-weight: 600; }
 .downloads { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .product { min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
 .product h3 { margin: 0 0 4px; }
