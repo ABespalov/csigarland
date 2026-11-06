@@ -8,4 +8,4 @@
 package main
 
 // Version is what a build by hand says.
-var Version = "1.2.0"
+var Version = "1.3.0"
