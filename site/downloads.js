@@ -31,6 +31,7 @@ const DOWNLOADS_RU = {
   notes: 'Описание изменений',
   download: 'Скачать',
   notYet: 'В разработке',
+  same: (releases) => `Тот же файл ${releases.length > 1 ? 'в релизах' : 'в релизе'} ${releases.join(', ')}.`,
   updated: (day) => `Обновлено ${day}.`,
   macHelp: {
     summary: 'Как открыть утилиту на Mac',
@@ -94,8 +95,9 @@ function newerFirst(a, b) {
   return 0;
 }
 
-// One release of a product for one platform: its version, when it was released, its notes, its file.
-function releaseRow(build, ru) {
+// One release of a product for one platform: its version, when it was released, its notes, its file, and the
+// older releases that carry the same file, by its SHA-256, as the root certificate does from release to release.
+function releaseRow(build, ru, same = []) {
   const row = element('div', 'download');
   const releasedText = build.released
     ? (ru ? DOWNLOADS_RU.released(build.released) : `released ${build.released}`)
@@ -116,8 +118,31 @@ function releaseRow(build, ru) {
     download.rel = 'noopener noreferrer';
     row.append(download);
   }
+  if (same.length) {
+    const releases = same.map((older) => older.release || older.version);
+    row.append(element('p', 'same', ru ? DOWNLOADS_RU.same(releases)
+      : `The same file in release${releases.length > 1 ? 's' : ''} ${releases.join(', ')}.`));
+  }
   if (build.sha256) row.append(element('p', 'hash', `SHA-256 ${build.sha256}`));
   return row;
+}
+
+// Newest first, a file shown once: an older release of the same file, by its SHA-256, is named under the
+// newest that has it rather than shown again.
+function distinctFiles(released) {
+  const rows = [];
+  const bySha = new Map();
+  for (const build of released) {
+    const shown = build.sha256 && bySha.get(build.sha256);
+    if (shown) {
+      shown.same.push(build);
+    } else {
+      const row = { build, same: [] };
+      rows.push(row);
+      if (build.sha256) bySha.set(build.sha256, row);
+    }
+  }
+  return rows;
 }
 
 // A platform of a product, with its releases newest first, or "Not yet" when it has none.
@@ -130,7 +155,7 @@ function platformBlock(platform, builds, ru) {
     block.append(element('p', 'meta', ru ? DOWNLOADS_RU.notYet : 'Not yet'));
     return block;
   }
-  block.append(...released.map((build) => releaseRow(build, ru)));
+  block.append(...distinctFiles(released).map((row) => releaseRow(row.build, ru, row.same)));
   return block;
 }
 
