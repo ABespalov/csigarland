@@ -32,9 +32,35 @@ const DOWNLOADS_RU = {
   download: 'Скачать',
   notYet: 'В разработке',
   updated: (day) => `Обновлено ${day}.`,
+  macHelp: {
+    summary: 'Как открыть утилиту на Mac',
+    steps: [
+      'Скачайте zip для своего Mac: Apple silicon — для M1 и новее, Intel — для остальных. Нужна macOS 12 или новее.',
+      'Откройте zip: Finder распакует приложение csiGarland. Перетащите его в «Программы».',
+      'Откройте csiGarland. Приложение не подписано сертификатом Apple Developer, поэтому macOS не даст открыть его сразу и сообщит, что не может проверить его на вредоносное ПО. Нажмите «Готово», не «Переместить в Корзину».',
+      'Откройте «Системные настройки» → «Конфиденциальность и безопасность», прокрутите до раздела «Безопасность» и нажмите «Все равно открыть» рядом с csiGarland. Подтвердите паролем или Touch ID и ещё раз нажмите «Все равно открыть». Это нужно только при первом запуске.',
+      'Когда утилита спросит, можно ли ей находить устройства в локальной сети, нажмите «Разрешить»: иначе она не увидит гирлянду.',
+      'После обновления утилиты macOS один раз для каждой гирлянды спросит доступ к связке ключей, где лежит токен привязки: введите пароль входа и нажмите «Разрешать всегда».'
+    ],
+    terminal: 'Вместо шагов 3–4 можно снять карантин в Терминале:'
+  },
   fallbackPrefix: 'Не удалось загрузить список файлов. Все сборки доступны в ',
   fallbackLink: 'GitHub Releases'
 };
+
+const MAC_HELP = {
+  summary: 'How to open the utility on a Mac',
+  steps: [
+    'Download the zip for your Mac: Apple silicon for M1 and later, Intel for the rest. It needs macOS 12 or later.',
+    'Open the zip: Finder unpacks the csiGarland app. Drag it to Applications.',
+    'Open csiGarland. It is not signed with an Apple Developer ID, so macOS holds it back the first time, saying it cannot check it for malware. Press Done, not Move to Trash.',
+    'Open System Settings, Privacy & Security, scroll down to Security and press Open Anyway beside csiGarland. Confirm with your password or Touch ID, and press Open Anyway again. This is needed only the first time.',
+    'When it asks to find devices on your local network, press Allow: otherwise it finds no garland.',
+    'After an update of the utility, macOS asks once for each garland whether it may read the pairing token from your keychain: type your login password and press Always Allow.'
+  ],
+  terminal: 'Instead of steps 3 and 4, the quarantine can be taken off in Terminal:'
+};
+const MAC_QUARANTINE = 'xattr -dr com.apple.quarantine /Applications/csiGarland.app';
 
 let cachedManifest = null;
 let loadFailed = false;
@@ -108,6 +134,20 @@ function platformBlock(platform, builds, ru) {
   return block;
 }
 
+// How to open a download on a Mac, folded, as the app is signed by no one Apple knows.
+function macHelp(ru) {
+  const help = ru ? DOWNLOADS_RU.macHelp : MAC_HELP;
+  const details = element('details', 'howto');
+  details.append(element('summary', '', help.summary));
+  const steps = element('ol');
+  steps.append(...help.steps.map((step) => element('li', '', step)));
+  const terminal = element('p', '', help.terminal);
+  const command = element('pre');
+  command.append(element('code', '', MAC_QUARANTINE));
+  details.append(steps, terminal, command);
+  return details;
+}
+
 // A product, such as the utility, with a block for each platform it is, or will be, built for, in the
 // order the manifest first names them.
 function productCard(product, ru) {
@@ -124,6 +164,8 @@ function productCard(product, ru) {
   const blocks = element('div', 'builds');
   blocks.replaceChildren(...[...platforms].map(([platform, builds]) => platformBlock(platform, builds, ru)));
   card.append(blocks);
+  const forMac = (product.builds || []).some((build) => build.available && String(build.platform).startsWith('macOS'));
+  if (forMac) card.append(macHelp(ru));
   return card;
 }
 

@@ -9,6 +9,30 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-06
+
+A release of the utility alone, for Windows, Linux and now macOS. It works with the firmware 1.1.0 and 1.1.1 alike.
+
+### Utility
+
+- Runs on macOS: the token stays in the login keychain, files are chosen with the system's own panels, which open as a sheet over the window, and a second start brings the first window to the front, as on Linux. On macOS the build makes an application bundle, `csiGarland` with its icon in the Dock, which asks before it reaches a garland on the local network.
+- A Mac's name for itself loses the `.local` of its network on the garland's list of what has access, and with no name at all the utility is called `csiGarland on macOS` there.
+
+### Site
+
+- On a phone the picture preview's buttons are glyphs in one row that fits the screen, 1:1 pressed a second time fits the picture again, the four screens stand in the middle, and the navigation runs in rows from the left rather than out to both edges.
+
+### Build and release
+
+- `build-utility.ps1` and `build-utility.sh`, building a number named again, put back the build that was there when the run fails or is stopped while moving it aside, instead of deleting it, and leave it in the run's folder under `temp/` if it cannot be put back.
+- On macOS the utility's file is its application bundle zipped, `csigarland-<version>-darwin-arm64.zip` or `-darwin-amd64.zip`, `csiGarland.app` in it with its icon, `Info.plist` and an ad hoc signature: `build-utility.sh` makes it the same to the byte from the same sources, unzips the bundle beside it, and `run.sh` starts that. `build-utility.ps1` refuses to build on macOS, and names the bash script. `cmd/csigarland/generate_icon.go` makes `app.icns` beside `app.ico`, whose bytes stay as they were.
+- macOS is released: Apple silicon and Intel, built with the clang of Apple's command line tools for macOS 26 on a Mac, and published from any computer with `-Platform darwin-arm64` or `darwin-amd64`. The utility's source digest takes in `deploy/lib/macos_bundle.sh`; a release before it holds none, so its digest is as it was.
+- The utility's build counter is written whole or not at all, so a run that fails or is stopped while writing it keeps the number before, and a counter that holds no number, empty included, stops the build instead of numbering from 1 again, which gave out numbers already used.
+
+## [1.1.1] - 2026-11-06
+
+A release of the firmware alone, after 1.1.0. Everything a 1.1.0 garland saved, settings, pairings, uploaded effects, favourites, the schedule, the playlist and its root certificate, stays as it was after this update, and a garland gone back to 1.1.0 reads what this one saves as it did. The utility 1.2.0 and 1.3.0 work with it.
+
 ### Firmware
 
 - The figurines' order along the cable, which effects use to find a figurine by name, is now tree, star, snowman, pinecone, lantern, bell, icicle, gingerbread, repeated, chosen so that neither colours nor shapes bunch together. A garland assembled in the order before lights other figurines in `Figurine Colors`, `Ring the Bells`, `Star Shine` and `Figurine Parade`; nothing it saved changes.
@@ -27,22 +51,13 @@ tell builds apart by the hashes of what they hold.
 
 - A paired browser's cookie counts only from a page of the same scheme as the server it reaches: a page on plain HTTP under the garland's name can no longer act with the cookie of HTTPS, which Firefox and Safari would send with it, so whoever intercepts plain HTTP cannot use it. The portal's own pages send what they did.
 
-### Utility
+### Public API
 
-- Runs on macOS: the token stays in the login keychain, files are chosen with the system's own panels, which open as a sheet over the window, and a second start brings the first window to the front, as on Linux. On macOS the build makes an application bundle, `csiGarland` with its icon in the Dock, which asks before it reaches a garland on the local network.
-- A Mac's name for itself loses the `.local` of its network on the garland's list of what has access, and with no name at all the utility is called `csiGarland on macOS` there.
-
-### Site
-
-- On a phone the picture preview's buttons are glyphs in one row that fits the screen, 1:1 pressed a second time fits the picture again, the four screens stand in the middle, and the navigation runs in rows from the left rather than out to both edges.
+- A route answers 503 where it would otherwise show or save defaults in place of what the garland could not read: every route that wants pairing while the paired browsers cannot be read, with `Retry-After`, `GET /api/v1/effects` and the favourite while the favourites cannot be, `/api/v1/display` while the screen settings cannot be, and an upload under an id the garland does not know while an uploaded effect cannot be. A program asks again later.
 
 ### Build and release
 
 - `ota-update.sh` hands curl the token, and the id it is collected with, in files of yours alone, no longer on its command line, where anyone on the computer could read them in the list of processes. It needs curl 7.55 or later, as Linux and macOS have it.
-- `build-utility.ps1` and `build-utility.sh`, building a number named again, put back the build that was there when the run fails or is stopped while moving it aside, instead of deleting it, and leave it in the run's folder under `temp/` if it cannot be put back.
-- On macOS the utility's file is its application bundle zipped, `csigarland-<version>-darwin-arm64.zip` or `-darwin-amd64.zip`, `csiGarland.app` in it with its icon, `Info.plist` and an ad hoc signature: `build-utility.sh` makes it the same to the byte from the same sources, unzips the bundle beside it, and `run.sh` starts that. `build-utility.ps1` refuses to build on macOS, and names the bash script. `cmd/csigarland/generate_icon.go` makes `app.icns` beside `app.ico`, whose bytes stay as they were.
-- macOS is released: Apple silicon and Intel, built with the clang of Apple's command line tools for macOS 26 on a Mac, and published from any computer with `-Platform darwin-arm64` or `darwin-amd64`. The utility's source digest takes in `deploy/lib/macos_bundle.sh`; a release before it holds none, so its digest is as it was.
-- The utility's build counter is written whole or not at all, so a run that fails or is stopped while writing it keeps the number before, and a counter that holds no number, empty included, stops the build instead of numbering from 1 again, which gave out numbers already used.
 
 ## [1.2.0] - 2026-11-05
 

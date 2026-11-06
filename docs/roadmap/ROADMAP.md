@@ -58,6 +58,8 @@ Not implemented: see **Planned** below.
 
 ## Released
 
+* **1.3.0**, released 2026-11-06 (utility 1.3.0.42 for macOS on Apple silicon, 1.3.0.43 for macOS on Intel, and new builds for Windows and Linux): the utility alone, the first for macOS, seen against the owner's garland on Apple silicon; the Intel file has not been run. The [changelog](../../CHANGELOG.md) has each.
+* **1.1.1**, released 2026-11-06: the firmware alone, with the figurines' new order and colours, and what it does when its settings cannot be read at a start, each part read again and nothing saved over it. Tested on the host and the Device page in a browser against the stubbed portal; those reads failing have not been seen on the board, nor the new order on the garland. A garland updated from 1.1.0 keeps all it saved. The [changelog](../../CHANGELOG.md) has each.
 * **1.2.0**, released 2026-11-05 (utility 1.2.0.38 for Windows, 1.2.0.39 for Linux; the firmware stays 1.1.0.113): the utility alone, the first for Linux, tested on the host on Windows and on Ubuntu, the Linux file built in a Docker container of Ubuntu 24.04 on Windows. Not yet seen against the garland on Linux. The [changelog](../../CHANGELOG.md) has each.
 * **1.1.0**, released 2026-11-04 (firmware 1.1.0.113, utility 1.1.0.37): what is listed below, tested on the host and in a browser against the stubbed portal, and seen working on the owner's garland. A garland updated from 1.0.0 keeps all it saved. The [changelog](../../CHANGELOG.md) has each:
 
@@ -72,14 +74,14 @@ Not implemented: see **Planned** below.
 
 ## In the Next Release
 
-The firmware with the figurines' new order along the cable and the new filaments' colours, as the changelog's Unreleased section has it.
+Nothing yet beyond 1.3.0 and 1.1.1.
 
 
 ## Planned
 
 Not implemented, and not to be read as what the firmware or the utility does:
 
-* Go + Gio applications beyond Windows and Linux, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
+* Go + Gio applications beyond Windows, Linux and macOS, on the [public API](../stubs/PUBLIC-API.md): see the [to-do list](../stubs/TODO.md#applications).
 
 ## Open Hardware Questions
 
@@ -94,5 +96,5 @@ Neither confirmed nor refuted by the running prototype:
 
 ## Validation Still to Do
 
-Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark.
+Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark. Of 1.1.1, on the garland: settings, the remembered choice, the playlist, paired browsers or an uploaded effect that cannot be read at a start, each read again later, the 503s meanwhile, and a press during a slow start. Of 1.3.0: the utility for macOS on Intel.
 
