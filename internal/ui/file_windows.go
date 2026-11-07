@@ -8,6 +8,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -120,12 +121,19 @@ func runFileDialog(owner uintptr, procedure *windows.LazyProc, title, pattern, d
 }
 
 // chooseFile asks, over the window whose handle is owner, for a file to open, and answers "" if the
-// owner cancelled. It waits, so call it away from the window's goroutine.
-func chooseFile(owner uintptr, title, pattern, description string) (string, error) {
+// owner cancelled. It waits, so call it away from the window's goroutine. A ctx ended already opens none;
+// once open, the system's dialog is modal to the window and closes with it, as nothing can close it from here.
+func chooseFile(ctx context.Context, owner uintptr, title, pattern, description string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("the file dialog: %w", err)
+	}
 	return runFileDialog(owner, procGetOpenName, title, pattern, description, "", "", openFileMustExist)
 }
 
 // chooseSaveFile asks where to save a file, as chooseFile does.
-func chooseSaveFile(owner uintptr, title, pattern, description, extension, startName string) (string, error) {
+func chooseSaveFile(ctx context.Context, owner uintptr, title, pattern, description, extension, startName string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("the file dialog: %w", err)
+	}
 	return runFileDialog(owner, procGetSaveName, title, pattern, description, extension, startName, saveOverwritePrompt)
 }

@@ -67,6 +67,7 @@ func (p *devicePage) load(a *App) {
 			p.count.SetText(strconv.Itoa(state.Leds.Count))
 			p.takeDisplay(display)
 			p.power.take(budget, held)
+			a.takeGarlandBudget(client, budget, held)
 		}, nil
 	})
 }

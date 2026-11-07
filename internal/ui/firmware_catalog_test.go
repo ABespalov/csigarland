@@ -9,6 +9,7 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -219,7 +220,7 @@ func TestALateDownloadLeavesAFileChosenSince(t *testing.T) {
 	// The owner's own file is picked, and its reading, from a slow disk, outlasts the download.
 	savedRead := readUpdateFile
 	picked, reading := make(chan struct{}), make(chan struct{})
-	pickUpdateFile = func(uintptr, string, string, string) (string, error) {
+	pickUpdateFile = func(context.Context, uintptr, string, string, string) (string, error) {
 		close(picked)
 		return "mine.ota", nil
 	}

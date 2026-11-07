@@ -86,15 +86,19 @@ extern "C" void app_main(void) {
     s_choice_epoch_at_start = remembered_read == ESP_OK            ? remembered.choice_epoch
                               : remembered_read == ESP_ERR_NVS_NOT_FOUND ? garland::kNoChoiceYet
                                                                         : 0;
+    // The effect remembered, as the state has it before a playlist left playing starts over it: that is what
+    // flash holds, and what a save of the power, brightness or speed alone keeps, as read_remembered_late has it.
+    uint16_t remembered_effect = s_state.snapshot().effect;
     if (err == ESP_OK && remembered_read == ESP_OK) {
         garland::remembered_apply(s_state, remembered);
+        remembered_effect = s_state.snapshot().effect;
         garland::playlist_restore_playing(s_state);
     }
     // Not read, and there: nothing is saved over it until it is, as the scheduler tries again.
     s_remembered_unread = remembered_read != ESP_OK && remembered_read != ESP_ERR_NVS_NOT_FOUND;
     // What flash holds of it, as now on the state, before any button can change that: see start_scheduler.
     const garland::Snapshot at_start = s_state.snapshot();
-    s_saved_at_start = garland::remembered_from(at_start, at_start.effect);
+    s_saved_at_start = garland::remembered_from(at_start, remembered_effect);
 
     // The lighting task comes first: it probes the garland before the first button or the
     // remembered state can turn it on.

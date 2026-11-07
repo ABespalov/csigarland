@@ -108,6 +108,12 @@ static void test_a_remembered_effect_not_read_yet_outlives_a_save_of_the_power()
     TEST_ASSERT_FALSE(state.snapshot().power_requested);
     timer.saved_effect_found(5);
     TEST_ASSERT_TRUE(timer.holds(as_saved(state.snapshot(), 5)));
+    // A change of the brightness waiting to be saved keeps its time through the finding.
+    MemorySaveTimer waiting(Remembered{0, 50, 4, true, false});
+    TEST_ASSERT_FALSE(waiting.should_save(Remembered{0, 70, 4, true, false}, 1000));
+    waiting.saved_effect_found(5);
+    TEST_ASSERT_FALSE(waiting.should_save(Remembered{5, 70, 4, true, false}, 1000 + kMemorySaveDelayMs - 1));
+    TEST_ASSERT_TRUE(waiting.should_save(Remembered{5, 70, 4, true, false}, 1000 + kMemorySaveDelayMs));
     // An effect chosen since is newer, and stays.
     State chosen(32);
     chosen.set_effect_count(6);

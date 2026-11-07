@@ -64,19 +64,27 @@ bool read_led(State& state) {
     return true;
 }
 
+// The favourites as flash held them when last read, under the lock: put on the catalog again once the
+// uploaded effects they name are read, as nothing is saved over them meanwhile.
+char s_favorites_text[kFavoritesTextBytes];
+
+// The favourites read, or none saved, onto the catalog as it is now.
+void take_favorites(State& state, bool loaded) {
+    // Every saved effect may be gone from a newer catalog; then the defaults count again.
+    const EffectMask saved = loaded ? favorites_from_text(s_favorites_text) : EffectMask{};
+    state.set_favorites(saved.any() ? saved : catalog_default_favorites());
+    s_favorites_partial.store(loaded && !effect_store_all_read() && favorites_name_unknown(s_favorites_text));
+}
+
 bool read_favorites(State& state) {
     if (!s_favorites_unread.load()) {
         return true;
     }
-    static char s_text[kFavoritesTextBytes];
-    const StoredRead read = settings_read_favorites(s_text, sizeof(s_text));
+    const StoredRead read = settings_read_favorites(s_favorites_text, sizeof(s_favorites_text));
     if (read == StoredRead::Unreadable) {
         return false;
     }
-    // Every saved effect may be gone from a newer catalog; then the defaults count again.
-    const EffectMask saved = read == StoredRead::Loaded ? favorites_from_text(s_text) : EffectMask{};
-    state.set_favorites(saved.any() ? saved : catalog_default_favorites());
-    s_favorites_partial.store(read == StoredRead::Loaded && !effect_store_all_read() && favorites_name_unknown(s_text));
+    take_favorites(state, read == StoredRead::Loaded);
     s_favorites_unread.store(false);
     return true;
 }
@@ -156,11 +164,11 @@ bool looks_favorites_whole(State& state) {
     if (!read_favorites(state)) {
         return false;
     }
-    if (s_favorites_partial.load() && effect_store_all_read()) {
-        // The effects they named are read, or known gone: the saved list again, onto the catalog as it is.
-        // Nothing was saved meanwhile, as a save waits for this, so flash still holds the owner's last list.
-        s_favorites_unread.store(true);
-        read_favorites(state);
+    // The effects they named are read, or all are and the rest are gone: the list read, onto the catalog as it
+    // is. From what was read, not flash again, whose reading could fail this time: nothing was saved meanwhile,
+    // as a save waits for this. Other uploads not read yet keep nothing back.
+    if (s_favorites_partial.load() && (effect_store_all_read() || !favorites_name_unknown(s_favorites_text))) {
+        take_favorites(state, true);
     }
     return !s_favorites_unread.load() && !s_favorites_partial.load();
 }

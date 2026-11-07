@@ -10,6 +10,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 
 	"gioui.org/app"
@@ -19,10 +20,10 @@ var errNoFileDialog = errors.New("choosing a file is not written for this system
 
 func viewHandle(app.ViewEvent) uintptr { return 0 }
 
-func chooseFile(uintptr, string, string, string) (string, error) {
+func chooseFile(context.Context, uintptr, string, string, string) (string, error) {
 	return "", errNoFileDialog
 }
 
-func chooseSaveFile(uintptr, string, string, string, string, string) (string, error) {
+func chooseSaveFile(context.Context, uintptr, string, string, string, string, string) (string, error) {
 	return "", errNoFileDialog
 }

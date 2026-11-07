@@ -8,6 +8,8 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -113,13 +115,13 @@ func TestASaveOverAFileWithTheExtensionIsAskedAgain(t *testing.T) {
 	answers := []string{filepath.Join(folder, "glow"), filepath.Join(folder, "glow.json")}
 	saved := saveDialog
 	t.Cleanup(func() { saveDialog = saved })
-	saveDialog = func(_ uintptr, _, _, _, startName string) (string, error) {
+	saveDialog = func(_ context.Context, _ uintptr, _, _, _, startName string) (string, error) {
 		asked = append(asked, startName)
 		answer := answers[0]
 		answers = answers[1:]
 		return answer, nil
 	}
-	got, err := chooseSaveFile(0, "Save", "*.json", "Effects", "json", "start.json")
+	got, err := chooseSaveFile(context.Background(), 0, "Save", "*.json", "Effects", "json", "start.json")
 	if err != nil || got != filepath.Join(folder, "glow.json") {
 		t.Fatalf("%q, %v", got, err)
 	}
@@ -129,12 +131,22 @@ func TestASaveOverAFileWithTheExtensionIsAskedAgain(t *testing.T) {
 
 	asked = nil
 	answers = []string{filepath.Join(folder, "new")}
-	if got, err := chooseSaveFile(0, "Save", "*.json", "Effects", "json", "start.json"); err != nil || got != filepath.Join(folder, "new.json") || len(asked) != 1 {
+	if got, err := chooseSaveFile(context.Background(), 0, "Save", "*.json", "Effects", "json", "start.json"); err != nil || got != filepath.Join(folder, "new.json") || len(asked) != 1 {
 		t.Fatalf("a new name: %q, %v, asked %q", got, err, asked)
 	}
 	answers = []string{""}
-	if got, err := chooseSaveFile(0, "Save", "*.json", "Effects", "json", "start.json"); err != nil || got != "" {
+	if got, err := chooseSaveFile(context.Background(), 0, "Save", "*.json", "Effects", "json", "start.json"); err != nil || got != "" {
 		t.Fatalf("cancelled: %q, %v", got, err)
+	}
+	// The utility ending ends the dialog, and none is asked for after it.
+	ended, end := context.WithCancel(context.Background())
+	end()
+	asked = nil
+	if got, err := chooseSaveFile(ended, 0, "Save", "*.json", "Effects", "json", "start.json"); !errors.Is(err, context.Canceled) || got != "" || len(asked) != 0 {
+		t.Fatalf("ended: %q, %v, asked %q", got, err, asked)
+	}
+	if _, err := zenityChoose(ended, false, "Open", "*.json", "Effects", ""); err == nil {
+		t.Fatal("zenity asked after the utility ended")
 	}
 }
 

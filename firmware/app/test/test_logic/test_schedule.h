@@ -205,6 +205,28 @@ static void test_schedule_sets_only_what_it_names() {
 
 // Scheduler24 tells of the soonest of what comes, a step of the schedule or the playlist's next effect; with
 // nothing to come, of the latest of what came: the start, a turn on or off, the LEDs, a step done.
+// A step that turns the garland on or off is told by its own name, not as the On or Off the screen sees at
+// its next poll; one that came apart from it stays.
+static void test_scheduler24_tells_a_step_by_its_name_not_its_power() {
+    constexpr int64_t kNow = 100'000'000;
+    const SaverMoment step = saver_moment(kNow - 60'000, "Fireplace");
+    SaverMoment events[2] = {saver_moment(kNow - 60'000 + 25, "On"), saver_moment(kNow - 60'000 + 900, "LEDs on")};
+    saver_fold_into_step(step, events, 2);
+    TEST_ASSERT_FALSE(events[0].known || events[1].known);
+    const SaverMoment behind[] = {saver_moment(0, "Start"), events[0], events[1], step};
+    char text[kSaverTextBytes];
+    saver_text(nullptr, 0, behind, 4, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("last: Fireplace\n1m 00s ago", text);
+    // An Off of the owner's a minute after the step is the owner's, and the latest.
+    SaverMoment later[1] = {saver_moment(kNow - 1'000, "Off")};
+    saver_fold_into_step(step, later, 1);
+    TEST_ASSERT_TRUE(later[0].known);
+    // And one before the step is not the step's.
+    SaverMoment before[1] = {saver_moment(kNow - 61'000, "On")};
+    saver_fold_into_step(step, before, 1);
+    TEST_ASSERT_TRUE(before[0].known);
+}
+
 static void test_scheduler24_says_what_comes_and_when() {
     // A day and some hours after the start: 27h 46m 40s.
     constexpr int64_t kNow = 100'000'000;
@@ -293,6 +315,7 @@ static void run_schedule_tests() {
     RUN_TEST(test_schedule_entry_rules);
     RUN_TEST(test_the_state_holds_when_the_playlist_goes_on);
     RUN_TEST(test_scheduler24_says_what_comes_and_when);
+    RUN_TEST(test_scheduler24_tells_a_step_by_its_name_not_its_power);
     RUN_TEST(test_schedule_matching);
     RUN_TEST(test_schedule_effect_starts_the_garland);
     RUN_TEST(test_schedule_replay_gives_the_final_state);

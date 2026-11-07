@@ -45,7 +45,7 @@ var checkedRoutes = []struct {
 }{
 	{"about", [3]int{1, 0, 0}, []string{"product", "api", "version", "image", "boot"}, nil, func() any { return &About{} }},
 	{"state", [3]int{1, 0, 0}, []string{"power", "brightness", "effect", "speed"}, nil, func() any { return &State{} }},
-	{"effects", [3]int{1, 0, 0}, []string{"effects"}, map[string][]string{"effects": {"id", "name"}}, func() any { return &struct{ Effects []Effect }{} }},
+	{"effects", [3]int{1, 0, 0}, []string{"effects"}, map[string][]string{"effects": {"id", "name"}}, func() any { return &EffectList{} }},
 	{"effects/store", [3]int{1, 0, 0}, []string{"available", "uploaded", "max", "max_file_bytes"}, nil, func() any { return &EffectStore{} }},
 	{"schedule", [3]int{1, 0, 0}, []string{"entries", "revision"}, map[string][]string{"entries": {"enabled", "time", "days"}}, func() any { return &Schedule{} }},
 	{"schedule/timeline", [3]int{1, 1, 0}, []string{"synced", "now", "events"}, map[string][]string{"events": {"at", "time", "day", "entries"}}, func() any { return &Timeline{} }},

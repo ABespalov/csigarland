@@ -171,7 +171,7 @@ func (p *firmwarePage) chooseFile(a *App) {
 	p.choice++
 	owner := a.owner.Load()
 	go func() {
-		path, err := pickUpdateFile(owner, "Update file", "*.ota", "Update files (*.ota)")
+		path, err := pickUpdateFile(a.lifetime, owner, "Update file", "*.ota", "Update files (*.ota)")
 		var data []byte
 		var update api.UpdateFile
 		if err == nil && path != "" {

@@ -9,7 +9,7 @@ csiGarland is an autonomous holiday garland system featuring:
 - **Power Switch:** Ultra-miniature High-Side P-MOSFET module (13.2 × 6.0 × 2.0 mm, 20V 4.3A 31W, 2 ms response) gating the +5V LED rail, to remove the idle draw of the LEDs in standby.
 - **Light Source:** 32x addressable WS2812B LEDs (8 unique holiday figurines × 4 copies each) on miniature 9×9×2.5 mm breakout boards.
 - **Diffusers:** Hollow 50 mm holiday figurines 3D-printed in translucent PETG with standardized snap-fit collars (OD 17.6 mm).
-- **Input:** Three tactile push-buttons (Red on GPIO 3: power on / brightness cycle / long press off with a countdown; White on GPIO 20: effect cycle / long press to the first; Speed on GPIO 23: effect speed cycle / long press to 1x) + onboard 1.3" display UI + Wi-Fi Web Server. Firmware updates are wireless (OTA); USB is not brought out of the enclosure.
+- **Input:** Three tactile push-buttons (Red on GPIO 3: power on / brightness cycle / long press off with a countdown; White on GPIO 20: effect cycle / double click to the first / long press starts or stops the playlist; Speed on GPIO 23: effect speed cycle / long press to 1x) + onboard 1.3" display UI + Wi-Fi Web Server. Firmware updates are wireless (OTA); USB is not brought out of the enclosure.
 - **Detailed Control Unit Design:** See [`control-unit.md`](control-unit.md). To build one: [Building the Hardware](../guides/hardware.md).
 
 ```mermaid

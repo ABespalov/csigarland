@@ -459,8 +459,7 @@ A file that fails validation is rejected whole and left out of the catalog, with
 
 ## 11. Not Implemented Yet
 
-* **Playlist.** [`carousel.json`](../../firmware/app/effects/carousel.json) shows the planned format, following WLED's playlist fields: `items`, then `dur` and `transition` in tenths of a second, and `repeat` with 0 looping forever. The firmware does not read it.
-* **Cross-fade between effects.** The change is a cut.
+* **A playlist as an effect file.** The garland has had a playlist of its own since 1.1.0, set in the portal or the utility and started by a long press of EFFECT: up to 16 effects, each played for a while, with a cross-fade between them, as between any two effects. [`carousel.json`](../../firmware/app/effects/carousel.json) shows a format for a playlist inside an effect file, following WLED's playlist fields: `items`, then `dur` and `transition` in tenths of a second, and `repeat` with 0 looping forever. The firmware does not read that.
 * **WLED preset import.** Layers can take `sx`, `ix`, `col`, `grp`, `spc`, `of`, `rev`, `mi`, `start` and `stop` unchanged. A converter needs a table from WLED's effect number to its name, and refuses effects still marked `todo`. WLED's `sx` and `ix` mean something different for each effect, so converted values are a starting point, not an exact look.
 * **New algorithms without reflashing.** If needed, an expression layer on the Pixelblaze `render(index)` model.
 
@@ -510,7 +509,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local -EffectsOnly
 
 ## 14. The Settings Utility
 
-[The csiGarland utility](utility.md) tunes effects with a preview drawn by this firmware's own engine, for now on Windows, and needs no board to show one. Its use is in its own guide. The principles:
+[The csiGarland utility](utility.md) tunes effects with a preview drawn by this firmware's own engine, on Windows, Linux and macOS, and needs no board to show one. Its use is in its own guide. The principles:
 
 * **One engine.** The utility is built with the firmware's effect code, so its frames are the garland's, and the firmware's parser is what judges a file. A screen does not show what a figurine does to light, so the garland has the last word: preview there too before keeping anything.
 * **What you tune reaches a garland as an upload.** Saved from the utility, a file lands in the Uploaded group, and one under a built-in effect's id replaces that effect until it is restored. It stays through a firmware update, as uploads live apart from the pack.

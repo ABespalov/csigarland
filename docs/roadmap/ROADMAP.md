@@ -47,7 +47,7 @@ Not implemented: see **Planned** below.
 
 ### Milestone 4: Full Garland Assembly (32 Figurines)
 - [ ] Solder a continuous 32-node cable harness.
-- [ ] Fix the physical order of the figurines along the cable, and match the layout in the [Effects Guide](../guides/effects.md) to it.
+- [x] Fix the physical order of the figurines along the cable, and match the layout in the [Effects Guide](../guides/effects.md) to it: the firmware of 1.1.1.
 - [ ] Batch print 32 base mounts and 32 holiday diffuser caps.
 - [ ] Snap LEDs into bases, secure strain-relief channels, and attach diffuser caps.
 
@@ -75,6 +75,9 @@ Not implemented: see **Planned** below.
 ## In the Next Release
 
 * **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
+* **The Scheduler24 screensaver,** for a garland with the clock module: what comes next and how soon, the schedule's next step within a day or the playlist's next effect, or what happened last and how long ago. Tested on the host, its pictures drawn by the firmware's own drawing code; not yet on the garland.
+* **The preview and Tune on the garland's own LED count,** and the current charted for it, the part past the limit in red. Tested on the host and in pictures of the window; not yet against the garland.
+* **What reviews of this release found,** in the reading of saved settings and uploaded effects after a start that could not read them, and in backups and restores: the [changelog](../../CHANGELOG.md) has each.
 
 
 ## Planned

@@ -15,6 +15,7 @@ tell builds apart by the hashes of what they hold.
 - An uploaded effect no longer comes back after it is uploaded again and deleted when the whole list of uploaded effects, not only one of them, could not be read at a start: until it is, an upload under an id the garland does not know is refused, 503, and the list is read again before each upload.
 - A favourite that is an uploaded effect not read at a start is no longer lost when another favourite is changed: until that effect is read, a change of a favourite is refused, 503, and once it is, it is a favourite again. So too when the flash partition of uploaded effects could not be opened at the start, which is now tried again, where until a restart its effects were missing and an upload was refused.
 - The effect the garland was left on is no longer lost to the first favourite when it is an uploaded effect not read at a start and only the power, brightness or speed is changed meanwhile: it stays the one saved, and plays once read, unless another was chosen since.
+- With a playlist left playing at a start, a change of only the power, brightness or speed no longer saves the playlist's first effect as the one the garland was left on: the effect saved stays, and plays when the playlist is stopped after a restart.
 - A saved time zone that cannot be read at a start is no longer replaced by the zone of the next browser to open the portal: the garland goes by UTC until it is read again, a few seconds on, and does no scheduled step meanwhile, which by UTC would come hours off, an Off from before the owner's own choice among them.
 - A new screensaver, Scheduler24, for a garland with the clock module: it flies across the screen as the Flying Clock does, with what comes next and how soon, the next scheduled action within a day or the playlist's next effect, `next: Fireplace` and `in 2h 05m`; with nothing to come, what happened last and how long ago, the start, a turn on or off, the LEDs going on or off, or a scheduled action done, `last: Off` and `3h 10m ago`. Its words wrap, and take a smaller letter, to stay within 80 % of the screen.
 - An LED at full white counts as 40 mA above 1 mA dark, by default, where it counted 55 mA: one WS2812B of the owner's garland measured 36.1 mA above 0.51 mA. So 32 LEDs on full white draw 1312 mA by the model, under the limit, and are no longer dimmed to about 78 %.
@@ -44,6 +45,7 @@ tell builds apart by the hashes of what they hold.
 
 ### Build and release
 
+- `flash-device.ps1` refuses a build that recorded no zlib, as `flash-device.sh` does, where it wrote an empty one or failed on it. `new-third-party-notices.ps1` says when Go is missing, and fetches a module from anywhere it is run, as its bash version does. The digest of the engine's sources sorts them as the bash version does whatever the computer's language, the same digest as before for today's files.
 - `build-utility.ps1`, `flash-device.ps1` and `ota-update.ps1` let go of their build lock however they end, also when run inside another script's PowerShell, as `run.ps1` runs `build-utility.ps1`: a build after it, the Linux one in its container too, found the lock held until that PowerShell was closed.
 
 ## [1.3.0] - 2026-11-06
@@ -190,7 +192,7 @@ The first release: firmware 1.0.0.102 and the csiGarland utility 1.0.0.27 for Wi
 ### Firmware
 
 - 32 WS2812B LEDs by default, chains of up to 256 set by hand or estimated by a probe on the gated rail, with the 1400 mA limit applied to every frame and the power sequence of data low, gate, output.
-- 154 effects in groups, from 101 algorithms in up to four layers, in an effects pack apart from the firmware with room for 512, favourites for the EFFECT button, and up to 32 effects uploaded or previewed from files.
+- 154 effects in groups, from 98 algorithms in up to four layers, in an effects pack apart from the firmware with room for 512, favourites for the EFFECT button, and up to 32 effects uploaded or previewed from files.
 - Three buttons, POWER, EFFECT and SPEED, with brightness steps, the off countdown and pairing; the screen in the csiPass design, with screensavers.
 - Home Wi-Fi, a setup network with its password on the screen, a captive portal and mDNS; NTP time, an optional DS3231 clock module, and a schedule of up to 32 actions in the garland's time zone, where a choice made by hand outranks the steps before it.
 - HTTPS with each garland's own root and certificates, made on the board, and browsers and programs paired by a press on the garland.

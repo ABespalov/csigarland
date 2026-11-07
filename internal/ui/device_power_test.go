@@ -30,9 +30,18 @@ func TestThePowerCardReadsWhatIsTyped(t *testing.T) {
 	if page.power.held {
 		t.Fatal("a garland without power settings has the card")
 	}
-	page.power.take(api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 250, LimitMilliamps: 4275, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 115}, true)
-	if !page.power.held || engine.LimitMilliamps() != 4275 {
-		t.Fatalf("held %v, Tune's limit %d", page.power.held, engine.LimitMilliamps())
+	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 250, LimitMilliamps: 4275, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 115}
+	page.power.take(budget, true)
+	// What the page read or saved is what Tune goes by, for this garland, at once.
+	a := &App{client: &api.Client{}}
+	a.takeGarlandBudget(a.client, budget, true)
+	if !page.power.held || engine.LimitMilliamps() != 4275 || !a.garlandPowerKnown() {
+		t.Fatalf("held %v, Tune's limit %d, known %v", page.power.held, engine.LimitMilliamps(), a.garlandPowerKnown())
+	}
+	// A garland of 1.1.1 or before, which has no settings: the model of its release.
+	a.takeGarlandBudget(a.client, api.PowerBudget{}, false)
+	if engine.PowerInUse() != oldFirmwarePower || !a.garlandPowerKnown() {
+		t.Fatalf("%+v", engine.PowerInUse())
 	}
 	words := PowerText(page.power.last)
 	if !strings.Contains(words, "Limit 4275 mA") || !strings.Contains(words, "draw 1184 mA, under the limit") || !strings.Contains(words, "up to 115 LEDs") {

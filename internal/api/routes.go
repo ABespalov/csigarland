@@ -144,14 +144,19 @@ func (c *Client) Effects(ctx context.Context) ([]Effect, error) {
 	return effects, err
 }
 
+// EffectList is the answer of the effects route, as CheckRoutes holds it too.
+type EffectList struct {
+	Effects []Effect `json:"effects"`
+	// False while the garland has uploaded effects, or favourites naming them, that it could not read yet;
+	// nil from a garland of 1.1.1 or before, which does not say.
+	Complete *bool `json:"complete,omitempty"`
+}
+
 // EffectsWhole lists every effect, and whether the list is whole: false while the garland has uploaded
 // effects, or favourites naming them, that it could not read yet, so that some are left out, or their marks.
-// A garland of 1.2.0 or before does not say, and its list counts as whole.
+// A garland of 1.1.1 or before does not say, and its list counts as whole.
 func (c *Client) EffectsWhole(ctx context.Context) ([]Effect, bool, error) {
-	var answer struct {
-		Effects  []Effect `json:"effects"`
-		Complete *bool    `json:"complete"`
-	}
+	var answer EffectList
 	err := c.get(ctx, "effects", nil, &answer)
 	return answer.Effects, answer.Complete == nil || *answer.Complete, err
 }
@@ -347,7 +352,7 @@ type Display struct {
 	ScreenBrightness int    `json:"screen_brightness"`
 	SaverBrightness  int    `json:"saver_brightness"`
 	BrightnessMin    int    `json:"brightness_min,omitempty"`
-	// Whether the clock module answered, which the Scheduler24 screensaver needs; nil from a garland of 1.2.0
+	// Whether the clock module answered, which the Scheduler24 screensaver needs; nil from a garland of 1.1.1
 	// or before, which has no Scheduler24. Read only: a backup leaves it out.
 	ClockModule *bool `json:"clock_module,omitempty"`
 }

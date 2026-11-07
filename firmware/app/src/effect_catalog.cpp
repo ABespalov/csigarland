@@ -80,7 +80,8 @@ public:
 // A tick, as a reader may be of lower priority than the task waiting for it.
 void let_readers_finish() {
 #if __has_include("freertos/FreeRTOS.h")
-    vTaskDelay(1);
+    static_assert(pdMS_TO_TICKS(1) >= 1, "a millisecond is at least a tick, or this would not wait");
+    vTaskDelay(pdMS_TO_TICKS(1));
 #endif
 }
 
@@ -188,26 +189,32 @@ size_t catalog_positions() {
     return preview_position() + 1;
 }
 
+// The upload at a position, nullptr for none and for a position past the table: an index comes from the play
+// word, whose field is wider than the table, and from callers anywhere.
+const EffectSpec* uploaded_at(size_t index) {
+    return index < s_positions.size() ? s_positions[index].load() : nullptr;
+}
+
 CatalogText catalog_id(size_t index) {
     const PoolRead reading;
-    const EffectSpec* const uploaded = s_positions[index].load();
+    const EffectSpec* const uploaded = uploaded_at(index);
     return text_of(uploaded != nullptr ? uploaded->id : index < s_count ? s_entries[index].id : "");
 }
 
 CatalogText catalog_name(size_t index) {
     const PoolRead reading;
-    const EffectSpec* const uploaded = s_positions[index].load();
+    const EffectSpec* const uploaded = uploaded_at(index);
     return text_of(uploaded != nullptr ? uploaded->name : index < s_count ? s_entries[index].name : "");
 }
 
 uint32_t catalog_revision(size_t index) {
-    return s_revisions[index].load();
+    return index < s_revisions.size() ? s_revisions[index].load() : 0;
 }
 
 bool catalog_copy_spec(size_t index, EffectSpec& out) {
     {
         const PoolRead reading;
-        const EffectSpec* const uploaded = s_positions[index].load();
+        const EffectSpec* const uploaded = uploaded_at(index);
         if (uploaded != nullptr) {
             out = *uploaded;
             return true;
@@ -303,7 +310,7 @@ bool catalog_is_preview(size_t position) {
 }
 
 bool catalog_is_uploaded(size_t position) {
-    return !catalog_is_preview(position) && s_positions[position].load() != nullptr;
+    return !catalog_is_preview(position) && uploaded_at(position) != nullptr;
 }
 
 bool catalog_is_built_in(size_t position) {
@@ -328,7 +335,7 @@ const char* catalog_planned_group(size_t index) {
 
 // Whatever the owner uploaded, a replacement for a built-in effect too, which goes back when restored.
 const char* catalog_group(size_t index) {
-    return index < s_count && s_positions[index].load() == nullptr ? s_entries[index].group : "Uploaded";
+    return index < s_count && uploaded_at(index) == nullptr ? s_entries[index].group : "Uploaded";
 }
 
 EffectMask catalog_default_favorites() {

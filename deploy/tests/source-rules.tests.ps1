@@ -17,7 +17,8 @@ $HeaderChars = 400
 $LicenseLine = 'Licensed under the terms specified by the MIT License'
 $PowerShellGuard = '#requires -Version 7.2'
 $SourcePattern = '\.(c|cc|cpp|h|hpp|go|py|ps1|psm1|sh|html|css|js)$'
-$NativePattern = '\.(c|cc|cpp|h|hpp|go|sh)$'
+# Every source of the project's own carries the header, Python and PowerShell as # comments: AGENTS.md section 1.
+$NativePattern = '\.(c|cc|cpp|h|hpp|go|sh|py|ps1|psm1)$'
 $FirmwarePattern = '^firmware/app/(src|test|scripts)/'
 # A third party's file, copied whole with its own licence header, so cgo can build it.
 $CopiedPattern = '^internal/engine/cJSON\.(c|h)$'

@@ -9,6 +9,7 @@
 package ui
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -118,8 +119,9 @@ func newToken() (string, error) {
 	return "csigarland_" + hex.EncodeToString(random), nil
 }
 
-// portalChoose asks the desktop portal, and waits for the owner. errNoPortal says to ask another way.
-func portalChoose(owner uintptr, save bool, title, pattern, description, startName string) (string, error) {
+// portalChoose asks the desktop portal, and waits for the owner, or for ctx to end, which closes the dialog.
+// errNoPortal says to ask another way.
+func portalChoose(ctx context.Context, owner uintptr, save bool, title, pattern, description, startName string) (string, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errNoPortal, err)
@@ -167,13 +169,22 @@ func portalChoose(owner uintptr, save bool, title, pattern, description, startNa
 		return "", fmt.Errorf("the system's file dialog: %w", err)
 	}
 	// An old portal answers from a path of its own choosing.
-	for signal := range signals {
-		if signal.Name != portalResponse || (signal.Path != expected && signal.Path != handle) {
-			continue
+	for {
+		select {
+		case <-ctx.Done():
+			// The dialog goes with the utility: the request closed, which the portal answers with nothing.
+			_ = conn.Object(portalName, handle).Call(portalRequest+".Close", 0).Err
+			return "", fmt.Errorf("the file dialog: %w", ctx.Err())
+		case signal, open := <-signals:
+			if !open {
+				return "", errors.New("the session bus went away while the file dialog was open")
+			}
+			if signal.Name != portalResponse || (signal.Path != expected && signal.Path != handle) {
+				continue
+			}
+			return portalAnswer(signal.Body)
 		}
-		return portalAnswer(signal.Body)
 	}
-	return "", errors.New("the session bus went away while the file dialog was open")
 }
 
 // portalAnswer reads a Response: its code, and the files chosen. "" is the owner cancelling.
@@ -208,9 +219,13 @@ func zenityArgs(save bool, title, pattern, description, startName string) []stri
 	return args
 }
 
-// zenityChoose asks zenity, where the desktop has no portal. Its exit code 1 is the owner cancelling.
-func zenityChoose(save bool, title, pattern, description, startName string) (string, error) {
-	output, err := exec.Command("zenity", zenityArgs(save, title, pattern, description, startName)...).Output()
+// zenityChoose asks zenity, where the desktop has no portal. Its exit code 1 is the owner cancelling; ctx ending
+// ends zenity.
+func zenityChoose(ctx context.Context, save bool, title, pattern, description, startName string) (string, error) {
+	output, err := exec.CommandContext(ctx, "zenity", zenityArgs(save, title, pattern, description, startName)...).Output()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", fmt.Errorf("the file dialog: %w", ctxErr)
+	}
 	var exit *exec.ExitError
 	switch {
 	case errors.Is(err, exec.ErrNotFound):
@@ -223,31 +238,34 @@ func zenityChoose(save bool, title, pattern, description, startName string) (str
 	return strings.TrimRight(string(output), "\r\n"), nil
 }
 
-func runFileDialog(owner uintptr, save bool, title, pattern, description, startName string) (string, error) {
-	path, err := portalChoose(owner, save, title, pattern, description, startName)
+func runFileDialog(ctx context.Context, owner uintptr, save bool, title, pattern, description, startName string) (string, error) {
+	path, err := portalChoose(ctx, owner, save, title, pattern, description, startName)
 	if errors.Is(err, errNoPortal) {
-		return zenityChoose(save, title, pattern, description, startName)
+		return zenityChoose(ctx, save, title, pattern, description, startName)
 	}
 	return path, err
 }
 
 // chooseFile asks, over the window whose handle is owner, for a file to open, and answers "" if the
-// owner cancelled. It waits, so call it away from the window's goroutine.
-func chooseFile(owner uintptr, title, pattern, description string) (string, error) {
-	return runFileDialog(owner, false, title, pattern, description, "")
+// owner cancelled. It waits, so call it away from the window's goroutine; ctx ending closes the dialog.
+func chooseFile(ctx context.Context, owner uintptr, title, pattern, description string) (string, error) {
+	return runFileDialog(ctx, owner, false, title, pattern, description, "")
 }
 
 // saveDialog asks once where to save; a variable, so that a test can stand in for the system's dialog.
-var saveDialog = func(owner uintptr, title, pattern, description, startName string) (string, error) {
-	return runFileDialog(owner, true, title, pattern, description, startName)
+var saveDialog = func(ctx context.Context, owner uintptr, title, pattern, description, startName string) (string, error) {
+	return runFileDialog(ctx, owner, true, title, pattern, description, startName)
 }
 
 // chooseSaveFile asks where to save a file, as chooseFile does. A name given without the extension gets it,
 // as the dialog on Windows gives it, but the dialog asked about replacing the name typed, not the one with
 // the extension: so where that one is there, the dialog is asked again with it, and asks about it.
-func chooseSaveFile(owner uintptr, title, pattern, description, extension, startName string) (string, error) {
+func chooseSaveFile(ctx context.Context, owner uintptr, title, pattern, description, extension, startName string) (string, error) {
 	for {
-		path, err := saveDialog(owner, title, pattern, description, startName)
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("the file dialog: %w", err)
+		}
+		path, err := saveDialog(ctx, owner, title, pattern, description, startName)
 		if err != nil || path == "" {
 			return "", err
 		}

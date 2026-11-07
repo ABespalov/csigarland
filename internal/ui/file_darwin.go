@@ -105,7 +105,9 @@ static int csg_choose(uintptr_t owner, int save, const char *title_text, const c
 import "C"
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"unsafe"
@@ -171,14 +173,21 @@ func runPanel(owner uintptr, save bool, title, extension, folder, name string) (
 }
 
 // chooseFile asks, over the window whose handle is owner, for a file to open, and answers "" if the
-// owner cancelled. It waits, so call it away from the window's goroutine.
-func chooseFile(owner uintptr, title, pattern, _ string) (string, error) {
+// owner cancelled. It waits, so call it away from the window's goroutine. A ctx ended already opens none;
+// once open, the panel is a sheet of the window and closes with it.
+func chooseFile(ctx context.Context, owner uintptr, title, pattern, _ string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("the file dialog: %w", err)
+	}
 	return runPanel(owner, false, title, patternExtension(pattern), "", "")
 }
 
 // chooseSaveFile asks where to save a file, as chooseFile does. The panel gives a name the extension and
 // asks about replacing the file of that name itself.
-func chooseSaveFile(owner uintptr, title, pattern, _, extension, startName string) (string, error) {
+func chooseSaveFile(ctx context.Context, owner uintptr, title, pattern, _, extension, startName string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("the file dialog: %w", err)
+	}
 	if extension == "" {
 		extension = patternExtension(pattern)
 	}

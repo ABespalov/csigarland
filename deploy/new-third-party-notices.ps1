@@ -46,6 +46,9 @@ if (-not $UtilityOnly) {
 }
 $EspIdf = Join-Path (Get-csiGarlandPlatformIOPackages) 'framework-espidf'
 $Toolchain = Join-Path (Get-csiGarlandPlatformIOPackages) 'toolchain-riscv32-esp'
+if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+    throw 'Go is not on PATH, and the notices read the licences of its modules from its cache.'
+}
 $GoCache = (& go env GOMODCACHE)
 $OutputPath = Join-Path $RepoRoot 'THIRD_PARTY_NOTICES.md'
 
@@ -230,7 +233,13 @@ foreach ($match in [regex]::Matches($goMod, '(?m)^\s*(?:require\s+)?([a-z0-9.-]+
     $folder = Join-Path $GoCache "$($match.Groups[1].Value)@$($match.Groups[2].Value)"
     # A module only another platform builds with may not be in the cache yet, and its licence is owed all the same.
     if (-not (Test-Path -LiteralPath $folder)) {
-        & go mod download "$($match.Groups[1].Value)@$($match.Groups[2].Value)"
+        # In the module, wherever this was run from, as the bash version runs it.
+        Push-Location -LiteralPath $RepoRoot
+        try {
+            & go mod download "$($match.Groups[1].Value)@$($match.Groups[2].Value)"
+        } finally {
+            Pop-Location
+        }
     }
     Add-Licence "$($match.Groups[1].Value) $($match.Groups[2].Value) (Go)" (Get-LicenceText $folder)
 }

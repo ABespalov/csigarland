@@ -14,7 +14,7 @@ Static English and Russian site for **https://garland.csilab.am**, served by Clo
 | File | Role |
 |---|---|
 | `index.html` | The product: what it does, the figurines, the control unit, the portal and utility |
-| `roadmap.html` | What is released, the milestones to the tree, and what is planned, after `docs/roadmap/ROADMAP.md` |
+| `roadmap.html` | What is released, the milestones to the tree, and what is planned, after `docs/stubs/ROADMAP.md` |
 | `documents.html` | Links to the documents, for owners, and for builders and contributors, and the control unit's schematic |
 | `downloads.html`, `downloads.js` | Every release's files, newest first under each product and platform, drawn from `downloads/manifest.json` |
 | `ru/` | The Russian pages, made by `deploy/site-pages.ps1`: edit the English page or `deploy/site-ru.json`, never these |

@@ -17,7 +17,7 @@
 #       The number both builds take, 0 unless given.
 #
 #   -Keep
-#       Leave the copies under temp/reproducible for a look at what differs.
+#       Leave the copies under temp/r for a look at what differs.
 #
 # It takes two full builds. The components dependencies.lock names come from this tree's
 # managed_components where it has them, as from a cache: they are what the lock says either way.

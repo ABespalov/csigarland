@@ -405,7 +405,11 @@ function Set-csiGarlandEngineSources {
     $folder = Join-Path $RepoRoot 'firmware/app/src'
     $sha = [System.Security.Cryptography.IncrementalHash]::CreateHash('SHA256')
     try {
-        foreach ($file in (Get-ChildItem -LiteralPath $folder -Recurse -File | Sort-Object FullName)) {
+        # By the path below the folder, with /, in the invariant culture, as csg_tool.py's engine_digest sorts:
+        # not by the machine's own culture, nor by a separator other systems do not have.
+        $root = (Resolve-Path -LiteralPath $folder).Path.TrimEnd('\', '/')
+        $byPath = @{ Expression = { $_.FullName.Substring($root.Length + 1).Replace('\', '/') } }
+        foreach ($file in (Get-ChildItem -LiteralPath $folder -Recurse -File | Sort-Object -Property $byPath -Culture '')) {
             $sha.AppendData([System.Text.Encoding]::UTF8.GetBytes("$($file.Name)`n"))
             $sha.AppendData([System.IO.File]::ReadAllBytes($file.FullName))
         }

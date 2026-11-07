@@ -156,7 +156,7 @@ func (p *tunePage) openFile(a *App) {
 	asked := p.file.Text()
 	owner := a.owner.Load()
 	go func() {
-		path, err := chooseFile(owner, "Effect file", "*.json", "Effect files (*.json)")
+		path, err := chooseFile(a.lifetime, owner, "Effect file", "*.json", "Effect files (*.json)")
 		var data []byte
 		var id string
 		var idErr error
@@ -201,7 +201,7 @@ func (p *tunePage) saveToDisk(a *App) {
 	}
 	owner := a.owner.Load()
 	go func() {
-		path, err := chooseSaveFile(owner, "Save the effect file", "*.json", "Effect files (*.json)", "json", name+".json")
+		path, err := chooseSaveFile(a.lifetime, owner, "Save the effect file", "*.json", "Effect files (*.json)", "json", name+".json")
 		if err == nil && path != "" {
 			if err = os.WriteFile(path, []byte(text), 0o644); err != nil {
 				err = fmt.Errorf("write the file: %w", err)

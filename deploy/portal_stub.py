@@ -164,7 +164,7 @@ INFO = {
 }
 ANSWERS = {
     "/api/state": STATE,
-    "/api/effects": {"effects": ALL_EFFECTS},
+    "/api/effects": {"effects": ALL_EFFECTS, "complete": True},
     "/api/effects/store": {"max_file_bytes": 4096, "available": True, "uploaded": 0, "max": 32, "free_heap": 150 * 1024},
     "/api/effects/planned": {"planned": []},
     "/api/ota": {"version": VERSION, "on_trial": False, "trial_left": 0, "effects": len(ALL_EFFECTS), "pack_digest": "0" * 64, "image": "0" * 64, "boot": "0a1b2c3d"},
@@ -172,7 +172,7 @@ ANSWERS = {
     "/api/schedule": {"entries": ENTRIES, "max": 32, "revision": 7, "next": NEXT},
     "/api/display": {"saver": "starfield", "delay": 60, "screen_brightness": 80, "saver_brightness": 30, "clock_module": True},
     "/api/wifi": WIFI,
-    "/api/wifi/scan": {"scanning": False, "networks": [{"ssid": "Home", "rssi": -52, "secure": True}, {"ssid": "Neighbours", "rssi": -78, "secure": True}]},
+    "/api/wifi/scan": {"state": "done", "networks": [{"ssid": "Home", "rssi": -52, "open": False}, {"ssid": "Neighbours", "rssi": -78, "open": False}]},
     "/api/info": INFO,
     "/api/leds": STATE,
     "/api/leds/power": {

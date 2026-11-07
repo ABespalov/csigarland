@@ -18,7 +18,6 @@ import (
 	"gioui.org/widget"
 
 	"github.com/ABespalov/csigarland/internal/api"
-	"github.com/ABespalov/csigarland/internal/engine"
 )
 
 // powerForm is the card, shown only for a garland that has the settings: one of 1.1.1 or before lacks them.
@@ -53,8 +52,7 @@ func readPowerBudget(ctx context.Context, client *api.Client) (api.PowerBudget, 
 	return budget, true, nil
 }
 
-// take fills the form as the garland has it, and has Tune go by the same, though Tune asks for them itself
-// once it opens, as it holds them for the garland they were read from.
+// take fills the form as the garland has it. What Tune goes by is the caller's, see takeGarlandBudget.
 func (f *powerForm) take(budget api.PowerBudget, held bool) {
 	f.takeTotals(budget, held)
 	if !held {
@@ -64,7 +62,17 @@ func (f *powerForm) take(budget api.PowerBudget, held bool) {
 	f.white.SetText(strconv.Itoa(budget.WhiteMilliamps))
 	f.idle.SetText(strconv.Itoa(budget.IdleMilliamps))
 	f.margin.SetText(strconv.Itoa(budget.MarginPercent))
-	_ = engine.SetPower(enginePower(budget))
+}
+
+// takeGarlandBudget has Tune go by what client's garland said of its settings, as the Device page read or
+// saved them: its own, or, held false, the model of a release before them. So Tune shows no settings older
+// than the page's.
+func (a *App) takeGarlandBudget(client *api.Client, budget api.PowerBudget, held bool) {
+	if held {
+		a.takeGarlandPower(client, enginePower(budget))
+		return
+	}
+	a.takeGarlandPower(client, oldFirmwarePower)
 }
 
 // takeTotals takes what the settings come to, leaving what is typed: after a change of the LED count.
@@ -158,6 +166,7 @@ func (f *powerForm) store(a *App) {
 		return func() {
 			f.saving = false
 			f.take(budget, true)
+			a.takeGarlandBudget(client, budget, true)
 			a.report("Saved.")
 		}, nil
 	})

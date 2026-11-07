@@ -1,6 +1,6 @@
 # Public API
 
-What the csiGarland utility builds on, and anyone else's tools after it. Implemented in the firmware and in `internal/api`, and not yet seen working on a board: host tests cover its logic, a stub server covers the client, and a chain built with the firmware's own name constraints shows that Go takes it.
+What the csiGarland utility builds on, and anyone else's tools after it. Implemented in the firmware and in `internal/api`, and seen working on the owner's garland through the utility: host tests cover its logic, a stub server covers the client, and a chain built with the firmware's own name constraints shows that Go takes it. What is new after the last release of the firmware is not yet seen on a board.
 
 ## Why a Branch of Its Own
 
@@ -71,7 +71,7 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 | `GET`, `POST` | `/api/v1/state` | Power, brightness, speed, effect, whether the playlist plays (`playlist`) and where it stands (`playlist_at` from 1, 0 when what plays is not in it, and `playlist_size`), all three new after 1.0.0, LED count, and `steps_done_until`, new after 1.0.0, the unix second up to which the scheduler has done its steps, 0 before its first pass: a step of the timeline due before it is done, whatever the power came to since | `/api/state` |
 | `GET` | `/api/v1/events` | Push updates, new after 1.0.0: Server-Sent Events, `event: state` with what `/api/v1/state` answers, at once and on every change, and `event: alive` with `data: {}` within every 15 s of a stream's own silence, whatever the other stream hears: a reader passes over an event it does not know, and one that hears nothing for 45 s may take the stream as lost. Two at a time; 503 for a third, during an update, and when the garland is busy for a moment. A stream ends once its client is forgotten or out of its days. A client keeps its own connection for it, and asks for the state now and then whenever it has none | `/api/events` |
 | `POST` | `/api/v1/power` | `{"on": true}` turns on or off, and answers with the state | New |
-| `GET` | `/api/v1/effects` | The effects, with favourite and active flags. 503 while the favourites saved could not be read, as the flags would be the defaults. `complete`, new after 1.2.0, is false while an uploaded effect, or a favourite mark of one, could not be read yet: the list is then partial, and a backup must not be made of it | `/api/effects` |
+| `GET` | `/api/v1/effects` | The effects, with favourite and active flags. 503 while the favourites saved could not be read, as the flags would be the defaults. `complete`, new after 1.1.1, is false while an uploaded effect, or a favourite mark of one, could not be read yet: the list is then partial, and a backup must not be made of it | `/api/effects` |
 | `POST` | `/api/v1/effects/play` | Plays one, `{"id": "..."}` | `/api/effect` |
 | `POST` | `/api/v1/effects/favorite` | Ticks or unticks one. 503, nothing changed, while the favourites saved could not be read | `/api/favorites` |
 | `GET` | `/api/v1/effects/file?id=` | The file of any effect, as it stands on this garland | New |
@@ -84,7 +84,7 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 | `POST` | `/api/v1/playlist/play` | `{"play": true}` starts the playlist, turning the garland on at its first effect, and `false` stops it. 409 for an empty list, and 503, the list unreadable, with nothing done. New after 1.0.0 | `/api/playlist/play` |
 | `GET`, `POST` | `/api/v1/time` | Clock and zone. `zone_set` false means none was chosen, and a client may set its own; it is true while a saved zone could not be read yet, though the clock goes by UTC meanwhile | `/api/time` |
 | `POST` | `/api/v1/time/rtc` | Sets the clock module | `/api/time/rtc` |
-| `GET`, `POST` | `/api/v1/display` | Screen and screensaver. 503, nothing changed, while the settings saved could not be read. `GET` says `clock_module`, whether the clock module answered, new after 1.2.0; `scheduler24` is offered only with it, and a `POST` of it without is 409 unless it is the saver chosen already | `/api/display` |
+| `GET`, `POST` | `/api/v1/display` | Screen and screensaver. 503, nothing changed, while the settings saved could not be read. `GET` says `clock_module`, whether the clock module answered, new after 1.1.1; `scheduler24` is offered only with it, and a `POST` of it without is 409 unless it is the saver chosen already | `/api/display` |
 | `POST` | `/api/v1/leds` | LED count, 0 for automatic | `/api/leds` |
 | `GET`, `POST` | `/api/v1/leds/power` | The current limit's settings, new after 1.1.1: `{"supply_ma", "led_white_ma", "led_idle_ma", "margin_percent"}`, and what they come to, `board_ma`, `limit_ma`, the chain's `leds` and `peak_ma` at full white, `undimmed_leds`, with each setting's range as `supply_min` and so on. A `POST` sends all four and answers as a `GET`. 503, nothing changed, while the settings saved could not be read. A garland of 1.1.1 or before answers 404, and holds to 55 mA an LED at full white, 1 mA dark and 1400 mA | `/api/leds/power` |
 | `GET`, `POST` | `/api/v1/wifi` | The home network | `/api/wifi` |

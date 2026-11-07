@@ -36,7 +36,7 @@ import (
 const MaxLeds = int(C.CSG_MAX_LEDS)
 
 // Power is a garland's power settings, as its Device page has them: the supply, one LED at full white
-// above its idle draw, one LED dark, all in mA, and the margin in percent of the supply.
+// above its idle draw, one LED dark, all in mA, and the margin in percent of what the supply gives beyond the board.
 type Power struct {
 	SupplyMilliamps int
 	WhiteMilliamps  int

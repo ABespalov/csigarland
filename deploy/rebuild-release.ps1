@@ -136,7 +136,7 @@ if ($FirmwareManifest) {
     }
     # The image holds the portal's pages gzipped by the zlib of the Python that built it: another zlib than the
     # release's, as the manifest or the tag's platformio.ini names it, packs them into other bytes.
-    $madeZlib = (Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'generated\portal_zlib.txt')).Trim()
+    $madeZlib = "$(Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'generated\portal_zlib.txt') -ErrorAction SilentlyContinue)".Trim()
     $releaseZlib = if ($release.PSObject.Properties['zlib']) { $release.zlib } else { [regex]::Match((Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'platformio.ini')), '(?m)^CSIGARLAND_RELEASE_ZLIB\s*=\s*(\S+)\s*$').Groups[1].Value }
     if ($releaseZlib -and $madeZlib -cne $releaseZlib) {
         Write-Warning "The portal's pages were gzipped with zlib $madeZlib here, the release's with ${releaseZlib}: expect the image to differ."

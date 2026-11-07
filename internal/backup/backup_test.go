@@ -44,7 +44,7 @@ type garland struct {
 	missing []string
 	// When set, what happens on the garland as a route is asked, before its answer.
 	meanwhile func(g *garland, route string)
-	// What GET effects says of the list's being whole: nil says nothing, as a garland of 1.2.0 or before.
+	// What GET effects says of the list's being whole: nil says nothing, as a garland of 1.1.1 or before.
 	complete *bool
 }
 

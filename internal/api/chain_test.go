@@ -331,7 +331,7 @@ func TestEveryFieldIsOneTheFirmwareNames(t *testing.T) {
 		source.Write(data)
 	}
 	text := source.String()
-	shapes := []any{About{}, PairRequest{}, PairAnswer{}, Leds{}, State{}, Effect{}, Action{}, NextAction{}, Schedule{}, ClockModule{},
+	shapes := []any{About{}, PairRequest{}, PairAnswer{}, Leds{}, State{}, Effect{}, EffectList{}, Action{}, NextAction{}, Schedule{}, ClockModule{},
 		Clock{}, Display{}, Wifi{}, Network{}, Scan{}, Firmware{}, Info{}, PairedClient{}, clientList{}}
 	for _, shape := range shapes {
 		kind := reflect.TypeOf(shape)

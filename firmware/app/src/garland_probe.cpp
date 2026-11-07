@@ -70,7 +70,7 @@ ProbeResult measure(adc_oneshot_unit_handle_t adc, adc_channel_t channel, gpio_n
         if (polls++ < kBusyPolls) {
             esp_rom_delay_us(100);
         } else {
-            vTaskDelay(1);
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
         end_mv = read_mv(adc, channel);
         elapsed_us = esp_timer_get_time() - start_us;

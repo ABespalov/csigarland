@@ -84,6 +84,24 @@ inline void saver_span_text(int64_t seconds, char* out, size_t size) {
     }
 }
 
+// How long after a change what follows from it is part of it: the rail after a turn on or off, or a turn on or
+// off after the scheduled step that made it, which the screen sees at its next poll.
+constexpr int64_t kSaverFollowsMs = 5000;
+
+// A turn on or off, or the rail with it, that came of the scheduled step: within kSaverFollowsMs after it, and
+// not before. Left out, so the step is told by its own name, "Fireplace", not as "On".
+inline void saver_fold_into_step(const SaverMoment& step, SaverMoment* events, size_t count) {
+    if (!step.known) {
+        return;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        const int64_t after = events[i].at_ms - step.at_ms;
+        if (events[i].known && after >= 0 && after < kSaverFollowsMs) {
+            events[i].known = false;
+        }
+    }
+}
+
 // The soonest of ahead still to come, at now_ms or after: "next: Fireplace" and "in 2h 05m". With none, the
 // latest of behind: "last: Off" and "3h 10m ago". The two lines with a line break between them.
 inline void saver_text(const SaverMoment* ahead, size_t ahead_count, const SaverMoment* behind, size_t behind_count, int64_t now_ms,

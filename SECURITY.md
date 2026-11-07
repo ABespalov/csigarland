@@ -10,7 +10,7 @@ Say what is affected, how to reproduce it, and the firmware version from the por
 
 ## Supported Versions
 
-Nothing has been released yet. Only the latest code on `main` is looked after, and an owner updates by building and installing it. Each fork signs its own firmware, so a fix reaches a garland only when its owner installs one.
+Only the latest release of the firmware and of the utility is looked after: a fix comes in the next release, as an update file for the firmware, installed over Wi-Fi from the portal or the utility, and a new utility for each system, on [Releases](https://github.com/ABespalov/csigarland/releases). Each fork signs its own firmware, so a fix reaches a garland only when its owner installs one.
 
 ## What Counts
 

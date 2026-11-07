@@ -33,7 +33,7 @@ type backupCard struct {
 	busy    bool
 }
 
-const backupWords = "Keeps the schedule, the favourites, the playlist, the screen and the uploaded effects in one file, to put back on this garland after it was erased, or on another. Pairings, the Wi-Fi password and the HTTPS root are not in it, and are set again by hand."
+const backupWords = "Keeps the schedule, the favourites, the playlist, the screen, the power settings and the uploaded effects in one file, to put back on this garland after it was erased, or on another. Pairings, the Wi-Fi password and the HTTPS root are not in it, and are set again by hand."
 
 func (p *infoPage) backupWidget(a *App) layout.Widget {
 	c := &p.backup
@@ -86,7 +86,7 @@ func (p *infoPage) writeBackup(a *App, data []byte, startName string) {
 	a.choosing = true
 	owner := a.owner.Load()
 	go func() {
-		path, err := chooseSaveFile(owner, "Save the backup", "*.json", "Backups (*.json)", "json", startName)
+		path, err := chooseSaveFile(a.lifetime, owner, "Save the backup", "*.json", "Backups (*.json)", "json", startName)
 		if err == nil && path != "" {
 			err = writeWhole(path, data)
 		}
@@ -115,7 +115,7 @@ func (p *infoPage) restoreBackup(a *App) {
 	c := &p.backup
 	garland, connection := a.client, a.connection
 	go func() {
-		path, err := chooseFile(owner, "Restore from a backup", "*.json", "Backups (*.json)")
+		path, err := chooseFile(a.lifetime, owner, "Restore from a backup", "*.json", "Backups (*.json)")
 		var read backup.Backup
 		if err == nil && path != "" {
 			var data []byte
@@ -150,6 +150,9 @@ func (p *infoPage) restoreBackup(a *App) {
 				return func() {
 					c.busy = false
 					p.load(a)
+					// The power settings it may have put back: Tune and the Device page read them again.
+					a.power = garlandPower{}
+					a.device.load(a)
 					if err == nil {
 						a.report(fmt.Sprintf("Restored the backup made %s from firmware %s.", read.Made, read.Firmware))
 					}

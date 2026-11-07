@@ -64,7 +64,6 @@ uint32_t s_activity = 0;
 // The second Scheduler24's words were last worked out for: once a second is enough.
 int64_t s_step_second = -1;
 // What happened since the start, as note_events saw it, on the uptime clock.
-constexpr int64_t kRailFollowsMs = 5000;
 bool s_events_seen = false;
 bool s_seen_power = false;
 bool s_seen_rail = false;
@@ -230,7 +229,7 @@ void note_events(const Snapshot& now, int64_t now_ms) {
     }
     if (now.rail_on != s_seen_rail) {
         s_seen_rail = now.rail_on;
-        const bool follows = now_ms - s_power_changed_ms < kRailFollowsMs && s_seen_rail == s_seen_power;
+        const bool follows = now_ms - s_power_changed_ms < kSaverFollowsMs && s_seen_rail == s_seen_power;
         if (!follows) {
             s_rail_event = saver_moment(now_ms, s_seen_rail ? "LEDs on" : "LEDs off");
         }
@@ -256,7 +255,8 @@ void update_scheduler_text(const State& state, const Snapshot& now, int64_t now_
     if (now.playlist && playlist_next_ms != 0) {
         uint16_t effects[kMaxPlaylistEffects] = {};
         const int following = playlist_next(effects, state.playlist(effects), now.effect);
-        if (following >= 0) {
+        // A list of one effect, or of one the catalog still has, never moves on: nothing comes of its dwell.
+        if (following >= 0 && following != static_cast<int>(now.effect)) {
             effect_name(following, name, sizeof(name));
             ahead[1] = saver_moment(now_ms + static_cast<int32_t>(playlist_next_ms - static_cast<uint32_t>(now_ms)), name);
         }
@@ -268,6 +268,8 @@ void update_scheduler_text(const State& state, const Snapshot& now, int64_t now_
     if (schedule_last_step(done_ms, name, sizeof(name))) {
         behind[3] = saver_moment(done_ms, name);
     }
+    // The turn on or off a step made, seen at the next poll, is that step.
+    saver_fold_into_step(behind[3], &behind[1], 2);
     char text[kSaverTextBytes];
     saver_text(ahead, 2, behind, 4, now_ms, text, sizeof(text));
     saver_view_take_text(text);

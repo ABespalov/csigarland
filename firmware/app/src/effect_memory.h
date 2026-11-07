@@ -199,7 +199,14 @@ public:
 
     // The effect flash holds is found in the catalog at last, at that place: see PendingEffect. Nothing else
     // of what was saved changes, and a change waiting to be saved still waits.
-    void saved_effect_found(uint16_t effect) { saved_.effect = effect; }
+    void saved_effect_found(uint16_t effect) {
+        // The one waiting held the place played meanwhile too, unless an effect was chosen: it is the same change,
+        // and keeps its time.
+        if (waiting_ && candidate_.effect == saved_.effect) {
+            candidate_.effect = effect;
+        }
+        saved_.effect = effect;
+    }
 
     // After a failed write: waits the whole delay again before the next try.
     void retry_later(uint32_t now_ms) { since_ms_ = now_ms; }

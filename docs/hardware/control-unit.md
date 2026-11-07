@@ -45,7 +45,7 @@ The physical interface uses three dedicated tactile buttons arranged in a horizo
 | Button | Cap | Label | GPIO | Short click | Long press |
 |---|---|---|---|---|---|
 | 1 | Red | `POWER` | 3 | Turn on at the remembered brightness (from standby), then step brightness 10 → 25 → 50 → 75 → 100 → 10 % | Start a 5 s countdown to off (when on) |
-| 2 | White | `EFFECT` | 20 | Next favourite effect (when on) | First favourite effect (when on) |
+| 2 | White | `EFFECT` | 20 | Next favourite effect; a double click, the first favourite (when on) | With a playlist set, start it, or stop it and keep what plays (when on) |
 | 3 | Blue/Black | `SPEED` | 23 | Next speed 0.25× → 0.5× → 0.75× → 1× → 1.5× → 2× → 3× → 0.25× (when on) | Back to 1× (when on) |
 
 Any button cancels the countdown or wakes the screen from a screensaver, and that press does nothing else.
@@ -63,7 +63,7 @@ stateDiagram-v2
     Active --> Active: Clicks and long presses of EFFECT and SPEED, POWER click
 ```
 
-During the countdown the garland stays lit and the screen counts the seconds. When it runs out the LEDs are blanked and the MOSFET rail is cut (`GPIO 1 = LOW`). The garland changes state at once: fades on turning on or off are not implemented, and the current limiter applies at every brightness.
+During the countdown the garland stays lit and the screen counts the seconds. When it runs out the LEDs are blanked and the MOSFET rail is cut (`GPIO 1 = LOW`). The light comes up over 0.8 s at a turn on and goes down over 0.8 s before a turn off, and over a minute at a scheduled turn on that rises; the current limiter applies at every brightness.
 
 The effects themselves, and which of them the EFFECT button cycles through, are described in the [Effects Guide](../guides/effects.md).
 
@@ -158,6 +158,10 @@ Over HTTPS. All but those marked open want a paired browser, and answer 401 othe
 | `POST` | `/api/effects/preview` | Play an effect sent as the body, saving nothing | |
 | `GET` | `/api/effects/store` | Uploads, their limits, and free memory | |
 | `GET`, `POST` | `/api/schedule` | Read or replace the whole list | `{"entries": [{"time": "17:30", "days": 127, "power": "on"}]}` |
+| `GET` | `/api/schedule/timeline` | What the schedule does over the next 24 hours | |
+| `GET`, `POST` | `/api/playlist` | The playlist: its effects, how long each plays and the cross-fade; replace it, with the revision it was read with | `{"effects": ["fireplace", "aurora"], "dwell": 60, "cross_fade": 1000, "revision": 7}` |
+| `POST` | `/api/playlist/play` | Start the playlist, which turns the garland on, or stop it | `{"play": true}` |
+| `GET` | `/api/events` | A stream of the state as it changes, as server-sent events | |
 | `GET`, `POST` | `/api/time` | Clock state with the clock module's, and the time zone as a POSIX TZ string | `{"zone": "CET-1CEST,M3.5.0,M10.5.0/3"}` |
 | `POST` | `/api/time/rtc` | Set the clock module: from NTP, the browser's clock, or by hand in the garland's time zone | `{"source": "manual", "local": "2026-10-31T18:05"}` |
 | `GET`, `POST` | `/api/display` | Screensaver and screen brightness | `{"saver": "starfield", "delay": 60, "screen_brightness": 100, "saver_brightness": 30}` |
