@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: The LED count, favourites and screen settings on the state, read again while they could not be
+ * Purpose: The LED count, power budget, favourites and screen settings on the state, read again while they could not be
  * Contributors: None
  */
 
@@ -31,6 +31,7 @@ constexpr uint32_t kRetryMs = 5000;
 std::atomic<bool> s_led_unread{true};
 std::atomic<bool> s_favorites_unread{true};
 std::atomic<bool> s_display_unread{true};
+std::atomic<bool> s_power_unread{true};
 uint32_t s_tried_ms = 0;
 
 // Held across each reading put on the state, and each save that the reading must not come after.
@@ -89,12 +90,27 @@ bool read_display(State& state) {
     return true;
 }
 
-// All three read, as far as they can be. True when none is left unread.
+// Unread, the defaults hold, which keep the limit of the releases before these settings.
+bool read_power(State& state) {
+    if (!s_power_unread.load()) {
+        return true;
+    }
+    PowerSettings power;
+    if (settings_read_power(power) == StoredRead::Unreadable) {
+        return false;
+    }
+    state.set_power(power);
+    s_power_unread.store(false);
+    return true;
+}
+
+// All four read, as far as they can be. True when none is left unread.
 bool read_all(State& state) {
     const Guard guard;
     const bool led = read_led(state);
+    const bool power = read_power(state);
     const bool favorites = read_favorites(state);
-    return read_display(state) && led && favorites;
+    return read_display(state) && led && power && favorites;
 }
 
 }  // namespace
@@ -109,17 +125,17 @@ void looks_load(State& state) {
         }
         vTaskDelay(pdMS_TO_TICKS(kReadPauseMs));
     }
-    ESP_LOGE(TAG, "the LED count, favourites or screen settings could not be read: tried again every few seconds, and not saved over");
+    ESP_LOGE(TAG, "the LED count, power budget, favourites or screen settings could not be read: tried again every few seconds, and not saved over");
 }
 
 void looks_retry_if_unread(State& state, uint32_t now_ms) {
-    const bool unread = s_led_unread.load() || s_favorites_unread.load() || s_display_unread.load();
+    const bool unread = s_led_unread.load() || s_power_unread.load() || s_favorites_unread.load() || s_display_unread.load();
     if (!unread || s_lock == nullptr || now_ms - s_tried_ms < kRetryMs) {
         return;
     }
     s_tried_ms = now_ms;
     if (read_all(state)) {
-        ESP_LOGI(TAG, "the LED count, favourites and screen settings were read late");
+        ESP_LOGI(TAG, "the LED count, power budget, favourites and screen settings were read late");
     }
 }
 
@@ -131,6 +147,21 @@ bool looks_favorites_read(State& state) {
 bool looks_display_read(State& state) {
     const Guard guard;
     return read_display(state);
+}
+
+bool looks_power_read(State& state) {
+    const Guard guard;
+    return read_power(state);
+}
+
+esp_err_t looks_save_power(State& state, const PowerSettings& settings) {
+    const Guard guard;
+    const esp_err_t err = settings_save_power(settings);
+    if (err == ESP_OK) {
+        state.set_power(settings);
+        s_power_unread.store(false);
+    }
+    return err;
 }
 
 esp_err_t looks_save_led_count(State& state, uint16_t setting) {

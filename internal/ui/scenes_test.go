@@ -143,6 +143,7 @@ func sceneApp(t *testing.T, page Page) *App {
 		a.device.mode.Value = "auto"
 		a.device.count.SetText("32")
 		a.device.takeDisplay(api.Display{Saver: "starfield", Delay: 60, ScreenBrightness: 100, SaverBrightness: 30})
+		a.device.power.take(api.PowerBudget{SupplyMilliamps: 2000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20, BoardMilliamps: 200, LimitMilliamps: 1400, Leds: 32, PeakMilliamps: 1312, UndimmedLeds: 34}, true)
 	case PageNetwork:
 		a.network.wifi = api.Wifi{Configured: true, Connected: true, SSID: "Home", IP: "192.0.2.50", Hostname: "csigarland.local"}
 		a.network.rootText = sceneInfo().RootFingerprint

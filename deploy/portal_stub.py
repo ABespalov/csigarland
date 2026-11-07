@@ -175,6 +175,11 @@ ANSWERS = {
     "/api/wifi/scan": {"scanning": False, "networks": [{"ssid": "Home", "rssi": -52, "secure": True}, {"ssid": "Neighbours", "rssi": -78, "secure": True}]},
     "/api/info": INFO,
     "/api/leds": STATE,
+    "/api/leds/power": {
+        "supply_ma": 2000, "led_white_ma": 40, "led_idle_ma": 1, "margin_percent": 20, "board_ma": 200, "limit_ma": 1400,
+        "leds": 32, "peak_ma": 1312, "undimmed_leds": 34, "supply_min": 500, "supply_max": 20000, "led_white_min": 5,
+        "led_white_max": 100, "led_idle_max": 5, "margin_min": 5, "margin_max": 20,
+    },
     "/api/auth/devices": {"devices": [{"id": 1, "label": "Chrome Windows", "this": True, "expires": UNTIL}, {"id": 2, "label": "Safari iOS", "this": False, "expires": UNTIL}]},
     "/api/auth/request": {"request": "sample", "code": "4827", "seconds": 60},
     "/api/auth/wait": {"state": "waiting"},

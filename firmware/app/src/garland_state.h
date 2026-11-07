@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <mutex>
 
+#include "power_model.h"
+
 namespace garland {
 
 enum class ProbeStatus : uint8_t { NotChecked, Absent, Present };
@@ -701,6 +703,10 @@ public:
     uint8_t screen_percent() const { return screen_percent_.load(); }
     uint8_t saver_percent() const { return saver_percent_.load(); }
 
+    // The LEDs' power budget, valid settings only. One word, which the Lighting task reads each frame.
+    void set_power(const PowerSettings& settings) { power_.store(pack_power(settings)); }
+    PowerSettings power() const { return unpack_power(power_.load()); }
+
     // Told by the display, so button_down knows the press is only a wake-up.
     void set_saver_active(bool active) { saver_active_.store(active); }
 
@@ -911,6 +917,7 @@ private:
     std::atomic<uint16_t> saver_delay_seconds_{kSaverDelayDefaultSeconds};
     std::atomic<uint8_t> screen_percent_{kScreenBrightnessDefault};
     std::atomic<uint8_t> saver_percent_{kSaverBrightnessDefault};
+    std::atomic<uint32_t> power_{pack_power(PowerSettings{})};
     std::atomic<bool> saver_active_{false};
     std::atomic<bool> setup_network_{false};
     std::atomic<uint8_t> update_percent_{kNoUpdate};

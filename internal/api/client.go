@@ -300,7 +300,7 @@ func safeToSendTwice(method, route string) bool {
 		return false
 	}
 	switch route {
-	case "state", "power", "leds", "display", "time", "effects/play", "effects/favorite", "effects/preview":
+	case "state", "power", "leds", "leds/power", "display", "time", "effects/play", "effects/favorite", "effects/preview":
 		return true
 	}
 	return false

@@ -352,6 +352,40 @@ func (c *Client) SetDisplay(ctx context.Context, display Display) (Display, erro
 	return answer, c.post(ctx, "display", body, &answer)
 }
 
+// PowerBudget is the LEDs' power settings, from firmware 1.2.0 on, and what they come to on the chain in
+// use: the limit, what it draws all at full white, and how many LEDs full white leaves undimmed.
+type PowerBudget struct {
+	SupplyMilliamps int `json:"supply_ma"`
+	WhiteMilliamps  int `json:"led_white_ma"`
+	IdleMilliamps   int `json:"led_idle_ma"`
+	MarginPercent   int `json:"margin_percent"`
+	BoardMilliamps  int `json:"board_ma,omitempty"`
+	LimitMilliamps  int `json:"limit_ma,omitempty"`
+	Leds            int `json:"leds,omitempty"`
+	PeakMilliamps   int `json:"peak_ma,omitempty"`
+	UndimmedLeds    int `json:"undimmed_leds,omitempty"`
+	SupplyMin       int `json:"supply_min,omitempty"`
+	SupplyMax       int `json:"supply_max,omitempty"`
+	WhiteMin        int `json:"led_white_min,omitempty"`
+	WhiteMax        int `json:"led_white_max,omitempty"`
+	IdleMax         int `json:"led_idle_max,omitempty"`
+	MarginMin       int `json:"margin_min,omitempty"`
+	MarginMax       int `json:"margin_max,omitempty"`
+}
+
+// PowerBudget reads the LEDs' power settings.
+func (c *Client) PowerBudget(ctx context.Context) (PowerBudget, error) {
+	var budget PowerBudget
+	return budget, c.get(ctx, "leds/power", nil, &budget)
+}
+
+// SetPowerBudget saves the LEDs' power settings, the four the owner sets.
+func (c *Client) SetPowerBudget(ctx context.Context, budget PowerBudget) (PowerBudget, error) {
+	var answer PowerBudget
+	body := PowerBudget{SupplyMilliamps: budget.SupplyMilliamps, WhiteMilliamps: budget.WhiteMilliamps, IdleMilliamps: budget.IdleMilliamps, MarginPercent: budget.MarginPercent}
+	return answer, c.post(ctx, "leds/power", body, &answer)
+}
+
 // Wifi is the state of the home network.
 type Wifi struct {
 	Configured   bool   `json:"configured"`

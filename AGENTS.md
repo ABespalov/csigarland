@@ -28,11 +28,13 @@ repository.
   - Clock: optional DS3231 module. Everything has to work without it.
   - Power switch: High-side MOSFET module (YZ_CTL_V1) with EN/PWM control from ESP32-C6 GPIO,
     gating the +5V power rail to LEDs during standby to eliminate quiescent draw entirely.
-  - Pins and limits have one source, the build flags in `firmware/app/platformio.ini`. Documents
-    follow it.
+  - Pins and limits have one source, the build flags in `firmware/app/platformio.ini`, but for the
+    current limit, whose settings and their defaults are in `firmware/app/src/power_model.h`. Documents
+    follow them.
 - **Power architecture:** Hardware power-gating via YZ_CTL_V1 MOSFET module for zero standby
-  draw on the LED rail, combined with software power clamping (maximum 1400 mA) to maintain
-  safe operating margin on the 2000 mA Hi-Link power supply.
+  draw on the LED rail, combined with software power clamping to a limit worked out from the
+  owner's settings (owner's decision of 2026-11-07): the supply's current, less a margin of 5-20 %
+  of it and 200 mA for the board, so 1400 mA on the 2000 mA Hi-Link at the default 20 %.
 - **Releases:** 1.0.0 is the first release and the baseline (owner's decision of 2026-11-03):
   nothing from before it is kept compatible with. From it on, a garland updated to a new release
   keeps what a released build saved, settings, pairings, uploaded effects and its root certificate,
@@ -170,8 +172,9 @@ Never place secrets, keys or real passwords in tracked documents or examples.
   to ASCII.
 - Use ESP-IDF logging (`ESP_LOGI/W/E`). Never log the Wi-Fi password, tokens or private keys.
 - Use FreeRTOS tasks with `vTaskDelay(pdMS_TO_TICKS(ms))`, not raw tick values.
-- Strict power limit in software: clamp LED output to maximum 1400 mA to maintain
-  safe operating margin on the 2000 mA Hi-Link power supply. No effect or setting goes around it.
+- Strict power limit in software: clamp LED output to the limit the power settings give, 1400 mA
+  on the 2000 mA Hi-Link by default. The settings take only their ranges, the margin never below
+  5 %, and no effect or other setting goes around the limit.
 - Keep the power sequence: data low, gate high, then the output on the way up; a blackout frame,
   data low, gate low on the way down, and the chain blanked at boot.
 - Compile with zero project warnings: the project's own code builds with `-Wall -Wextra -Werror`.

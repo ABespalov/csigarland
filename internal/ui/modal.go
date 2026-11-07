@@ -110,6 +110,7 @@ func (a *App) openModal(kind modalKind) {
 	switch kind {
 	case modalTune:
 		a.tune.look.seed(a.state)
+		a.readGarlandPower()
 	case modalPreview:
 		a.preview.look.seed(a.state)
 	}

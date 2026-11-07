@@ -39,4 +39,4 @@ body:
       description: A request that goes against one of these will need another way.
       options:
         - label: The buttons, screen, effects and schedule work with no network and no browser.
-        - label: Nothing goes around the 1400 mA limit.
+        - label: Nothing goes around the current limit the power settings give.

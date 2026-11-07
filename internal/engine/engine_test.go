@@ -10,8 +10,6 @@ package engine
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -204,21 +202,27 @@ func TestARunIsApartFromThePreviews(t *testing.T) {
 	}
 }
 
-// The limit is the firmware's own, as its build flags give it: one source, which the engine follows.
+// The limit is the firmware's own, worked out from the power settings as it does: the defaults keep the
+// 1400 mA of the releases before them, and settings it would refuse change nothing.
 func TestTheLimitIsTheFirmwares(t *testing.T) {
-	ini, err := os.ReadFile("../../firmware/app/platformio.ini")
-	if err != nil {
-		t.Fatal(err)
+	defaults := DefaultPower()
+	t.Cleanup(func() { _ = SetPower(defaults) })
+	if defaults != (Power{2000, 40, 1, 20}) || LimitMilliamps() != 1400 {
+		t.Fatalf("defaults %+v, limit %d", defaults, LimitMilliamps())
 	}
-	found := regexp.MustCompile(`-DCSIGARLAND_POWER_LIMIT_MA=(\d+)`).FindSubmatch(ini)
-	if found == nil || string(found[1]) != strconv.Itoa(LimitMilliamps) {
-		t.Fatalf("platformio.ini says %q, the engine %d", found, LimitMilliamps)
+	if err := SetPower(Power{5000, 36, 1, 10}); err != nil || LimitMilliamps() != 4300 {
+		t.Fatalf("%v, limit %d", err, LimitMilliamps())
+	}
+	if err := SetPower(Power{5000, 36, 1, 30}); err == nil || LimitMilliamps() != 4300 {
+		t.Fatalf("a margin of 30%% taken: %v, limit %d", err, LimitMilliamps())
 	}
 }
 
-// White on every LED at full brightness draws past the limit, and less at a lower brightness, as the
-// firmware's model says; the preview and a run say the same.
+// White on every LED at full brightness draws what the settings say, and less at a lower brightness, as
+// the firmware's model says; the preview and a run say the same.
 func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
+	defaults := DefaultPower()
+	t.Cleanup(func() { _ = SetPower(defaults) })
 	white := []byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`)
 	full, err := Currents(white, []uint32{0, 1000}, 100, 32)
 	if err != nil {
@@ -228,8 +232,18 @@ func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if full[0] <= LimitMilliamps || half[0] >= full[0] || half[0] <= 0 || full[0] != full[1] {
-		t.Fatalf("full %v, half %v, limit %d", full, half, LimitMilliamps)
+	// 32 LEDs at 40 + 1 mA.
+	if full[0] != 1312 || half[0] >= full[0] || half[0] <= 0 || full[0] != full[1] {
+		t.Fatalf("full %v, half %v", full, half)
+	}
+	if err := SetPower(Power{2000, 55, 1, 20}); err != nil {
+		t.Fatal(err)
+	}
+	if past, _ := Currents(white, []uint32{0}, 100, 32); past[0] != 1792 || past[0] <= LimitMilliamps() {
+		t.Fatalf("at 55 + 1 mA white draws %v", past)
+	}
+	if err := SetPower(defaults); err != nil {
+		t.Fatal(err)
 	}
 	preview, err := NewPreview(white)
 	if err != nil {

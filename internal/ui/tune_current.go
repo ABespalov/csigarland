@@ -8,13 +8,17 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"image"
+	"net/http"
 	"time"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
 
+	"github.com/ABespalov/csigarland/internal/api"
 	"github.com/ABespalov/csigarland/internal/engine"
 )
 
@@ -30,19 +34,45 @@ const (
 	playheadWide   = unit.Dp(2)
 )
 
-// currentChart is what an effect draws at full brightness over its first 200 s, worked out again only when
-// the file changes: a brightness scales it, as the firmware's gain scales every channel.
-type currentChart struct {
-	file string
-	full []int
-	err  error
+// oldFirmwarePower is the model of a garland from before the power settings, 1.1.1 and earlier: 55 mA at
+// full white, 1 mA dark, held to 1400 mA.
+var oldFirmwarePower = engine.Power{SupplyMilliamps: 2000, WhiteMilliamps: 55, IdleMilliamps: 1, MarginPercent: 20}
+
+// enginePower is the four settings of a garland's answer, as the engine takes them.
+func enginePower(budget api.PowerBudget) engine.Power {
+	return engine.Power{SupplyMilliamps: budget.SupplyMilliamps, WhiteMilliamps: budget.WhiteMilliamps, IdleMilliamps: budget.IdleMilliamps, MarginPercent: budget.MarginPercent}
 }
 
-func (c *currentChart) update(file string) {
-	if file == c.file {
+// readGarlandPower has Tune work its current out as the garland connected to does: by its settings, or
+// by the model of a release before them, which answers 404. With none connected, the last ones stay.
+func (a *App) readGarlandPower() {
+	a.background(func(ctx context.Context, client *api.Client) (func(), error) {
+		budget, err := client.PowerBudget(ctx)
+		var failure *api.Error
+		switch {
+		case err == nil:
+			return func() { _ = engine.SetPower(enginePower(budget)) }, nil
+		case errors.As(err, &failure) && failure.Status == http.StatusNotFound:
+			return func() { _ = engine.SetPower(oldFirmwarePower) }, nil
+		}
+		return nil, fmt.Errorf("read the power settings: %w", err)
+	})
+}
+
+// currentChart is what an effect draws at full brightness over its first 200 s, worked out again only when
+// the file or the power settings change: a brightness scales it, as the firmware's gain scales every channel.
+type currentChart struct {
+	file  string
+	power engine.Power
+	full  []int
+	err   error
+}
+
+func (c *currentChart) update(file string, power engine.Power) {
+	if file == c.file && power == c.power {
 		return
 	}
-	c.file = file
+	c.file, c.power = file, power
 	if file == "" {
 		c.full, c.err = nil, nil
 		return
@@ -120,12 +150,12 @@ func CurrentText(values []int, limit, idle int) string {
 // preview plays, and its words. All three are of the frame the strip above has just drawn, and read when
 // they are laid out, after it: so the line, the 20 s around it and what Now says are of what the LEDs show.
 func (p *tunePage) currentRows(a *App) []layout.Widget {
-	p.current.update(p.checked)
+	p.current.update(p.checked, engine.PowerInUse())
 	if p.current.err != nil || len(p.current.full) == 0 || p.preview == nil {
 		return nil
 	}
 	idle := engine.IdleMilliamps(previewLeds)
-	limit := engine.LimitMilliamps
+	limit := engine.LimitMilliamps()
 	shown := func() (played, from uint32, values []int) {
 		played = uint32(p.look.clock.played / time.Millisecond)
 		from, full := p.current.window(played)

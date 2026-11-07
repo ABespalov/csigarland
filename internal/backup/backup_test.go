@@ -33,6 +33,8 @@ type garland struct {
 	uploads   map[string]string
 	playlist  api.Playlist
 	display   api.Display
+	// The power settings, with their totals; nil as a garland of 1.1.1 or before, which answers 404.
+	power *api.PowerBudget
 	// When not 0, what GET playlist answers instead.
 	playlistStatus int
 	// What GET firmware says, 1.0.0.103 when empty.
@@ -129,6 +131,19 @@ func (g *garland) serve(t *testing.T) *api.Client {
 		case "POST display":
 			_ = json.Unmarshal(body, &g.display)
 			reply(g.display)
+		case "GET leds/power":
+			if g.power == nil {
+				http.NotFound(w, r)
+				return
+			}
+			reply(g.power)
+		case "POST leds/power":
+			if g.power == nil {
+				http.NotFound(w, r)
+				return
+			}
+			_ = json.Unmarshal(body, g.power)
+			reply(g.power)
 		default:
 			http.NotFound(w, r)
 		}
@@ -183,6 +198,47 @@ func TestABackupPutsAnErasedGarlandBack(t *testing.T) {
 	}
 	if !reflect.DeepEqual(to.playlist.Effects, from.playlist.Effects) || to.playlist.Dwell != 90 || to.display.Saver != "flying-clock" {
 		t.Fatalf("playlist %+v, screen %+v", to.playlist, to.display)
+	}
+}
+
+// The power settings go with the rest, the four the owner sets and not what they come to; a garland of a
+// release with them that does not answer fails the backup, as a 1.1.1 garland's 404 does not.
+func TestThePowerSettingsAreKept(t *testing.T) {
+	from := &garland{version: "1.2.0.120", favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
+		power: &api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4300, Leds: 32}}
+	ctx := context.Background()
+	made, err := Collect(ctx, from.serve(t), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if made.Power == nil || *made.Power != (api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
+		t.Fatalf("%+v", made.Power)
+	}
+	data, err := Encode(made)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, power: &api.PowerBudget{SupplyMilliamps: 2000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20}}
+	if err := Restore(ctx, to.serve(t), read, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if to.power.SupplyMilliamps != 5000 || to.power.WhiteMilliamps != 36 || to.power.MarginPercent != 10 {
+		t.Fatalf("%+v", to.power)
+	}
+	// A backup from before the settings leaves a garland's own as they are.
+	old := read
+	old.Power = nil
+	kept := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, power: &api.PowerBudget{SupplyMilliamps: 3000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20}}
+	if err := Restore(ctx, kept.serve(t), old, func(string) {}); err != nil || kept.power.SupplyMilliamps != 3000 {
+		t.Fatalf("%v %+v", err, kept.power)
+	}
+	from.power = nil
+	if _, err := Collect(ctx, from.serve(t), time.Now()); err == nil || !strings.Contains(err.Error(), "power") {
+		t.Fatalf("a 1.2.0 garland without power settings: %v", err)
 	}
 }
 

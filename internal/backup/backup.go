@@ -2,7 +2,7 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: A garland's own choices in one file and back: the schedule, favourites, playlist, screen and uploads.
+// Purpose: A garland's own choices in one file and back: the schedule, favourites, playlist, screen, power and uploads.
 // Contributors: None
 
 // Package backup keeps what an owner has set up on a garland, all of it the public API gives, in one
@@ -53,7 +53,9 @@ type Backup struct {
 	Favorites       []string      `json:"favorites"`
 	Playlist        *api.Playlist `json:"playlist,omitempty"` // Absent from a garland of 1.0.0, which has none.
 	Display         api.Display   `json:"display"`
-	Uploads         []Upload      `json:"uploads"`
+	// The LEDs' power settings, the four the owner sets. Absent from a garland of 1.1.1 or before.
+	Power   *api.PowerBudget `json:"power,omitempty"`
+	Uploads []Upload         `json:"uploads"`
 }
 
 // picture says which list, effects and playlist a backup was read from: read again once it is made, a
@@ -225,6 +227,14 @@ func collectOnce(ctx context.Context, client *api.Client, now time.Time) (Backup
 	if backup.Display, err = client.Display(ctx); err != nil {
 		return Backup{}, picture{}, nil, fmt.Errorf("read the screen: %w", err)
 	}
+	// As the playlist: 404 only from a release before the power settings.
+	switch budget, err := client.PowerBudget(ctx); {
+	case err == nil:
+		backup.Power = &api.PowerBudget{SupplyMilliamps: budget.SupplyMilliamps, WhiteMilliamps: budget.WhiteMilliamps, IdleMilliamps: budget.IdleMilliamps, MarginPercent: budget.MarginPercent}
+	case errors.As(err, &failure) && failure.Status == http.StatusNotFound && !api.HasRoute(firmware.Version, "leds/power"):
+	default:
+		return Backup{}, picture{}, nil, fmt.Errorf("read the power settings: %w", err)
+	}
 	return backup, pictureOf(schedule, effects, files, backup.Playlist), builtIn, nil
 }
 
@@ -284,7 +294,7 @@ func Parse(data []byte) (Backup, error) {
 }
 
 // Restore puts a backup on a garland, in the order that lets each part find what it names: the uploads
-// first, then the favourites, the playlist, the screen and last the schedule, which replaces the
+// first, then the favourites, the playlist, the screen, the power settings and last the schedule, which replaces the
 // garland's whole list. Each step that fails is said, and the rest still go on, so a garland that
 // lacks one effect takes all else. step hears each part as it is done. The schedule replaced is the one
 // read before anything is sent: one saved meanwhile, from here or elsewhere, is not overwritten.
@@ -351,6 +361,12 @@ func Restore(ctx context.Context, client *api.Client, backup Backup, step func(s
 			fail("the screen", err)
 		}
 		step("Put back the screen.")
+	}
+	if backup.Power != nil {
+		if _, err := client.SetPowerBudget(ctx, *backup.Power); err != nil {
+			fail("the power settings", err)
+		}
+		step("Put back the power settings.")
 	}
 	// An action naming an effect this garland lacks is left out, and said, as the garland would refuse the
 	// whole list for it: unless this garland keeps that effect missing in its own list already, as the one

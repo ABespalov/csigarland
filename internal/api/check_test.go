@@ -27,6 +27,7 @@ func checkedGarland(t *testing.T, version string, answers map[string]string) *Cl
 		"playlist":          `{"effects":[],"dwell":60,"cross_fade":1000,"revision":2}`,
 		"time":              `{"synced":true,"zone":"UTC0"}`,
 		"display":           `{"saver":"starfield"}`,
+		"leds/power":        `{"supply_ma":2000,"led_white_ma":40,"led_idle_ma":1,"margin_percent":20,"board_ma":200,"limit_ma":1400,"leds":32,"peak_ma":1312,"undimmed_leds":34}`,
 		"firmware":          `{"version":"` + version + `"}`,
 		"effects/store":     `{"available":true,"uploaded":0,"max":32,"max_file_bytes":8192}`,
 		"wifi":              `{"configured":true,"connected":true,"setup_network":false,"ssid":"home","ip":"10.0.0.2","hostname":"csigarland"}`,
@@ -85,6 +86,10 @@ func TestEveryRouteIsHeldToItsType(t *testing.T) {
 	if found["playlist"].Problem == "" || found["playlist"].Absent {
 		t.Errorf("playlist: %+v", found["playlist"])
 	}
+	// 1.1.0 came before the power settings: their 404 is as it should be.
+	if found["leds/power"].Problem != "" {
+		t.Errorf("leds/power: %+v", found["leds/power"])
+	}
 	for _, route := range []string{"about", "effects", "schedule/timeline", "info", "clients"} {
 		if found[route].Problem != "" || found[route].Unknown != "" {
 			t.Errorf("%s: %+v", route, found[route])
@@ -115,8 +120,8 @@ func TestEveryRouteIsHeldToItsType(t *testing.T) {
 
 // A garland of 1.0.0 answers 404 for what came after it, as it should: no fault.
 func TestARouteAfterTheReleaseMayBeAbsent(t *testing.T) {
-	found := checksOf(checkedGarland(t, "1.0.0.102", map[string]string{"playlist": "404", "schedule/timeline": "404"}))
-	for _, route := range []string{"playlist", "schedule/timeline"} {
+	found := checksOf(checkedGarland(t, "1.0.0.102", map[string]string{"playlist": "404", "schedule/timeline": "404", "leds/power": "404"}))
+	for _, route := range []string{"playlist", "schedule/timeline", "leds/power"} {
 		if found[route].Problem != "" || !found[route].Absent {
 			t.Errorf("%s: %+v", route, found[route])
 		}

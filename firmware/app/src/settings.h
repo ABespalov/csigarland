@@ -43,7 +43,7 @@ bool settings_storage_ready();
 // so there is always one, whatever came of settings_init. Never logged.
 const char* settings_ap_password();
 
-// The LED count, favourites and screen settings, in settings_looks.cpp. Each read tells none saved, Missing,
+// The LED count, power budget, favourites and screen settings, in settings_looks.cpp. Each read tells none saved, Missing,
 // from one there and not read, Unreadable, which a save would write over: see looks.h.
 // The saved LED count setting into out, kLedCountAuto if there is none or it is out of range.
 StoredRead settings_read_led_count(uint16_t& out);
@@ -75,6 +75,9 @@ esp_err_t settings_save_schedule(const ScheduleEntry* entries, size_t count);
 // Leaves what out holds in place for whatever was not saved, is not valid, or could not be read.
 StoredRead settings_read_display(DisplaySettings& out);
 esp_err_t settings_save_display(const DisplaySettings& settings);
+// The same for the LEDs' power budget, whose defaults a garland saved by 1.1.1 or before reads.
+StoredRead settings_read_power(PowerSettings& out);
+esp_err_t settings_save_power(const PowerSettings& settings);
 
 // The last effect, brightness and speed. False when none were saved. The fields are as
 // stored: the caller checks them against this firmware's catalog and ranges.

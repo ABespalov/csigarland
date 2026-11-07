@@ -48,7 +48,6 @@ extern "C" void app_main(void) {
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, " csiGarland Firmware Starting (v%s)", CSIGARLAND_VERSION);
     ESP_LOGI(TAG, " Default LEDs: %d units", CSIGARLAND_LED_COUNT);
-    ESP_LOGI(TAG, " Power Limit: %d mA", CSIGARLAND_POWER_LIMIT_MA);
     ESP_LOGI(TAG, "========================================");
 
     const garland::PackView pack = garland::pack_store_open();

@@ -9,6 +9,25 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+### Firmware
+
+- The current limit is worked out from the owner's power settings, no longer fixed: the supply's current, less a margin of 5-20 % of it and 200 mA for the board, the screen and Wi-Fi. A garland updated from 1.1.1 starts with 2000 mA and 20 %, so its limit stays 1400 mA.
+- An LED at full white counts as 40 mA above 1 mA dark, by default, where it counted 55 mA: one WS2812B of the owner's garland measured 36.1 mA above 0.51 mA. So 32 LEDs on full white draw 1312 mA by the model, under the limit, and are no longer dimmed to about 78 %.
+
+### Portal
+
+- The Device page sets the power supply, what one LED draws at full white and dark, and the margin, and works out as they are typed the limit, what the chain draws at full white, and how many LEDs that leaves undimmed.
+
+### Public API
+
+- `GET` and `POST /api/v1/leds/power`: the power settings, and what they come to. 503 while they could not be read.
+
+### Utility
+
+- The Device page has the power settings, for a garland that has them.
+- Tune works an effect's current out by the power settings of the garland connected to, and by the model of 1.1.1, 55 mA and 1400 mA, for a garland of 1.1.1 or before.
+- A backup holds the power settings, and a restore puts them back; one of a garland of 1.1.1 or before holds none, and its restore leaves the garland's own.
+
 ### Build and release
 
 - `build-utility.ps1`, `flash-device.ps1` and `ota-update.ps1` let go of their build lock however they end, also when run inside another script's PowerShell, as `run.ps1` runs `build-utility.ps1`: a build after it, the Linux one in its container too, found the lock held until that PowerShell was closed.

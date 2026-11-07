@@ -13,7 +13,7 @@ The full garland runs **32 addressable WS2812B LEDs**, populated by **4 identica
 * **50 mm Figurine Standard:** All figurines are scaled to the **50 mm height class** (~46–49 mm), providing generous volume for light diffusion and eliminating fragile paper-thin walls.
 * **Robust Wall Thickness:** All diffuser caps but the star have a minimum wall thickness of **$\ge 1.40\text{ mm}$** (strictly **3 to 4 solid perimeter loops** on a 0.40 mm nozzle with 0.42–0.44 mm line widths). The star is an even **$1.20\text{ mm}$** shell normal to its facets, about 3 perimeters in plan, as a thicker one printed floating walls that showed through the PETG; see [the star](#2-3d-faceted-magen-david) below.
 * **Reinforced Snap Collar:** Collar outer diameter is **$\varnothing 17.60\text{ mm}$**, guaranteeing **$1.425\text{ mm}$ of solid plastic** over the internal snap groove for a durable, crack-free click.
-* **Hardware Power-Gating:** In standby the `YZ_CTL_V1` high-side MOSFET module cuts the +5V power rail, which removes the idle draw of the LEDs, with software current clamping to 1400 mA. The module's own off current has not been measured.
+* **Hardware Power-Gating:** In standby the `YZ_CTL_V1` high-side MOSFET module cuts the +5V power rail, which removes the idle draw of the LEDs, with software current clamping to the limit set on the Device page, 1400 mA by default. The module's own off current has not been measured.
 
 ---
 

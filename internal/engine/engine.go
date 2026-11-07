@@ -11,8 +11,7 @@
 package engine
 
 /*
-// The limit is platformio.ini's, which a test holds this to.
-#cgo CPPFLAGS: -I${SRCDIR}/../../firmware/app/src -I${SRCDIR} -DCSIGARLAND_POWER_LIMIT_MA=1400
+#cgo CPPFLAGS: -I${SRCDIR}/../../firmware/app/src -I${SRCDIR}
 #cgo CXXFLAGS: -std=c++20 -DCSIGARLAND_MAX_LEDS=256
 // The only C here is cJSON, a third party's, left as it came.
 #cgo CFLAGS: -w
@@ -28,6 +27,7 @@ import "C"
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sync"
 	"unsafe"
 )
@@ -35,8 +35,54 @@ import (
 // MaxLeds is the longest chain the engine draws, as in the firmware.
 const MaxLeds = int(C.CSG_MAX_LEDS)
 
-// LimitMilliamps is the current the firmware holds every frame to, by scaling it down.
-const LimitMilliamps = int(C.CSG_POWER_LIMIT_MA)
+// Power is a garland's power settings, as its Device page has them: the supply, one LED at full white
+// above its idle draw, one LED dark, all in mA, and the margin in percent of the supply.
+type Power struct {
+	SupplyMilliamps int
+	WhiteMilliamps  int
+	IdleMilliamps   int
+	MarginPercent   int
+}
+
+// DefaultPower is what a garland starts with, as the firmware has it.
+func DefaultPower() Power {
+	var supply, white, idle, margin C.int
+	C.csg_default_power(&supply, &white, &idle, &margin)
+	return Power{int(supply), int(white), int(idle), int(margin)}
+}
+
+// SetPower has every current here worked out by power from now on, as the garland that holds it does.
+// One the firmware would refuse changes nothing, and says so.
+func SetPower(power Power) error {
+	engineLock.Lock()
+	defer engineLock.Unlock()
+	if C.csg_set_power(C.int(power.SupplyMilliamps), C.int(power.WhiteMilliamps), C.int(power.IdleMilliamps), C.int(power.MarginPercent)) == 0 {
+		return fmt.Errorf("power settings out of range: %+v", power)
+	}
+	powerInUse = power
+	return nil
+}
+
+// Set by SetPower; zero until then, which stands for the defaults.
+var powerInUse Power
+
+// PowerInUse is what the currents here are worked out by now.
+func PowerInUse() Power {
+	engineLock.Lock()
+	defer engineLock.Unlock()
+	if powerInUse == (Power{}) {
+		return DefaultPower()
+	}
+	return powerInUse
+}
+
+// LimitMilliamps is the current the firmware holds every frame to, by scaling it down, as it works it out
+// from the power settings in use.
+func LimitMilliamps() int {
+	engineLock.Lock()
+	defer engineLock.Unlock()
+	return int(C.csg_power_limit())
+}
 
 const (
 	bytesPerLed = 3
@@ -171,7 +217,7 @@ func (p *Preview) Frame(timeMs uint32, brightness int, out []Color) int {
 }
 
 // Milliamps is what the last frame drew, by the firmware's own model, before its limit held it back:
-// more than LimitMilliamps is a frame the garland sends dimmer.
+// more than LimitMilliamps() is a frame the garland sends dimmer.
 func (p *Preview) Milliamps() int { return p.milliamps }
 
 // Currents is what an effect draws at each of times, by the firmware's own model, on a chain of leds

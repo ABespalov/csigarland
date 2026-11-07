@@ -86,6 +86,7 @@ The token goes in `Authorization: Bearer <token>` on each request. The utility k
 | `POST` | `/api/v1/time/rtc` | Sets the clock module | `/api/time/rtc` |
 | `GET`, `POST` | `/api/v1/display` | Screen and screensaver. 503, nothing changed, while the settings saved could not be read | `/api/display` |
 | `POST` | `/api/v1/leds` | LED count, 0 for automatic | `/api/leds` |
+| `GET`, `POST` | `/api/v1/leds/power` | The current limit's settings, new after 1.1.1: `{"supply_ma", "led_white_ma", "led_idle_ma", "margin_percent"}`, and what they come to, `board_ma`, `limit_ma`, the chain's `leds` and `peak_ma` at full white, `undimmed_leds`, with each setting's range as `supply_min` and so on. A `POST` sends all four and answers as a `GET`. 503, nothing changed, while the settings saved could not be read. A garland of 1.1.1 or before answers 404, and holds to 55 mA an LED at full white, 1 mA dark and 1400 mA | `/api/leds/power` |
 | `GET`, `POST` | `/api/v1/wifi` | The home network | `/api/wifi` |
 | `GET`, `POST` | `/api/v1/wifi/scan` | The networks in reach | `/api/wifi/scan` |
 | `POST` | `/api/v1/network/name`, `/api/v1/network/certificate` | The mDNS name, and the certificate's domain. Answers `{"restarting": true}` when the garland restarts to take it, `false` when nothing changed | `/api/network/*` |

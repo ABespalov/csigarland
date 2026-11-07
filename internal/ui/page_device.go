@@ -2,7 +2,7 @@
 // Licensed under the terms specified by the MIT License
 // Part of the csiGarland project https://github.com/ABespalov/csigarland
 //
-// Purpose: The Device page: the LED count and the screen. The Network page: Wi-Fi, name, domain.
+// Purpose: The Device page: the LED count, power and the screen. The Network page: Wi-Fi, name, domain.
 // Contributors: None
 
 package ui
@@ -32,6 +32,7 @@ type devicePage struct {
 	saveScreen   widget.Clickable
 	last         api.Display
 	savingScreen bool
+	power        powerForm
 }
 
 func (p *devicePage) init() {
@@ -39,6 +40,7 @@ func (p *devicePage) init() {
 	p.screen = newField(true)
 	p.delay = newField(true)
 	p.saverLevel = newField(true)
+	p.power.init()
 }
 
 func (p *devicePage) load(a *App) {
@@ -51,6 +53,10 @@ func (p *devicePage) load(a *App) {
 		if err != nil {
 			return nil, err
 		}
+		budget, held, err := readPowerBudget(ctx, client)
+		if err != nil {
+			return nil, err
+		}
 		return func() {
 			a.takeState(state)
 			p.mode.Value = "auto"
@@ -59,6 +65,7 @@ func (p *devicePage) load(a *App) {
 			}
 			p.count.SetText(strconv.Itoa(state.Leds.Count))
 			p.takeDisplay(display)
+			p.power.take(budget, held)
 		}, nil
 	})
 }
@@ -98,7 +105,11 @@ func number(editor *widget.Editor, name string) (int, error) {
 }
 
 func (p *devicePage) rows(a *App) []layout.Widget {
-	return []layout.Widget{p.ledsCard(a), p.screenCard(a)}
+	rows := []layout.Widget{p.ledsCard(a)}
+	if p.power.held {
+		rows = append(rows, p.power.card(a))
+	}
+	return append(rows, p.screenCard(a))
 }
 
 func (p *devicePage) ledsCard(a *App) layout.Widget {
@@ -139,8 +150,11 @@ func (p *devicePage) saveCount(a *App) {
 		if err != nil {
 			return nil, fmt.Errorf("could not save: %w", err)
 		}
+		// What the power settings come to depends on the count.
+		budget, held, _ := readPowerBudget(ctx, client)
 		return func() {
 			a.takeState(state)
+			p.power.takeTotals(budget, held)
 			a.report("Saved.")
 		}, nil
 	})

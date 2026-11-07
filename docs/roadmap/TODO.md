@@ -42,11 +42,12 @@ The firmware and these documents rest on estimates at the points below. None can
 
 ### Power
 
-Before the tree, as the 1400 mA limit protects the supply only if its model holds.
+Before the tree, as the current limit protects the supply only if its model holds.
 
-- [ ] **Current per LED at full white.** The limiter assumes 55 mA per LED and 1 mA idle (`firmware/app/src/effects.cpp`). Set the LED count on the Device page to 20, which stays under the limit by that model, play white at 100 %, and measure on the LED rail. Divide by 20, and correct the constants if it differs.
-- [ ] **Rail current at the limit.** All 32 LEDs, white at 100 %. By the model the limiter holds 1400 mA. Measure the LED rail alone, and again at the supply's output.
-- [ ] **The board's own draw.** ESP32 and display with Wi-Fi active, peak and typical, against the ~250 mA and 120-180 mA in `docs/hardware/specification.md`. It comes on top of the limit, which leaves ~350 mA of the supply's 2000 mA by calculation.
+- [x] **Current of one LED.** Measured 2026-11-07 on a garland of one WS2812B, a meter in series with pin 1 of J2, the LED count set to 1, brightness 100 %, solid colours uploaded as effects: dark 0.51 mA; red 12.85, green 11.98, blue 12.68, white 36.60, grey `808080` 18.45 mA. So 36.1 mA at full white above the idle draw, each channel within 3 % of a third of it, their sum within 0.3 % of white, and half a level drawing half: the model of three equal, linear channels holds. The default is 40 mA and 1 mA, for a batch's spread (`firmware/app/src/power_model.h`), where 1.1.1 assumed 55 mA.
+- [ ] **Current per LED across the batch.** Set the LED count on the Device page to 20, play white at 100 %, and measure on the LED rail. Divide by 20, against the 36.1 mA of the one LED, and correct the default of 40 mA if the spread needs more.
+- [ ] **Rail current at full white.** All 32 LEDs, white at 100 %. By the default model they draw 1312 mA, under the 1400 mA limit, about 1170 mA by the one LED measured. Measure the LED rail alone, and again at the supply's output.
+- [ ] **The board's own draw.** ESP32 and display with Wi-Fi active, peak and typical, against the ~250 mA and 120-180 mA in `docs/hardware/specification.md`, and the 200 mA the limit reserves for it (`kBoardReserveMa`). It comes on top of the limit, which leaves ~350 mA of the supply's 2000 mA by calculation at the default margin of 20 %, and ~50 mA at 5 %. It cannot be measured on the garland's plug: it needs the supply's output, or a wattmeter at the mains for a rough figure.
 - [ ] **Hi-Link under that load.** Output voltage at the limit, and whether it holds for an hour. Its temperature in the closed enclosure.
 - [ ] **Typical effects.** Current with several effects at the usual brightness, against the 480-700 mA in the specification.
 - [ ] **Off current of the YZ_CTL_V1.** Rail current in standby, with the module's active polarity and what it does at reset and boot. The specification says only that it is expected to be low.

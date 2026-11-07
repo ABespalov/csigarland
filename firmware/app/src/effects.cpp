@@ -14,10 +14,6 @@
 namespace garland {
 namespace {
 
-// From specification.md 2.2: 1760 mA for 32 LEDs at full white is 55 mA per LED,
-// and an idle WS2812B draws about 1 mA.
-constexpr uint32_t kFullWhiteMaPerLed = 55;
-constexpr uint32_t kIdleMaPerLed = 1;
 constexpr uint64_t kChannelUnitsPerLed = uint64_t{3} * 255 * 256;
 constexpr uint16_t kFullChannelQ8 = 255 * 256;
 constexpr uint32_t kMinimumGain = kFullBrightnessGain / 255 + 1;  // A full channel at one step.
@@ -55,13 +51,13 @@ void apply_brightness(std::span<const Rgb> frame, uint32_t gain, std::span<RgbQ8
     }
 }
 
-uint32_t estimate_current_ma(std::span<const RgbQ8> frame) {
+uint32_t estimate_current_ma(std::span<const RgbQ8> frame, const CurrentModel& model) {
     uint64_t units = 0;
     for (const RgbQ8& led : frame) {
         units += uint64_t{led.r} + led.g + led.b;
     }
-    return static_cast<uint32_t>(units * kFullWhiteMaPerLed / kChannelUnitsPerLed) +
-           static_cast<uint32_t>(frame.size()) * kIdleMaPerLed;
+    return static_cast<uint32_t>(units * model.white_ma / kChannelUnitsPerLed) +
+           static_cast<uint32_t>(frame.size()) * model.idle_ma;
 }
 
 bool FrameDither::step(std::span<const RgbQ8> targets, std::span<Rgb> out) {
@@ -87,14 +83,14 @@ void FrameDither::restart() {
     shown_valid_ = false;
 }
 
-uint32_t limit_current(std::span<RgbQ8> frame, uint32_t limit_ma) {
-    const uint32_t current_ma = estimate_current_ma(frame);
-    if (current_ma <= limit_ma) {
+uint32_t limit_current(std::span<RgbQ8> frame, const CurrentModel& model) {
+    const uint32_t current_ma = estimate_current_ma(frame, model);
+    if (current_ma <= model.limit_ma) {
         return current_ma;
     }
     // Idle draw cannot be dimmed away, so only the rest of the budget scales.
-    const uint32_t idle_ma = static_cast<uint32_t>(frame.size()) * kIdleMaPerLed;
-    const uint32_t lit_budget_ma = limit_ma > idle_ma ? limit_ma - idle_ma : 0;
+    const uint32_t idle_ma = static_cast<uint32_t>(frame.size()) * model.idle_ma;
+    const uint32_t lit_budget_ma = model.limit_ma > idle_ma ? model.limit_ma - idle_ma : 0;
     const uint32_t lit_ma = current_ma - idle_ma;
     // A limit below the idle draw of a dark frame: there is nothing to scale.
     if (lit_ma == 0) {

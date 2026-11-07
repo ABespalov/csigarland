@@ -306,11 +306,13 @@ void lighting_task(void* arg) {
                 }
                 drawn_since_on = true;
                 apply_brightness(frame, fade.apply(gain, now_us), targets);
-                const uint32_t current_ma = limit_current(targets, CSIGARLAND_POWER_LIMIT_MA);
+                // The owner's settings in one word, so a save is taken whole, at the next frame.
+                const CurrentModel model = current_model(state.power());
+                const uint32_t current_ma = limit_current(targets, model);
                 limited_count = led_count;
-                if (current_ma > CSIGARLAND_POWER_LIMIT_MA && !clamp_reported) {
-                    ESP_LOGW(TAG, "clamped %lu mA to %d mA", static_cast<unsigned long>(current_ma),
-                             CSIGARLAND_POWER_LIMIT_MA);
+                if (current_ma > model.limit_ma && !clamp_reported) {
+                    ESP_LOGW(TAG, "clamped %lu mA to %lu mA", static_cast<unsigned long>(current_ma),
+                             static_cast<unsigned long>(model.limit_ma));
                     clamp_reported = true;
                 }
             }

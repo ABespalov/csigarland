@@ -271,21 +271,32 @@ static void test_state_applies_led_setting() {
 /* Limiter and brightness */
 
 static void test_limiter_clamps_full_white() {
+    // The model of 1.1.1 and before: 55 mA at full white, 1 mA idle, 1400 mA.
+    const CurrentModel old{55, 1, 1400};
     std::array<RgbQ8, 32> frame{};
     std::ranges::fill(frame, RgbQ8{255 * 256, 255 * 256, 255 * 256});
-    TEST_ASSERT_EQUAL_UINT32(1792, estimate_current_ma(frame));
-    TEST_ASSERT_EQUAL_UINT32(1792, limit_current(frame, 1400));
-    const uint32_t after = estimate_current_ma(frame);
+    TEST_ASSERT_EQUAL_UINT32(1792, estimate_current_ma(frame, old));
+    TEST_ASSERT_EQUAL_UINT32(1792, limit_current(frame, old));
+    const uint32_t after = estimate_current_ma(frame, old);
     TEST_ASSERT_LESS_OR_EQUAL_UINT32(1400, after);
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(1380, after);
 
+    // By the defaults, 40 + 1 mA, the same 32 LEDs at full white draw 1312 mA and stay as they are.
+    std::ranges::fill(frame, RgbQ8{255 * 256, 255 * 256, 255 * 256});
+    const CurrentModel defaults = current_model(PowerSettings{});
+    TEST_ASSERT_EQUAL_UINT32(1312, limit_current(frame, defaults));
+    TEST_ASSERT_EQUAL_UINT16(255 * 256, frame[31].b);
+
     // A limit below the idle draw: a dark frame has nothing to scale, and a lit one goes dark.
+    const CurrentModel tight{55, 1, 10};
     std::array<RgbQ8, 32> dark{};
-    TEST_ASSERT_EQUAL_UINT32(32, limit_current(dark, 10));
+    TEST_ASSERT_EQUAL_UINT32(32, limit_current(dark, tight));
     TEST_ASSERT_EQUAL_UINT16(0, dark[0].r);
-    limit_current(frame, 10);
+    limit_current(frame, tight);
     TEST_ASSERT_EQUAL_UINT16(0, frame[0].r);
 }
+
+#include "test_power.h"
 
 #include "test_catalog_access.h"
 
@@ -739,6 +750,7 @@ int main() {
     RUN_TEST(test_led_setting_range);
     RUN_TEST(test_state_applies_led_setting);
     RUN_TEST(test_limiter_clamps_full_white);
+    run_power_tests();
     RUN_TEST(test_brightness_keeps_fractions_of_a_step);
     RUN_TEST(test_brightness_percent_is_perceptual);
     RUN_TEST(test_dither_averages_to_the_target);

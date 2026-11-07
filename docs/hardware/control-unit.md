@@ -63,7 +63,7 @@ stateDiagram-v2
     Active --> Active: Clicks and long presses of EFFECT and SPEED, POWER click
 ```
 
-During the countdown the garland stays lit and the screen counts the seconds. When it runs out the LEDs are blanked and the MOSFET rail is cut (`GPIO 1 = LOW`). The garland changes state at once: fades on turning on or off are not implemented, and the 1400 mA limiter applies at every brightness.
+During the countdown the garland stays lit and the screen counts the seconds. When it runs out the LEDs are blanked and the MOSFET rail is cut (`GPIO 1 = LOW`). The garland changes state at once: fades on turning on or off are not implemented, and the current limiter applies at every brightness.
 
 The effects themselves, and which of them the EFFECT button cycles through, are described in the [Effects Guide](../guides/effects.md).
 
@@ -130,7 +130,7 @@ flowchart LR
 The web interface is six responsive, touch-friendly pages, described one by one in the [User Guide](../guides/user-guide.md#8-portal-pages):
 * **Effects:** what is playing, its brightness and speed on sliders, playing any ready effect, the favourites the EFFECT button cycles through, and uploading effects.
 * **Schedule:** up to 32 actions with a time, days of the week and steps (on or off, brightness, speed, effect), the time zone and the clock module.
-* **Device:** the LED count, automatic or set by hand, 1-256, and the screen: brightness in normal use and during a screensaver, the screensaver's type and delay.
+* **Device:** the LED count, automatic or set by hand, 1-256; the power supply, an LED's draw at full white and dark, and the margin, which give the current limit; and the screen: brightness in normal use and during a screensaver, the screensaver's type and delay.
 * **Network:** finding, joining and forgetting the home network, the mDNS name, and the HTTPS certificate.
 * **Firmware:** the running version, and installing a signed update file.
 * **Info:** the board, memory, addresses, and the browsers that have access.
@@ -149,6 +149,7 @@ Over HTTPS. All but those marked open want a paired browser, and answer 401 othe
 |---|---|---|---|
 | `GET`, `POST` | `/api/state` | Power, brightness, effect, speed and LED count; set the brightness, 1-100, or the speed, 0.25-5 by 0.25, which turns nothing on | `{"brightness": 40, "speed": 1.5}` |
 | `POST` | `/api/leds` | LED count, 0 for automatic | `{"count": 32}` |
+| `GET`, `POST` | `/api/leds/power` | The current limit's settings, and the limit, the chain's draw at full white and the LEDs left undimmed they come to | `{"supply_ma": 2000, "led_white_ma": 40, "led_idle_ma": 1, "margin_percent": 20}` |
 | `GET` | `/api/effects` | Ready effects, with favourite and active flags | |
 | `GET` | `/api/effects/planned` | Effects marked `todo` in the catalog | |
 | `POST` | `/api/effect` | Play an effect; also turns the garland on | `{"id": "fireplace"}` |

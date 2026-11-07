@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: The LED count, favourites and screen settings on the state, read again while they could not be
+ * Purpose: The LED count, power budget, favourites and screen settings on the state, read again while they could not be
  * Contributors: None
  */
 
@@ -29,9 +29,14 @@ void looks_retry_if_unread(State& state, uint32_t now_ms);
 // nothing is to be saved, as it would write the defaults over what is there.
 bool looks_favorites_read(State& state);
 bool looks_display_read(State& state);
+// The same for the power budget, whose page shows what is saved: the defaults shown for settings not read
+// would be taken for the owner's.
+bool looks_power_read(State& state);
 
 // Saves the LED count, and puts it on the state, under the lock a late reading takes, so none comes after
 // it with the value it replaced.
 esp_err_t looks_save_led_count(State& state, uint16_t setting);
+// The same for the power budget, valid settings only.
+esp_err_t looks_save_power(State& state, const PowerSettings& settings);
 
 }  // namespace garland

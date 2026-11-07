@@ -36,19 +36,19 @@ flowchart LR
 * **Hi-Link 5V 2A:** Rated output power is **10 W** continuous (2000 mA @ 5V).
 
 ### 2.2 System Consumption Breakdown
-Estimates from the datasheets and the firmware's model of 55 mA per full white LED. None of this has been measured on an assembled garland yet: see the [roadmap](../stubs/ROADMAP.md).
+Estimates from the datasheets, but for one LED: a WS2812B of the owner's garland, measured on its own on the garland's plug, draws 0.51 mA dark and 36.6 mA at full white, 12.3, 11.5 and 12.2 mA above dark for red, green and blue. The firmware's default allows 40 mA above 1 mA dark, for a batch's spread. The rest has not been measured on an assembled garland yet: see the [roadmap](../stubs/ROADMAP.md).
 
 | Subsystem | Typical Current | Peak Current | Power (5V) |
 |---|---|---|---|
 | **ESP32 + Display** | 120–180 mA | ~250 mA (Wi-Fi active) | ~0.9 W |
 | **32x WS2812B (Holiday Effects)** | 480–700 mA | ~960 mA | ~3.5 W |
 | **32x WS2812B (Standby via MOSFET)** | The module's off current, not yet measured | | ~0 W |
-| **32x WS2812B (Theoretical 100% White)**| — | 1760 mA | 8.80 W |
+| **32x WS2812B (100% White)**| — | ~1170 mA as measured on one LED, 1312 mA by the firmware's default model | ~6.6 W |
 
 ### 2.3 Operating Margins & Software Current Limiting
 * In typical holiday dynamic modes (Fireplace, Twinkle, Aurora, Snowfall, Candy Cane), 32 LEDs consume around **600–700 mA**.
 * Together with the ESP32 and display (~200 mA), total system draw is **~850 mA** (only **42%** of the Hi-Link capacity).
-* **Firmware Safety Clamp:** The firmware incorporates a strict software current limiter capped at **1400 mA**, which scales the final frame down before it is sent. It covers the LEDs alone, by its model, and the ESP32 and display come on top: at their ~250 mA peak that is ~1650 mA, which leaves ~350 mA (about 17%) of the Hi-Link's 2000 mA. Until the current is measured on an assembled garland, this margin is a calculation.
+* **Firmware Safety Clamp:** The firmware incorporates a strict software current limiter, which scales the final frame down before it is sent. Its limit is worked out from the Device page's settings: the supply's current less a margin of 5-20 % and 200 mA for the ESP32 and display, so **1400 mA** with the Hi-Link's 2000 mA and the default 20 %. It covers the LEDs alone, by its model, and the ESP32 and display come on top: at their ~250 mA peak that is ~1650 mA, which leaves ~350 mA (about 17%) of the Hi-Link's 2000 mA. At the smallest margin, 5 %, the limit is 1700 mA and only ~50 mA is left at the board's peak: choose it only for a supply measured to hold its rating. Until the current is measured on an assembled garland, this margin is a calculation.
 
 ---
 

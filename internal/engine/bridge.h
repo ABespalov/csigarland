@@ -42,8 +42,13 @@ uint32_t csg_run_current(uint32_t time_ms, int brightness_percent, int count);
 uint32_t csg_idle_current(int count);
 // The firmware's gain for a brightness in percent, of 65536 at full.
 uint32_t csg_brightness_gain(int brightness_percent);
-// The firmware's limit, CSIGARLAND_POWER_LIMIT_MA, as the cgo flags give it.
-#define CSG_POWER_LIMIT_MA CSIGARLAND_POWER_LIMIT_MA
+// The firmware's power settings, as a garland starts with them: supply, white, idle and margin.
+void csg_default_power(int* supply_ma, int* white_ma, int* idle_ma, int* margin_percent);
+// What every current here is worked out by from now on, and the limit: non-zero if the firmware takes
+// them, else the ones before stay.
+int csg_set_power(int supply_ma, int white_ma, int idle_ma, int margin_percent);
+// The limit the firmware works out from the settings in use, in mA.
+uint32_t csg_power_limit(void);
 
 #ifdef __cplusplus
 }

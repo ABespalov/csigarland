@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: The portal API of the settings: Wi-Fi, the schedule, the time and the screen
+ * Purpose: The portal API of the settings: Wi-Fi, the schedule, the time, the screen and the power budget
  * Contributors: None
  */
 
@@ -76,6 +76,21 @@ constexpr SaverName kSaverNames[] = {
 
 bool is_backlight_percent(const cJSON* item) {
     return cJSON_IsNumber(item) && item->valuedouble == item->valueint && backlight_percent_is_valid(item->valueint);
+}
+
+// A whole number in the body under name that valid takes, into out.
+template <typename Value>
+bool read_whole(const cJSON* root, const char* name, bool (*valid)(int), Value& out) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(root, name);
+    if (!cJSON_IsNumber(item) || item->valuedouble != item->valueint || !valid(item->valueint)) {
+        return false;
+    }
+    out = static_cast<Value>(item->valueint);
+    return true;
+}
+
+esp_err_t send_power_unread(httpd_req_t* req) {
+    return portal_send_status(req, "503 Service Unavailable", "The power settings could not be read yet: ask again");
 }
 
 }  // namespace
@@ -380,6 +395,68 @@ esp_err_t portal_handle_display_set(httpd_req_t* req) {
         state.set_saver(settings.saver, settings.saver_delay_seconds);
     }
     return portal_handle_display_get(req);
+}
+
+// The settings, the ranges each takes, and what they come to on the chain in use: the limit, what it
+// draws all at full white, and how many LEDs full white leaves undimmed.
+esp_err_t portal_handle_led_power_get(httpd_req_t* req) {
+    auto& state = *static_cast<State*>(req->user_ctx);
+    if (!looks_power_read(state)) {
+        return send_power_unread(req);
+    }
+    const JsonPtr root(cJSON_CreateObject());
+    if (root == nullptr) {
+        return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+    }
+    const PowerSettings power = state.power();
+    const uint16_t leds = state.snapshot().led_count;
+    cJSON_AddNumberToObject(root.get(), "supply_ma", power.supply_ma);
+    cJSON_AddNumberToObject(root.get(), "led_white_ma", power.white_ma);
+    cJSON_AddNumberToObject(root.get(), "led_idle_ma", power.idle_ma);
+    cJSON_AddNumberToObject(root.get(), "margin_percent", power.margin_percent);
+    cJSON_AddNumberToObject(root.get(), "board_ma", kBoardReserveMa);
+    cJSON_AddNumberToObject(root.get(), "limit_ma", power_limit_ma(power));
+    cJSON_AddNumberToObject(root.get(), "leds", leds);
+    cJSON_AddNumberToObject(root.get(), "peak_ma", peak_ma(power, leds));
+    cJSON_AddNumberToObject(root.get(), "undimmed_leds", undimmed_leds(power));
+    cJSON_AddNumberToObject(root.get(), "supply_min", kSupplyMinMa);
+    cJSON_AddNumberToObject(root.get(), "supply_max", kSupplyMaxMa);
+    cJSON_AddNumberToObject(root.get(), "led_white_min", kLedWhiteMinMa);
+    cJSON_AddNumberToObject(root.get(), "led_white_max", kLedWhiteMaxMa);
+    cJSON_AddNumberToObject(root.get(), "led_idle_max", kLedIdleMaxMa);
+    cJSON_AddNumberToObject(root.get(), "margin_min", kMarginMinPercent);
+    cJSON_AddNumberToObject(root.get(), "margin_max", kMarginMaxPercent);
+    return send_json(req, root.get());
+}
+
+// Body: {"supply_ma": 2000, "led_white_ma": 40, "led_idle_ma": 1, "margin_percent": 20}, all four.
+esp_err_t portal_handle_led_power_set(httpd_req_t* req) {
+    const JsonPtr root = portal_read_json(req);
+    if (root == nullptr) {
+        return ESP_OK;
+    }
+    PowerSettings power;
+    if (!read_whole(root.get(), "supply_ma", supply_ma_is_valid, power.supply_ma)) {
+        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "supply_ma must be 500 to 20000");
+    }
+    if (!read_whole(root.get(), "led_white_ma", led_white_ma_is_valid, power.white_ma)) {
+        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "led_white_ma must be 5 to 100");
+    }
+    if (!read_whole(root.get(), "led_idle_ma", led_idle_ma_is_valid, power.idle_ma)) {
+        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "led_idle_ma must be 0 to 5");
+    }
+    if (!read_whole(root.get(), "margin_percent", margin_percent_is_valid, power.margin_percent)) {
+        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "margin_percent must be 5 to 20");
+    }
+    auto& state = *static_cast<State*>(req->user_ctx);
+    const esp_err_t err = looks_save_power(state, power);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "saving the power settings failed: %s", esp_err_to_name(err));
+        return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save");
+    }
+    ESP_LOGI(TAG, "power: supply %u mA, LED %u + %u mA, margin %u%%, limit %lu mA", power.supply_ma, power.white_ma,
+             power.idle_ma, power.margin_percent, static_cast<unsigned long>(power_limit_ma(power)));
+    return portal_handle_led_power_get(req);
 }
 
 }  // namespace garland

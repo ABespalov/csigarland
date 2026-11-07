@@ -113,7 +113,7 @@ Leave the board out of its posts until step 3 of the checks below has passed.
 
 Use flexible stranded wire, 20 to 26 AWG, silicone-insulated if you can get it, as the garland is handled and hung every year. Solid wire breaks at the pads. Three colours make the wiring hard to get wrong: red `+5V`, black `GND`, any other for data.
 
-**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated, not measured, for the current spread evenly along the chain, counting both `+5V` and `GND`. 1400 mA is the most the firmware allows, and typical effects draw about half of that.
+**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated, not measured, for the current spread evenly along the chain, counting both `+5V` and `GND`. 1400 mA is the most the firmware allows with the 2000 mA supply at its default margin, and typical effects draw about half of that. A larger supply set on the Device page raises the limit, and the drop with it.
 
 | Wire | Section | Resistance of one wire | Drop per metre of garland, at 1400 mA | The same, at 700 mA | Longest garland, for 1 V at 1400 mA |
 |---|---|---|---|---|---|
@@ -153,7 +153,7 @@ The last column is a rule of thumb: keep the drop at the last LED within about 1
 | Rail in standby, at J2 pin 1 | 0 V. If the LEDs stay lit or glow, check R2 and Q1 |
 | POWER | The garland lights at the remembered brightness |
 | The garland unplugged | The screen turns amber within about 3 s |
-| Full white at 100 % | The garland holds: the limiter stops at 1400 mA, and the supply gives 2000 mA |
+| Full white at 100 % | The garland holds: 32 LEDs draw about 1300 mA by the firmware's model, under its 1400 mA limit, and the supply gives 2000 mA |
 
 ## 6. What Is Not Settled
 

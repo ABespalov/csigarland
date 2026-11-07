@@ -61,7 +61,7 @@ GitHub Actions runs the builds, tests and rules on every push to `main` and ever
 
 * **Tests and documents in the same change.** Where they disagree with the code, the code is the truth until that change fixes them.
 * **Plain words about what was checked.** Host tests, a stubbed page and a build are not the garland. Say which of them the change has been through, and what still needs a board.
-* **The limits that keep a garland safe.** No effect or setting goes around the 1400 mA limit, and the Lighting task never waits on a lock.
+* **The limits that keep a garland safe.** No effect or setting goes around the current limit, which the power settings give, and the Lighting task never waits on a lock.
 * **A way to the next update.** The firmware must always be able to take one, including when HTTPS or a new image has failed, as a closed unit has no USB to fall back on.
 * **Files of at most 1000 lines**, split by responsibility, with the header in [section 1 of AGENTS.md](AGENTS.md#1-mandatory-source-headers) on native sources.
 * **English** in code, comments, documents and the interface, and `csiGarland` written just so.

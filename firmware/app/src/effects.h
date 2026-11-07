@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <span>
 
+#include "power_model.h"
+
 namespace garland {
 
 struct Rgb {
@@ -49,12 +51,13 @@ uint32_t brightness_gain(uint8_t percent);
 // read as a twinkle, not a glow.
 void apply_brightness(std::span<const Rgb> frame, uint32_t gain, std::span<RgbQ8> out);
 
-// The current the frame would draw from the 5 V rail, on average over its dithering.
-uint32_t estimate_current_ma(std::span<const RgbQ8> frame);
+// The current the frame would draw from the 5 V rail, on average over its dithering, by the
+// model's draw of an LED at full white and dark. Each channel is a third of white, as measured.
+uint32_t estimate_current_ma(std::span<const RgbQ8> frame, const CurrentModel& model);
 
-// Scales the frame down so it draws no more than limit_ma. Returns the current
+// Scales the frame down so it draws no more than the model's limit. Returns the current
 // before scaling.
-uint32_t limit_current(std::span<RgbQ8> frame, uint32_t limit_ma);
+uint32_t limit_current(std::span<RgbQ8> frame, const CurrentModel& model);
 
 // One first-order sigma-delta per channel of each LED: the target plus what the frames
 // before left over, cut to a whole step, the rest carried on. A channel only ever shows

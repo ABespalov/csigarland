@@ -40,18 +40,35 @@ func TestTheCurrentIsToldAgainstTheLimit(t *testing.T) {
 	}
 }
 
-// Tune's chart is the engine's, at full brightness, and scales down with the slider.
+// Tune's chart is the engine's, at full brightness, by the garland's power settings, and scales down with
+// the slider.
 func TestTuneChartsTheEffectsCurrent(t *testing.T) {
+	defaults := engine.DefaultPower()
+	t.Cleanup(func() { _ = engine.SetPower(defaults) })
+	white := `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`
 	var chart currentChart
-	chart.update(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`)
+	chart.update(white, engine.PowerInUse())
 	if engine.IdleMilliamps(previewLeds) <= 0 {
 		t.Fatal("the LEDs draw nothing dark, by the model")
 	}
-	if chart.err != nil || len(chart.full) != currentSamples*currentWindows || chart.full[0] <= engine.LimitMilliamps {
+	// 32 LEDs at 40 + 1 mA stay under the default 1400 mA.
+	if chart.err != nil || len(chart.full) != currentSamples*currentWindows || chart.full[0] != 1312 {
 		t.Fatalf("%v %d", chart.err, len(chart.full))
 	}
-	if low := ScaleCurrents(chart.full, engine.BrightnessShare(25), engine.IdleMilliamps(previewLeds)); low[0] >= engine.LimitMilliamps {
+	// A garland from before the settings: 55 + 1 mA, past the limit, worked out again for them.
+	if err := engine.SetPower(oldFirmwarePower); err != nil {
+		t.Fatal(err)
+	}
+	chart.update(white, engine.PowerInUse())
+	if chart.full[0] != 1792 || chart.full[0] <= engine.LimitMilliamps() {
+		t.Fatalf("by the old model white draws %d mA", chart.full[0])
+	}
+	if low := ScaleCurrents(chart.full, engine.BrightnessShare(25), engine.IdleMilliamps(previewLeds)); low[0] >= engine.LimitMilliamps() {
 		t.Fatalf("at 25%% white still draws %d mA", low[0])
+	}
+	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4300}
+	if enginePower(budget) != (engine.Power{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
+		t.Fatalf("%+v", enginePower(budget))
 	}
 }
 
@@ -69,7 +86,7 @@ func TestTheChartFollowsThePreview(t *testing.T) {
 	}
 	file := `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`
 	var chart currentChart
-	chart.update(file)
+	chart.update(file, engine.PowerInUse())
 	run := chart.full
 	from, first := chart.window(5000)
 	next, second := chart.window(25000)
@@ -81,7 +98,7 @@ func TestTheChartFollowsThePreview(t *testing.T) {
 		t.Fatal("past the run, the chart does not start again from the first")
 	}
 	// Played on, the chart is not worked out again, which would take the engine from the preview.
-	chart.update(file)
+	chart.update(file, engine.PowerInUse())
 	if &chart.full[0] != &run[0] {
 		t.Fatal("worked out again with the same file")
 	}

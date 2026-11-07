@@ -39,6 +39,8 @@ constexpr int kMaxLeds = CSG_MAX_LEDS;
 static_assert(kMaxLeds == CSIGARLAND_MAX_LEDS, "the firmware's longest chain");
 garland::Rgb s_frame[kMaxLeds];
 garland::RgbQ8 s_lit[kMaxLeds];
+// The garland's power settings, which the current of every frame here is worked out by.
+garland::PowerSettings s_power;
 
 // The garland's curve turns a percent into a share of light, for an eye; a screen's own gamma does the
 // same to a pixel's value. So a channel's colour is scaled by that share taken back through the curve,
@@ -134,7 +136,7 @@ extern "C" uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t
         rgb[i * 3 + 1] = to_screen(s_frame[i].g, s_lit[i].g, screen_gain);
         rgb[i * 3 + 2] = to_screen(s_frame[i].b, s_lit[i].b, screen_gain);
     }
-    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds));
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds), garland::current_model(s_power));
 }
 
 // The firmware's own model of what a frame of the run draws at a brightness, before its limit holds it back.
@@ -149,7 +151,7 @@ extern "C" uint32_t csg_run_current(uint32_t time_ms, int brightness_percent, in
     s_runner->render(s_effect, time_ms, std::span<garland::Rgb>(s_frame, leds));
     const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
     garland::apply_brightness(std::span<const garland::Rgb>(s_frame, leds), garland::brightness_gain(percent), std::span<garland::RgbQ8>(s_lit, leds));
-    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds));
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds), garland::current_model(s_power));
 }
 
 // The firmware's gain for a brightness, of kFullBrightnessGain: what a current at 100% is scaled by.
@@ -164,5 +166,27 @@ extern "C" uint32_t csg_idle_current(int count) {
         count = kMaxLeds;
     }
     std::fill(s_lit, s_lit + count, garland::RgbQ8{});
-    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, static_cast<size_t>(count)));
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, static_cast<size_t>(count)), garland::current_model(s_power));
+}
+
+extern "C" void csg_default_power(int* supply_ma, int* white_ma, int* idle_ma, int* margin_percent) {
+    const garland::PowerSettings defaults;
+    *supply_ma = defaults.supply_ma;
+    *white_ma = defaults.white_ma;
+    *idle_ma = defaults.idle_ma;
+    *margin_percent = defaults.margin_percent;
+}
+
+extern "C" int csg_set_power(int supply_ma, int white_ma, int idle_ma, int margin_percent) {
+    if (!garland::supply_ma_is_valid(supply_ma) || !garland::led_white_ma_is_valid(white_ma) ||
+        !garland::led_idle_ma_is_valid(idle_ma) || !garland::margin_percent_is_valid(margin_percent)) {
+        return 0;
+    }
+    s_power = garland::PowerSettings{static_cast<uint16_t>(supply_ma), static_cast<uint8_t>(white_ma),
+                                     static_cast<uint8_t>(idle_ma), static_cast<uint8_t>(margin_percent)};
+    return 1;
+}
+
+extern "C" uint32_t csg_power_limit() {
+    return garland::power_limit_ma(s_power);
 }

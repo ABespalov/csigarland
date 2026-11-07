@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: The portal API of the settings: Wi-Fi, the schedule, the time and the screen
+ * Purpose: The portal API of the settings: Wi-Fi, the schedule, the time, the screen and the power budget
  * Contributors: None
  */
 
@@ -22,8 +22,10 @@ esp_err_t portal_handle_time_get(httpd_req_t* req);
 esp_err_t portal_handle_time_set(httpd_req_t* req);
 esp_err_t portal_handle_rtc_set(httpd_req_t* req);
 
-// These two take the State as the request's user_ctx.
+// These take the State as the request's user_ctx.
 esp_err_t portal_handle_display_get(httpd_req_t* req);
 esp_err_t portal_handle_display_set(httpd_req_t* req);
+esp_err_t portal_handle_led_power_get(httpd_req_t* req);
+esp_err_t portal_handle_led_power_set(httpd_req_t* req);
 
 }  // namespace garland

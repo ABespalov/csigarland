@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: The portal's Device page: the LED count and the screen
+ * Purpose: The portal's Device page: the LED count, the power budget and the screen
  * Contributors: None
  */
 
@@ -22,6 +22,24 @@ inline constexpr char kPageDevice[] = R"html(
     <button data-g="save" type="submit" id="save">Save</button>
   </form>
   <p class="s" id="status" role="status"></p>
+</section>
+
+<section aria-labelledby="power-title">
+  <h2 id="power-title">Power</h2>
+  <p class="m">A frame that would draw more than the limit is dimmed as a whole. The limit is the supply, less its margin and <span id="board">200</span> mA for the board, the screen and Wi-Fi.</p>
+  <form id="power-form">
+    <label for="supply" class="h">Power supply, mA</label>
+    <input type="number" id="supply" step="1" inputmode="numeric" required>
+    <label for="white" class="h g">One LED at full white, mA, without its idle draw</label>
+    <input type="number" id="white" step="1" inputmode="numeric" required>
+    <label for="idle" class="h g">One LED dark, mA</label>
+    <input type="number" id="idle" step="1" inputmode="numeric" required>
+    <label for="margin" class="h g">Margin, % of the supply</label>
+    <input type="number" id="margin" step="1" inputmode="numeric" required>
+    <p class="m g" id="budget" aria-live="polite"></p>
+    <button data-g="save" type="submit" id="power-save" class="g">Save</button>
+  </form>
+  <p class="s" id="power-status" role="status"></p>
 </section>
 
 <section aria-labelledby="screen-title">
@@ -92,10 +110,65 @@ inline constexpr char kPageDevice[] = R"html(
       ledsTyped = false;
       showState(saved);
       report('status', 'Saved.', false);
+      loadPower();
     } catch (error) {
       report('status', `Could not save: ${error.message}`, true);
     } finally {
       $('form').inert = false;
+    }
+  });
+
+  /* Power: what the form would come to, worked out as the garland does, while it is typed. */
+  let power = null;
+  let powerTyped = false;
+  const powerFields = { supply: 'supply_ma', white: 'led_white_ma', idle: 'led_idle_ma', margin: 'margin_percent' };
+
+  function budgetText() {
+    const [supply, white, idle, margin] = Object.keys(powerFields).map((id) => $(id).valueAsNumber);
+    if (!power || ![supply, white, idle, margin].every(Number.isInteger)) return '';
+    const limit = Math.max(0, Math.floor(supply * (100 - margin) / 100) - power.board_ma);
+    const peak = power.leds * (white + idle);
+    const held = peak > limit ? ', so it is dimmed to the limit' : ', under the limit';
+    return `Limit ${limit} mA. ${power.leds} LEDs at full white draw ${peak} mA${held}. Full white stays undimmed on up to ${Math.floor(limit / (white + idle))} LEDs.`;
+  }
+
+  function showBudget() {
+    $('budget').textContent = budgetText();
+  }
+
+  function showPower(answer) {
+    power = answer;
+    $('board').textContent = answer.board_ma;
+    const ranges = { supply: ['supply_min', 'supply_max'], white: ['led_white_min', 'led_white_max'], idle: [null, 'led_idle_max'], margin: ['margin_min', 'margin_max'] };
+    for (const [id, [low, high]] of Object.entries(ranges)) {
+      $(id).min = low ? answer[low] : 0;
+      $(id).max = answer[high];
+      if (!powerTyped) $(id).value = answer[powerFields[id]];
+    }
+    showBudget();
+  }
+
+  function loadPower() {
+    return request('/api/leds/power').then(showPower);
+  }
+
+  $('power-form').addEventListener('input', () => { powerTyped = true; showBudget(); });
+
+  $('power-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    report('power-status', '', false);
+    const body = {};
+    for (const [id, name] of Object.entries(powerFields)) body[name] = $(id).valueAsNumber;
+    $('power-form').inert = true;
+    try {
+      const saved = await request('/api/leds/power', body);
+      powerTyped = false;
+      showPower(saved);
+      report('power-status', 'Saved.', false);
+    } catch (error) {
+      report('power-status', `Could not save: ${error.message}`, true);
+    } finally {
+      $('power-form').inert = false;
     }
   });
 
@@ -144,6 +217,8 @@ inline constexpr char kPageDevice[] = R"html(
     report('status', `Could not read the garland state: ${error.message}`, true);
   });
   // Closed until the garland has said what it saved: a form left at its defaults would save them back.
+  $('power-form').inert = true;
+  loadPower().then(() => { $('power-form').inert = false; }).catch((error) => report('power-status', error.message, true));
   $('saver-form').inert = true;
   request('/api/display').then((display) => {
     showSaver(display);
