@@ -253,17 +253,14 @@ func (p *tunePage) zoneRows(a *App, layer int) layout.Widget {
 		raw := p.model.Raw(layer, "zone")
 		kind := "all"
 		var listed []string
-		var every struct {
-			Every  int `json:"every"`
-			Offset int `json:"offset"`
-		}
+		var every zoneEvery
 		switch rawKind(raw) {
 		case '[':
 			kind = "figurines"
 			_ = json.Unmarshal(raw, &listed)
 		case '{':
 			kind = "every"
-			_ = json.Unmarshal(raw, &every)
+			every = readZoneEvery(raw)
 		}
 		c.zone.Value = kind
 		rows := []layout.Widget{func(gtx C) D {

@@ -69,6 +69,60 @@ static void test_only_a_choice_of_what_plays_says_what_plays() {
     TEST_ASSERT_TRUE(state.owner_chose_play());
 }
 
+// What a save writes of the state, as scheduler.h's remembered_from does.
+static Remembered as_saved(const Snapshot& now, uint16_t effect) {
+    return Remembered{effect, now.brightness_percent, now.speed_x4, now.power_chosen, now.playlist};
+}
+
+// An effect remembered that an uploaded effect not read yet may be: its id is kept through a save of the
+// power alone, and it is put on once read, unless what plays was chosen since.
+static void test_a_remembered_effect_not_read_yet_outlives_a_save_of_the_power() {
+    // What to do with it: kept while unread, put on once found, dropped once chosen over or known gone.
+    TEST_ASSERT_TRUE(pending_effect_step(false, -1, false) == PendingEffectStep::Keep);
+    TEST_ASSERT_TRUE(pending_effect_step(false, 4, false) == PendingEffectStep::Resolve);
+    TEST_ASSERT_TRUE(pending_effect_step(false, 4, true) == PendingEffectStep::Resolve);
+    TEST_ASSERT_TRUE(pending_effect_step(false, -1, true) == PendingEffectStep::Drop);
+    TEST_ASSERT_TRUE(pending_effect_step(true, 4, false) == PendingEffectStep::Drop);
+    PendingEffect pending;
+    TEST_ASSERT_FALSE(pending.held());
+    pending.hold("my-upload");
+    TEST_ASSERT_TRUE(pending.held());
+    TEST_ASSERT_EQUAL_STRING("my-upload", pending.id());
+    pending.drop();
+    TEST_ASSERT_FALSE(pending.held());
+
+    // The first favourite, 0, plays for it; the owner turns off only, saved at once.
+    State state(32);
+    state.set_effect_count(6);
+    state.set_power(true);
+    MemorySaveTimer timer(Remembered{0, 50, 4, true, false});
+    state.note_owner_choice();
+    state.set_power(false);
+    const Remembered off = as_saved(state.snapshot(), 0);
+    TEST_ASSERT_TRUE(timer.should_save(off, 0));
+    timer.saved(off);
+    TEST_ASSERT_FALSE(state.owner_chose_play());
+    // Read now, at place 5: put on, the Off left as it is, and flash, which held its id, holds it still.
+    TEST_ASSERT_TRUE(state.restore_effect_unless_chosen(0, 5));
+    TEST_ASSERT_EQUAL_UINT16(5, state.snapshot().effect);
+    TEST_ASSERT_FALSE(state.snapshot().power_requested);
+    timer.saved_effect_found(5);
+    TEST_ASSERT_TRUE(timer.holds(as_saved(state.snapshot(), 5)));
+    // An effect chosen since is newer, and stays.
+    State chosen(32);
+    chosen.set_effect_count(6);
+    chosen.activate_effect(2);
+    TEST_ASSERT_FALSE(chosen.restore_effect_unless_chosen(0, 5));
+    TEST_ASSERT_EQUAL_UINT16(2, chosen.snapshot().effect);
+    // So does a playlist playing, which leaves only what is remembered beneath it to change.
+    const uint16_t effects[] = {3, 4};
+    State listed(32);
+    listed.set_effect_count(6);
+    listed.set_playlist(effects, 2, 60);
+    TEST_ASSERT_TRUE(listed.resume_playlist_unless_chosen());
+    TEST_ASSERT_FALSE(listed.restore_effect_unless_chosen(listed.snapshot().effect, 5));
+}
+
 static void test_a_change_of_only_the_levels_leaves_the_playlist_to_resume() {
     const uint16_t effects[] = {2, 1};
     State levels(32);
@@ -546,6 +600,7 @@ static void run_choice_tests() {
     RUN_TEST(test_a_choice_keeps_its_own_moment);
     RUN_TEST(test_a_save_is_dated_so_that_what_waits_still_comes);
     RUN_TEST(test_only_a_choice_of_what_plays_says_what_plays);
+    RUN_TEST(test_a_remembered_effect_not_read_yet_outlives_a_save_of_the_power);
     RUN_TEST(test_a_change_of_only_the_levels_leaves_the_playlist_to_resume);
     RUN_TEST(test_a_resume_yields_to_a_choice_of_what_plays_made_with_the_mark_up_already);
 }

@@ -188,6 +188,26 @@ static void test_files_not_read_at_the_start_hold_back_uploads_until_read() {
     TEST_ASSERT_FALSE(unlisted.any());
 }
 
+static void test_a_partition_not_readied_is_no_empty_store() {
+    // There, but not readied, as when memory ran short: it may hold any upload, so nothing is whole yet, and
+    // it is readied again.
+    UnreadStoreKeys unready;
+    note_store_partition(StorePartition::Unready, unready);
+    TEST_ASSERT_TRUE(unready.any());
+    TEST_ASSERT_TRUE(unready.index_unread());
+    TEST_ASSERT_TRUE(store_partition_retried(StorePartition::Unready));
+    // Missing from the partition table: nothing could be saved there, a store known empty, never retried.
+    UnreadStoreKeys missing;
+    note_store_partition(StorePartition::Missing, missing);
+    TEST_ASSERT_FALSE(missing.any());
+    TEST_ASSERT_FALSE(store_partition_retried(StorePartition::Missing));
+    // Readied: what it holds is what its list says.
+    UnreadStoreKeys ready;
+    note_store_partition(StorePartition::Ready, ready);
+    TEST_ASSERT_FALSE(ready.any());
+    TEST_ASSERT_FALSE(store_partition_retried(StorePartition::Ready));
+}
+
 static void test_an_entry_known_is_passed_by_when_the_list_is_read_again() {
     StoreKeys keys;
     TEST_ASSERT_TRUE(keys.add("mine", "e00000001"));
@@ -325,6 +345,7 @@ static void run_upload_tests() {
     RUN_TEST(test_ids_that_share_a_hash_keep_their_own_keys);
     RUN_TEST(test_the_store_has_room_for_every_upload_beside_refused_files);
     RUN_TEST(test_files_not_read_at_the_start_hold_back_uploads_until_read);
+    RUN_TEST(test_a_partition_not_readied_is_no_empty_store);
     RUN_TEST(test_an_entry_known_is_passed_by_when_the_list_is_read_again);
     RUN_TEST(test_a_built_in_effect_can_be_replaced_and_restored);
     RUN_TEST(test_uploads_stop_at_the_limit_and_replacing_still_works);

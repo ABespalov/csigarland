@@ -128,6 +128,8 @@ inline constexpr char kPageDevice[] = R"html(
     const [supply, white, idle, margin] = Object.keys(powerFields).map((id) => $(id).valueAsNumber);
     if (!power || ![supply, white, idle, margin].every(Number.isInteger)) return '';
     const limit = Math.floor(Math.max(0, supply - power.board_ma) * (100 - margin) / 100);
+    const dark = power.leds * idle;
+    if (dark > limit) return `Limit ${limit} mA. ${power.leds} LEDs draw ${dark} mA dark alone, over the limit, which no dimming takes away, so the LEDs are kept off: fewer LEDs, a lower idle draw, a bigger supply or a smaller margin lets them on.`;
     const peak = power.leds * (white + idle);
     const held = peak > limit ? ', so it is dimmed to the limit' : ', under the limit';
     return `Limit ${limit} mA. ${power.leds} LEDs at full white draw ${peak} mA${held}. Full white stays undimmed on up to ${Math.floor(limit / (white + idle))} LEDs.`;

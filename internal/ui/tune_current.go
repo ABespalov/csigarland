@@ -91,19 +91,21 @@ func (a *App) powerUnknownText() string {
 }
 
 // currentChart is what an effect draws at full brightness over its first 200 s, worked out again only when
-// the file or the power settings change: a brightness scales it, as the firmware's gain scales every channel.
+// the file, the power settings or the LED count change: a brightness scales it, as the firmware's gain scales
+// every channel.
 type currentChart struct {
 	file  string
 	power engine.Power
+	leds  int
 	full  []int
 	err   error
 }
 
-func (c *currentChart) update(file string, power engine.Power) {
-	if file == c.file && power == c.power {
+func (c *currentChart) update(file string, power engine.Power, leds int) {
+	if file == c.file && power == c.power && leds == c.leds {
 		return
 	}
-	c.file, c.power = file, power
+	c.file, c.power, c.leds = file, power, leds
 	if file == "" {
 		c.full, c.err = nil, nil
 		return
@@ -112,7 +114,7 @@ func (c *currentChart) update(file string, power engine.Power) {
 	for i := range times {
 		times[i] = uint32(i * currentStepMs)
 	}
-	c.full, c.err = engine.Currents([]byte(file), times, 100, previewLeds)
+	c.full, c.err = engine.Currents([]byte(file), times, 100, leds)
 }
 
 // window is the 20 s that hold played, the effect's time in ms: where they start, and what the effect
@@ -150,11 +152,21 @@ func ScaleCurrents(full []int, share float64, idle int) []int {
 	return out
 }
 
+// ChartTop is the current at the chart's top: the highest of the values and the limit, and a tenth above it,
+// so that the limit's line stays in sight below the top edge.
+func ChartTop(values []int, limit int) int {
+	top := limit
+	for _, value := range values {
+		top = max(top, value)
+	}
+	return max(top+top/10, 1)
+}
+
 // CurrentText says what the effect draws against the limit: its peak, and how much of the time and by
 // how much the garland holds it back.
 // idle is what the LEDs draw dark, which the limiter leaves as it is, dimming only what is lit to the
 // budget left beside it. The chart is sampled every 100 ms, so a peak between two samples is not in it.
-func CurrentText(values []int, limit, idle int) string {
+func CurrentText(values []int, limit, idle, leds int) string {
 	if len(values) == 0 {
 		return ""
 	}
@@ -166,7 +178,7 @@ func CurrentText(values []int, limit, idle int) string {
 		}
 	}
 	if over == 0 {
-		return fmt.Sprintf("Sampled every 0.1 s at this brightness, over the 20 s shown, the effect draws up to %d mA on %d LEDs, under the %d mA limit, so it shows as drawn.", peak, previewLeds, limit)
+		return fmt.Sprintf("Sampled every 0.1 s at this brightness, over the 20 s shown, the effect draws up to %d mA on %d LEDs, under the %d mA limit, so it shows as drawn.", peak, leds, limit)
 	}
 	// The light, as the firmware's limiter dims it: the budget past the idle draw, over the lit part.
 	dimmed := 100
@@ -174,7 +186,7 @@ func CurrentText(values []int, limit, idle int) string {
 		dimmed = max(0, limit-idle) * 100 / (peak - idle)
 	}
 	return fmt.Sprintf("Sampled every 0.1 s at this brightness, over the 20 s shown, the effect would draw up to %d mA on %d LEDs, past the %d mA limit in %d%% of them: the garland dims those frames to about %d%% of their light or more.",
-		peak, previewLeds, limit, over*100/len(values), dimmed)
+		peak, leds, limit, over*100/len(values), dimmed)
 }
 
 // currentRows are the chart, with the limit across it, the frames past it marked and a line where the
@@ -188,11 +200,12 @@ func (p *tunePage) currentRows(a *App) []layout.Widget {
 		}
 		return []layout.Widget{a.hint(a.powerUnknownText())}
 	}
-	p.current.update(p.checked, engine.PowerInUse())
+	leds := a.chainLeds()
+	p.current.update(p.checked, engine.PowerInUse(), leds)
 	if p.current.err != nil || len(p.current.full) == 0 || p.preview == nil {
 		return nil
 	}
-	idle := engine.IdleMilliamps(previewLeds)
+	idle := engine.IdleMilliamps(leds)
 	limit := engine.LimitMilliamps()
 	shown := func() (played, from uint32, values []int) {
 		played = uint32(p.look.clock.played / time.Millisecond)
@@ -206,21 +219,21 @@ func (p *tunePage) currentRows(a *App) []layout.Widget {
 		}
 		size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(currentHigh))
 		fill(gtx, size, 0, colorSurface)
-		top := limit
-		for _, value := range values {
-			top = max(top, value)
-		}
+		top := ChartTop(values, limit)
 		height := func(value int) int { return size.Y * value / top }
 		width := max(size.X/len(values), 1)
+		line := size.Y - height(limit)
 		for i, value := range values {
-			shade := colorPrimary
-			if value > limit {
-				shade = colorActive
-			}
+			x := i * size.X / len(values)
 			h := max(height(value), 1)
-			offsetFill(gtx, image.Pt(i*size.X/len(values), size.Y-h), image.Pt(width, h), shade)
+			// Up to the limit as drawn, and past it in the limit's red: what the garland dims away.
+			below := min(h, size.Y-line)
+			offsetFill(gtx, image.Pt(x, size.Y-below), image.Pt(width, below), colorPrimary)
+			if h > below {
+				offsetFill(gtx, image.Pt(x, size.Y-h), image.Pt(width, h-below), colorDanger)
+			}
 		}
-		offsetFill(gtx, image.Pt(0, size.Y-height(limit)), image.Pt(size.X, max(gtx.Dp(unit.Dp(1)), 1)), colorDanger)
+		offsetFill(gtx, image.Pt(0, line), image.Pt(size.X, max(gtx.Dp(unit.Dp(1)), 1)), colorDanger)
 		// Where the preview plays, by the clock it is drawn by: the strip above advanced it this frame.
 		offsetFill(gtx, image.Pt(PlayheadX(played, from, size.X), 0), image.Pt(max(gtx.Dp(playheadWide), 1), size.Y), colorStrong)
 		return D{Size: size}
@@ -228,7 +241,7 @@ func (p *tunePage) currentRows(a *App) []layout.Widget {
 	words := func(gtx C) D {
 		_, _, values := shown()
 		now := fmt.Sprintf("Now, at the white line: %d mA of the %d mA limit.", p.preview.Milliamps(), limit)
-		return a.hint(CurrentText(values, limit, idle) + " " + now)(gtx)
+		return a.hint(CurrentText(values, limit, idle, leds) + " " + now)(gtx)
 	}
 	return []layout.Widget{chart, words}
 }

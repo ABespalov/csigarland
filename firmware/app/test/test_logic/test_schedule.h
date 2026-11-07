@@ -234,6 +234,18 @@ static void test_scheduler24_says_what_comes_and_when() {
     TEST_ASSERT_EQUAL_STRING("last: Start\n4d 03h ago", text);
     saver_text(nullptr, 0, nullptr, 0, kNow, text, sizeof(text));
     TEST_ASSERT_EQUAL_STRING("nothing yet", text);
+    // A step that stays the last for weeks, past 32 bits of ms and past their sign, keeps its age: whole 64-bit
+    // moments, as the scheduler keeps them.
+    const SaverMoment old_step[] = {saver_moment(0, "Start"), saver_moment(1000, "Brightness 50%")};
+    saver_text(nullptr, 0, old_step, 2, 1000 + 25 * 86400 * 1000LL, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("last: Brightness 50%\n25d 00h ago", text);
+    saver_text(nullptr, 0, old_step, 2, 1000 + 50 * 86400 * 1000LL, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("last: Brightness 50%\n50d 00h ago", text);
+    // A step that only starts a playlist with none to start does nothing, and is no event to tell of.
+    ResolvedAction empty_start;
+    empty_start.any = true;
+    empty_start.playlist = true;
+    TEST_ASSERT_FALSE(empty_start.with_playlist(false).does_something());
 
     // What a step does, in its order: the effect by name, not the turn on with it, the playlist, then the
     // power, the brightness, the speed.

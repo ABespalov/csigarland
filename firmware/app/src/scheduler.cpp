@@ -20,6 +20,7 @@
 #include <ctime>
 
 #include "effect_catalog.h"
+#include "effect_store.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
@@ -36,6 +37,7 @@
 #include "portal_tls.h"
 #include "rtc.h"
 #include "rtc_logic.h"
+#include "saver_schedule.h"
 #include "scheduler_clock.h"
 #include "settings.h"
 
@@ -89,6 +91,8 @@ TaskHandle_t s_task = nullptr;
 int64_t s_choice_epoch = kNoChoiceYet;
 // What flash held of the remembered choice at the start, as start_scheduler took it.
 Remembered s_saved_at_start;
+// Its effect while an uploaded effect not read yet may be it: the start's task, then the scheduler's alone.
+PendingEffect s_pending_effect;
 // What the next action was last found to be. Finding it can take a thousand times what a page
 // needs to read it, and the scheduler looks each minute. It stands until that action has come, or
 // the list, the zone or the clock changes: see next_action_still_holds.
@@ -149,10 +153,12 @@ struct SaverCache {
     ResolvedAction action;
 };
 SaverCache s_saver_step;  // Under s_lock; forgotten with the next action.
-// The step last done since the start, on the uptime clock, for the same screensaver. Under s_lock.
+// The step last done since the start, for the same screensaver: when on the uptime clock, whole, as it may be
+// the last thing that happened for longer than 32 bits of ms count, and its name as it was then, as an
+// effect's place in the catalog may be another's by the time it is told. Under s_lock.
 bool s_step_done = false;
-uint32_t s_step_done_ms = 0;
-ResolvedAction s_step_done_action;
+int64_t s_step_done_ms = 0;
+char s_step_done_name[kSaverNameBytes] = "";
 
 // Under s_lock. Forgets what was worked out with another catalog.
 void hold_to_catalog(uint16_t catalog) {
@@ -229,17 +235,28 @@ void apply(State& state, const ResolvedAction& resolved) {
     const auto order = [](PowerStep step) {
         return step == PowerStep::None ? kPowerKeep : step == PowerStep::Rise ? kPowerRise : step == PowerStep::On ? kPowerOn : kPowerOff;
     };
+    bool had_playlist = false;
     if (!state.apply_scheduled(resolved.brightness_percent, resolved.speed_x4, resolved.effect, order(resolved.power), resolved.playlist,
-                               resolved.effect_without_playlist, order(resolved.power_without_playlist))) {
+                               resolved.effect_without_playlist, order(resolved.power_without_playlist), &had_playlist)) {
         ESP_LOGI(TAG, "the owner chose while this was worked out, so it stands");
         return;
     }
     s_last_step_epoch.store(static_cast<int64_t>(std::time(nullptr)));
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    s_step_done = true;
-    s_step_done_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
-    s_step_done_action = resolved.with_playlist(state.snapshot().playlist_size > 0);
-    xSemaphoreGive(s_lock);
+    // Only a step that did something is one that happened: one that only starts an empty playlist, or names
+    // only an effect the catalog lacks, did nothing, and leaves what happened before it the last. Told from
+    // the list the step was decided on, not one changed since.
+    const ResolvedAction done = resolved.with_playlist(had_playlist);
+    if (done.does_something()) {
+        char name[kSaverNameBytes];
+        saver_action_name(done, [](int effect, char* out, size_t size) {
+            std::snprintf(out, size, "%s", catalog_name(static_cast<size_t>(effect)).c_str());
+        }, name, sizeof(name));
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        s_step_done = true;
+        s_step_done_ms = esp_timer_get_time() / 1000;
+        std::snprintf(s_step_done_name, sizeof(s_step_done_name), "%s", name);
+        xSemaphoreGive(s_lock);
+    }
     ESP_LOGI(TAG, "applied: power=%d bright=%u speed=%u effect=%d playlist=%d", static_cast<int>(resolved.power),
              resolved.brightness_percent, resolved.speed_x4, resolved.effect, resolved.playlist ? 1 : 0);
 }
@@ -353,8 +370,10 @@ void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& rea
     // keeps the mark there: written as stopped, it would end a playlist still to resume.
     const bool unknown = playlist_mark_is_pending() && !state.owner_chose_play() && !state.scheduled_play();
     const PlaylistMark mark = unknown ? PlaylistMark::AsSaved : now.playlist ? PlaylistMark::Playing : PlaylistMark::Stopped;
-    const esp_err_t err = settings_save_remembered(catalog_id(real_effect).c_str(), now.brightness_percent, now.speed_x4, now.power_chosen,
-                                                   chosen_at, mark);
+    // An effect saved and not read yet keeps its id, not that of the one played for it: see PendingEffect.
+    const CatalogText real_id = catalog_id(real_effect);
+    const char* const effect_id = s_pending_effect.held() ? s_pending_effect.id() : real_id.c_str();
+    const esp_err_t err = settings_save_remembered(effect_id, now.brightness_percent, now.speed_x4, now.power_chosen, chosen_at, mark);
     if (err == ESP_OK) {
         s_choice_epoch = chosen_at;
         timer.saved(current);
@@ -429,6 +448,29 @@ bool read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_e
     }
     s_remembered_unread.store(false);
     return untouched;
+}
+
+// The remembered effect not read at the start, once the uploaded effects are read: put on, unless what plays
+// was chosen since, the power, brightness and speed left as they are now. Flash has held its id all along.
+void resolve_pending_effect(State& state, MemorySaveTimer& timer, uint16_t& real_effect) {
+    if (!s_pending_effect.held()) {
+        return;
+    }
+    const int found = catalog_find(s_pending_effect.id());
+    const bool chosen = state.owner_chose_play() || state.scheduled_play();
+    switch (pending_effect_step(chosen, found, effect_store_all_read())) {
+        case PendingEffectStep::Keep:
+            return;
+        case PendingEffectStep::Resolve:
+            state.restore_effect_unless_chosen(real_effect, static_cast<uint16_t>(found));
+            real_effect = static_cast<uint16_t>(found);
+            timer.saved_effect_found(real_effect);
+            ESP_LOGI(TAG, "the remembered effect %s was read late", s_pending_effect.id());
+            break;
+        case PendingEffectStep::Drop:
+            break;
+    }
+    s_pending_effect.drop();
 }
 
 // A look round comes up to a second later, and a step can fall due in between, so it takes the
@@ -544,6 +586,8 @@ void scheduler_task(void* arg) {
             choice_minute = minute_of_last_choice(state);
             memory_timer.note_choice();
         }
+        // Before the save, which writes the effect so found, or the choice that drops it.
+        resolve_pending_effect(state, memory_timer, real_effect);
         // Before a replay not begun too, as before a step waiting for the playlist: dated before its steps.
         remember_settings(state, memory_timer, real_effect);
         // A restart waits for this, a little: see scheduler_saved_before_restart.
@@ -653,7 +697,16 @@ void schedule_forget_next_action() {
 bool remembered_apply(State& state, const StoredSettings& remembered) {
     const uint8_t brightness = remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : 0;
     const uint8_t speed = manual_speed_x4_is_valid(remembered.speed_x4) ? remembered.speed_x4 : 0;
-    return state.restore_unless_chosen(brightness, speed, catalog_find(remembered.effect_id), remembered.playing != 0 ? kPowerOn : kPowerOff);
+    const int effect = catalog_find(remembered.effect_id);
+    const bool restored = state.restore_unless_chosen(brightness, speed, effect, remembered.playing != 0 ? kPowerOn : kPowerOff);
+    // An effect the catalog lacks for now, as an uploaded one not read yet may be it: its id is kept for
+    // the saves, and the effect put on once read. One gone for good falls back, as ever.
+    if (restored && effect < 0 && remembered.effect_id[0] != '\0' && !effect_store_all_read()) {
+        s_pending_effect.hold(remembered.effect_id);
+    } else if (restored) {
+        s_pending_effect.drop();
+    }
+    return restored;
 }
 
 uint32_t choice_clock_ms() {
@@ -736,14 +789,14 @@ bool schedule_next_step(bool playlist_ready, uint16_t catalog, int64_t& minute, 
     return minute >= 0;
 }
 
-bool schedule_last_step(uint32_t& at_ms, ResolvedAction& action) {
+bool schedule_last_step(int64_t& at_ms, char* name, size_t name_size) {
     if (s_lock == nullptr) {
         return false;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
     const bool done = s_step_done;
     at_ms = s_step_done_ms;
-    action = s_step_done_action;
+    std::snprintf(name, name_size, "%s", s_step_done_name);
     xSemaphoreGive(s_lock);
     return done;
 }

@@ -103,8 +103,9 @@ bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool pl
 // and what it comes to, worked out once a minute. False with none, or while the clock, the schedule or the
 // time zone is not known. catalog is the state's catalog_revision, as for schedule_next.
 bool schedule_next_step(bool playlist_ready, uint16_t catalog, int64_t& minute, ResolvedAction& action);
-// The step last done since the start, when on the uptime clock in ms, and what it came to. False with none.
-bool schedule_last_step(uint32_t& at_ms, ResolvedAction& action);
+// The step last done since the start that did something: when on the uptime clock in ms, and its name as it
+// was then, see saver_action_name. False with none.
+bool schedule_last_step(int64_t& at_ms, char* name, size_t name_size);
 
 // The next 24 hours of the schedule, see schedule_timeline. -1 with the clock not set, as nothing can be
 // said of when.

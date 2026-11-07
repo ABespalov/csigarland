@@ -23,16 +23,16 @@ func TestTheCurrentIsToldAgainstTheLimit(t *testing.T) {
 	if got := ScaleCurrents([]int{1032, 32}, 0.5, 32); got[0] != 532 || got[1] != 32 {
 		t.Fatalf("%v", got)
 	}
-	under := CurrentText([]int{300, 900, 1200}, 1400, 32)
+	under := CurrentText([]int{300, 900, 1200}, 1400, 32, 32)
 	if !strings.Contains(under, "up to 1200 mA") || !strings.Contains(under, "shows as drawn") || !strings.Contains(under, "Sampled") {
 		t.Fatalf("%q", under)
 	}
 	// 32 LEDs at full white, 1792 mA with 32 mA idle: the lit part gets (1400 - 32) / (1792 - 32).
-	over := CurrentText([]int{1000, 1792, 1792, 1300}, 1400, 32)
+	over := CurrentText([]int{1000, 1792, 1792, 1300}, 1400, 32, 32)
 	if !strings.Contains(over, "up to 1792 mA") || !strings.Contains(over, "in 50%") || !strings.Contains(over, "about 77%") {
 		t.Fatalf("%q", over)
 	}
-	if CurrentText(nil, 1400, 32) != "" {
+	if CurrentText(nil, 1400, 32, 32) != "" {
 		t.Fatal("no frames, yet words")
 	}
 	if engine.IdleMilliamps(-5) != 0 {
@@ -47,7 +47,7 @@ func TestTuneChartsTheEffectsCurrent(t *testing.T) {
 	t.Cleanup(func() { _ = engine.SetPower(defaults) })
 	white := `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`
 	var chart currentChart
-	chart.update(white, engine.PowerInUse())
+	chart.update(white, engine.PowerInUse(), previewLeds)
 	if engine.IdleMilliamps(previewLeds) <= 0 {
 		t.Fatal("the LEDs draw nothing dark, by the model")
 	}
@@ -59,12 +59,24 @@ func TestTuneChartsTheEffectsCurrent(t *testing.T) {
 	if err := engine.SetPower(oldFirmwarePower); err != nil {
 		t.Fatal(err)
 	}
-	chart.update(white, engine.PowerInUse())
+	chart.update(white, engine.PowerInUse(), previewLeds)
 	if chart.full[0] != 1792 || chart.full[0] <= engine.LimitMilliamps() {
 		t.Fatalf("by the old model white draws %d mA", chart.full[0])
 	}
 	if low := ScaleCurrents(chart.full, engine.BrightnessShare(25), engine.IdleMilliamps(previewLeds)); low[0] >= engine.LimitMilliamps() {
 		t.Fatalf("at 25%% white still draws %d mA", low[0])
+	}
+	// Worked out again for a garland of another length: 100 LEDs at 55 + 1 mA.
+	chart.update(white, engine.PowerInUse(), 100)
+	if chart.full[0] != 5600 || !strings.Contains(CurrentText(chart.full[:1], 1400, 100, 100), "on 100 LEDs") {
+		t.Fatalf("100 LEDs draw %d mA", chart.full[0])
+	}
+	// The limit's line stays under the chart's top, whatever is past it.
+	if top := ChartTop([]int{300, 900}, 1400); top <= 1400 {
+		t.Fatalf("the limit is at the top: %d", top)
+	}
+	if top := ChartTop([]int{5600}, 1400); top <= 5600 {
+		t.Fatalf("the highest bar is at the top: %d", top)
 	}
 	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4275}
 	if enginePower(budget) != (engine.Power{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
@@ -86,7 +98,7 @@ func TestTheChartFollowsThePreview(t *testing.T) {
 	}
 	file := `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`
 	var chart currentChart
-	chart.update(file, engine.PowerInUse())
+	chart.update(file, engine.PowerInUse(), previewLeds)
 	run := chart.full
 	from, first := chart.window(5000)
 	next, second := chart.window(25000)
@@ -98,7 +110,7 @@ func TestTheChartFollowsThePreview(t *testing.T) {
 		t.Fatal("past the run, the chart does not start again from the first")
 	}
 	// Played on, the chart is not worked out again, which would take the engine from the preview.
-	chart.update(file, engine.PowerInUse())
+	chart.update(file, engine.PowerInUse(), previewLeds)
 	if &chart.full[0] != &run[0] {
 		t.Fatal("worked out again with the same file")
 	}

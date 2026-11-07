@@ -424,6 +424,24 @@ func TestAPlaylistKeepsAnEffectItsGarlandLacks(t *testing.T) {
 	}
 }
 
+// A garland whose list of effects is not whole, as when an uploaded effect could not be read yet, may hold an
+// effect it does not list: no list is shortened for it, nor favourites changed by it, and the restore says
+// to try again. The garland refuses what it does not hold, and keeps its own list then.
+func TestARestoreLeavesNothingOutByAListNotWhole(t *testing.T) {
+	made := Backup{Format: Format, Made: "x", Firmware: "1.2.0.106", Schedule: []api.Action{{Enabled: true, Time: "06:30", Days: 127, Effect: "sleeping"}},
+		Favorites: []string{"aurora"}, Uploads: []Upload{}, Display: api.Display{Saver: "none"},
+		Playlist: &api.Playlist{Effects: []string{"sleeping", "aurora"}, Missing: []string{"sleeping"}, Dwell: 60, CrossFade: 1000}}
+	partial := false
+	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, complete: &partial}
+	err := Restore(context.Background(), to.serve(t), made, func(string) {})
+	if !errors.Is(err, ErrIncomplete) || strings.Contains(err.Error(), "left out") {
+		t.Fatalf("%v", err)
+	}
+	if !slices.Equal(to.playlist.Effects, []string{"sleeping", "aurora"}) || len(to.schedule) != 1 || !to.favorites["candle"] || to.favorites["aurora"] {
+		t.Fatalf("playlist %+v, schedule %+v, favourites %v", to.playlist, to.schedule, to.favorites)
+	}
+}
+
 // A schedule keeping an action whose effect its garland lacks is backed up whole. Put back on a garland
 // without it, that action is left out and said; on the same garland, which keeps it, it stays.
 func TestAScheduleKeepsAnEffectItsGarlandLacks(t *testing.T) {

@@ -48,6 +48,38 @@ func chainColumns(width, cell, gap int) int {
 	return max((width+gap)/(cell+gap), 2)
 }
 
+// The sizes a chain is drawn at, the largest first: a long one takes a smaller size, to stay within
+// chainMostLines lines and leave Tune room for its controls, and only at the smallest goes past them.
+var chainScales = []float32{1, 0.8, 0.65, 0.5}
+
+const (
+	chainMostLines  = 4
+	chainNumberWide = unit.Dp(26) // What a number of three digits takes, its pads with it.
+)
+
+// chainFit is the scale a chain of cells, the board's among them, is drawn at in a line width wide, cell and
+// gap being its sizes at full scale.
+func chainFit(width, cells, cell, gap int) float32 {
+	for _, scale := range chainScales {
+		columns := chainColumns(width, int(float32(cell)*scale), int(float32(gap)*scale))
+		if (cells+columns-1)/columns <= chainMostLines {
+			return scale
+		}
+	}
+	return chainScales[len(chainScales)-1]
+}
+
+// chainNumberStep is every how many LEDs a number is written, pitch apart, so that numbers wide wide do not
+// run into each other: each one, or every 5th, 10th or 20th.
+func chainNumberStep(pitch, wide int) int {
+	for _, step := range []int{1, 5, 10} {
+		if step*pitch >= wide {
+			return step
+		}
+	}
+	return 20
+}
+
 // chainPlace is where a cell of the chain stands. The board is cell 0 and LED n is cell n. Lines go left
 // to right, then right to left, as a garland is hung back and forth.
 func chainPlace(cell, columns int) (line, column int) {
@@ -163,26 +195,32 @@ func (a *App) layoutStrip(gtx C, preview *engine.Preview, look *previewLook, fra
 	} else {
 		clear(frame)
 	}
+	cells := len(frame) + 1
+	// A long chain smaller, its numbers as they are: every size drawn below follows the metric.
+	numberWide, numberRow := gtx.Dp(chainNumberWide), gtx.Dp(chainNumberRow)
+	gtx.Metric.PxPerDp *= chainFit(gtx.Constraints.Max.X, cells, gtx.Dp(chainLedSize+2*chainRayRoom), gtx.Dp(chainLinkGap))
 	led := gtx.Dp(chainLedSize)
 	room := gtx.Dp(chainRayRoom)
 	cell := led + 2*room
 	gap := gtx.Dp(chainLinkGap)
 	// A number under each LED, in the room its rays would have below it.
 	numberTop := room + led + gtx.Dp(chainNumberGap)
-	line := max(cell, numberTop+gtx.Dp(chainNumberRow))
+	line := max(cell, numberTop+numberRow)
 	columns := chainColumns(gtx.Constraints.Max.X, cell, gap)
+	step := chainNumberStep(cell+gap, numberWide)
 	corner := func(index int) image.Point {
 		row, column := chainPlace(index, columns)
 		return image.Pt(column*(cell+gap), row*(line+gap/2))
 	}
-	cells := len(frame) + 1
 	// The arrows, then the numbers over the arrows that turn down, then the LEDs with their rays.
 	for i := 1; i < cells; i++ {
 		drawLink(gtx, corner(i-1), corner(i), cell, led)
 	}
-	// Numbered from 0, as an effect file's start and stop count them.
+	// Numbered from 0, as an effect file's start and stop count them; on a long chain every step-th.
 	for i := 1; i < cells; i++ {
-		a.drawNumber(gtx, corner(i).Add(image.Pt(0, numberTop)), cell, i-1)
+		if (i-1)%step == 0 {
+			a.drawNumber(gtx, corner(i).Add(image.Pt(0, numberTop)), cell, i-1)
+		}
 	}
 	drawBoard(gtx, corner(0), cell, led)
 	for i, shade := range frame {
@@ -247,7 +285,8 @@ func drawLed(gtx C, at image.Point, cell, led int, shade engine.Color) {
 // does not cross it.
 func (a *App) drawNumber(gtx C, top image.Point, cell, number int) {
 	free := gtx
-	free.Constraints = layout.Constraints{Max: image.Pt(cell, cell)}
+	// Wider than a small cell, for three digits under a chain drawn small.
+	free.Constraints = layout.Constraints{Max: image.Pt(max(cell, gtx.Sp(unit.Sp(40))), cell)}
 	macro := op.Record(gtx.Ops)
 	words := a.label(sizeCaption, colorMuted, strconv.Itoa(number)).Layout(free)
 	drawn := macro.Stop()

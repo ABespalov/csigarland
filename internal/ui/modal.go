@@ -10,6 +10,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -40,12 +41,36 @@ const (
 )
 
 const (
-	previewLeds   = 32
+	previewLeds   = 32 // With no garland connected, the owner's: 8 figurines, 4 of each.
 	previewFrame  = 33 * time.Millisecond
 	dimmedOpacity = 0xB0
 )
 
-const stripWords = "Drawn by the firmware's own engine, on 32 LEDs numbered from 0 at the board along the cable, as start and stop count them. Figurines soften light in a way a screen does not show, so judge the result on the garland."
+// chainLeds is how many LEDs the preview and Tune draw, and work the current out for: as many as the garland
+// connected to sends to, as its Device page sets or its probe finds, and previewLeds with none.
+func (a *App) chainLeds() int {
+	leds := a.state.Leds.Count
+	if a.state.Leds.Kept != 0 {
+		leds = a.state.Leds.Kept
+	}
+	if a.client == nil || leds <= 0 {
+		return previewLeds
+	}
+	return min(leds, engine.MaxLeds)
+}
+
+// fitFrame is frame for a chain of leds, made anew when the count changed.
+func fitFrame(frame []engine.Color, leds int) []engine.Color {
+	if len(frame) == leds {
+		return frame
+	}
+	return make([]engine.Color, leds)
+}
+
+// stripText says what the strip shows, on how many LEDs.
+func stripText(leds int) string {
+	return fmt.Sprintf("Drawn by the firmware's own engine, on %d LEDs numbered from 0 at the board along the cable, as start and stop count them. Figurines soften light in a way a screen does not show, so judge the result on the garland.", leds)
+}
 
 var library = sync.OnceValues(effects.Library)
 
@@ -285,9 +310,12 @@ func (p *previewWindow) body(a *App) layout.Widget {
 					func(gtx C) D { return a.labelButton(gtx, &p.close, buttonOther, "close", "Close", "", true) },
 				)
 			},
-			func(gtx C) D { return a.layoutStrip(gtx, p.preview, &p.look, p.frame) },
+			func(gtx C) D {
+				p.frame = fitFrame(p.frame, a.chainLeds())
+				return a.layoutStrip(gtx, p.preview, &p.look, p.frame)
+			},
 			a.lookSliders(&p.look),
-			a.hint(stripWords),
+			a.hint(stripText(a.chainLeds())),
 		)
 	}
 }

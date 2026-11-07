@@ -11,6 +11,7 @@
 
 #include <cJSON.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -34,9 +35,13 @@ constexpr size_t kBlobBytes = kIdBytes + kMaxEffectFileBytes + 1;
 // Static: too large for any stack here, and only the server task writes it once started.
 char s_blob[kBlobBytes];
 bool s_available = false;
+StorePartition s_partition = StorePartition::Unready;
 StoreKeys s_keys;
 size_t s_refused_keys = 0;
 UnreadStoreKeys s_unread;
+// Whether none is left unread, for the other tasks, which ask without the server task's turn: published each
+// time the server task has read, as s_unread is its alone.
+std::atomic<bool> s_all_read{false};
 // Counts the blobs read, so that a reading again can tell whether it read any.
 uint32_t s_entries_read = 0;
 
@@ -117,13 +122,13 @@ const char* parse_body(const char* id, EffectSpec& spec) {
     return parse_effect(effect_store_body(), id, spec, error) ? nullptr : error;
 }
 
-}  // namespace
-
-void effect_store_start() {
+// Readies the partition. A full one, or one of a newer format, is erased as NVS asks, the only answers that
+// erase it; any other failure leaves it as it is, and unread, to be readied again.
+StorePartition ready_partition() {
     esp_err_t err = nvs_flash_init_partition(kPartition);
     if (err == ESP_ERR_NOT_FOUND) {
-        ESP_LOGW(TAG, "no %s partition: effects cannot be saved until a flash over USB", kPartition);
-        return;
+        ESP_LOGW(TAG, "no %s partition: effects cannot be saved by this partition table", kPartition);
+        return StorePartition::Missing;
     }
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "erasing an unreadable partition: %s", esp_err_to_name(err));
@@ -133,13 +138,22 @@ void effect_store_start() {
         }
     }
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "partition failed: %s", esp_err_to_name(err));
-        return;
+        ESP_LOGE(TAG, "partition failed, tried again later: %s", esp_err_to_name(err));
+        return StorePartition::Unready;
     }
     s_available = true;
-    if (!load_all()) {
+    return StorePartition::Ready;
+}
+
+}  // namespace
+
+void effect_store_start() {
+    s_partition = ready_partition();
+    note_store_partition(s_partition, s_unread);
+    if (s_partition == StorePartition::Ready && !load_all()) {
         s_unread.mark_index_unread();
     }
+    s_all_read.store(!s_unread.any());
     ESP_LOGI(TAG, "%u uploaded effects", static_cast<unsigned>(catalog_uploaded_count()));
 }
 
@@ -148,8 +162,18 @@ char* effect_store_body() {
 }
 
 bool effect_store_read_unread() {
-    if (!s_available || !s_unread.any()) {
+    if (!s_unread.any()) {
         return false;
+    }
+    if (!s_available) {
+        // Readied again, its list still unread; once readied, read whole below.
+        if (!store_partition_retried(s_partition)) {
+            return false;
+        }
+        s_partition = ready_partition();
+        if (s_partition != StorePartition::Ready) {
+            return false;
+        }
     }
     const uint32_t before = s_entries_read;
     if (s_unread.index_unread()) {
@@ -167,6 +191,8 @@ bool effect_store_read_unread() {
         s_unread.read_again([handle](const char* key) { return load_entry(handle, key); });
         nvs_close(handle);
     }
+    // After what was read is in the catalog: a task that sees all read finds there every effect there is.
+    s_all_read.store(!s_unread.any());
     const bool read = s_entries_read != before;
     if (read) {
         ESP_LOGI(TAG, "uploaded effects read late: %u in all", static_cast<unsigned>(catalog_uploaded_count()));
@@ -175,7 +201,7 @@ bool effect_store_read_unread() {
 }
 
 bool effect_store_all_read() {
-    return !s_unread.any();
+    return s_all_read.load();
 }
 
 bool effect_store_unread_may_hold(const char* id) {
@@ -200,7 +226,9 @@ const char* effect_store_read(const char* id) {
 
 const char* effect_store_save(const char* id) {
     if (!s_available) {
-        return "this board needs one flash over USB before it can keep effects";
+        return s_partition == StorePartition::Unready
+                   ? "the uploaded effects could not be opened yet: try again"
+                   : "this board needs one flash over USB before it can keep effects";
     }
     if (!uploaded_id_is_valid(id)) {
         return "the id, from the file's name, must be 1-32 lowercase letters, digits or hyphens";

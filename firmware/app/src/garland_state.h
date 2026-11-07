@@ -454,6 +454,16 @@ public:
         }
         return restored;
     }
+    // The remembered effect, found late, in place of expected, played for it meanwhile: unless what plays was
+    // chosen since, by the owner or a step, or the playlist plays. See PendingEffect. True when put on.
+    bool restore_effect_unless_chosen(uint16_t expected, uint16_t effect) {
+        bool restored = false;
+        change_play([&](Play& play) {
+            restored = !owner_play_.load() && !scheduled_play_.load() && !play.playlist && play.effect == expected;
+            play.effect = restored ? effect : play.effect;
+        });
+        return restored;
+    }
 
     // From the lighting task: on to next, only if the playlist still plays from expected, and from the
     // start the task timed it by, mark. Anything chosen since is newer, and stands, and a start since,
@@ -489,12 +499,16 @@ public:
     // With playlist, it starts the playlist at its first effect, in place of effect, if it has effects,
     // and with none takes effect_without and power_without, what the step comes to then, see
     // ResolvedAction::with_playlist. Decided here, on the one reading of the list it starts from: a list
-    // emptied meanwhile cannot leave the step half of each.
+    // emptied meanwhile cannot leave the step half of each. had_playlist, when given, says what that reading
+    // found, so that what the step did is told from the list it was decided on, never a later one.
     bool apply_scheduled(uint8_t brightness_percent, uint8_t speed_x4, int effect, int power, bool playlist = false,
-                         int effect_without = -1, int power_without = kPowerKeep) {
+                         int effect_without = -1, int power_without = kPowerKeep, bool* had_playlist = nullptr) {
         const std::lock_guard<std::mutex> guard(playlist_lock_);
         uint16_t effects[kMaxPlaylistEffects] = {};
         const bool starts = playlist && this->playlist(effects) > 0;
+        if (had_playlist != nullptr) {
+            *had_playlist = starts;
+        }
         if (playlist && !starts) {
             effect = effect_without;
             power = power_without;

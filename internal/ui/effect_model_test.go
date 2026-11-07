@@ -97,10 +97,45 @@ func TestAKeyWrittenTwiceIsTheFirstAsTheFirmwareTakesIt(t *testing.T) {
 			}
 		}
 	}
+	// Unset, a key written twice goes in each copy: the next would be the one the parser reads, and the flag
+	// would stay ticked, or another palette take the place of the one taken off. The rest stays as it was.
+	const flags = `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","rev":true,"col":["FF0000"],"rev":true}]}`
+	unset := readModel(t, flags).DeleteField(0, "rev")
+	if again := readModel(t, string(unset)); again.Bool(0, "rev") || again.Raw(0, "rev") != nil {
+		t.Fatalf("%s", unset)
+	}
+	if want := `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FF0000"]}]}`; string(unset) != want {
+		t.Fatalf("%s", unset)
+	}
+	const palettes = `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","pal":"Rainbow","pal":"Fire"}]}`
+	if again := readModel(t, string(readModel(t, palettes).DeleteField(0, "pal"))); again.Raw(0, "pal") != nil {
+		t.Fatal("another palette came out from behind the one taken off")
+	}
+	mustParse(t, unset)
 	// And a second list of layers is no layer of the effect, as it is none to the parser.
 	const layersTwice = `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid"}],"layers":[{"fx":"fire"},{"fx":"fire"}]}`
 	if two := readModel(t, layersTwice); two.Layers() != 1 || two.String(0, "fx", "") != "solid" {
 		t.Fatalf("%d layers, the first %q", two.Layers(), two.String(0, "fx", ""))
+	}
+}
+
+// A zone's members are read as the firmware's parse_zone reads them: the first of a key written twice, by
+// its exact key, so that changing From keeps the period that plays.
+func TestAZoneIsReadByItsFirstExactMembers(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want zoneEvery
+	}{
+		{`{"every":2,"every":3,"offset":0}`, zoneEvery{2, 0}},
+		{`{"offset":1,"every":4,"offset":3}`, zoneEvery{4, 1}},
+		{`{"EVERY":5,"every":3,"Offset":2}`, zoneEvery{3, 0}},
+		{`{"every":2.5}`, zoneEvery{0, 0}},
+		{`[1,2]`, zoneEvery{0, 0}},
+	}
+	for _, c := range cases {
+		if got := readZoneEvery([]byte(c.raw)); got != c.want {
+			t.Errorf("%s read as %+v, want %+v", c.raw, got, c.want)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ package ui
 
 import (
 	"image/color"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,42 @@ func TestAWiderWindowHoldsMoreOfTheChainToALine(t *testing.T) {
 	}
 	if got := chainColumns(4*cell+3*gap, cell, gap); got != 4 {
 		t.Fatalf("four cells just fit, and %d were put on the line", got)
+	}
+}
+
+// The preview and Tune draw as many LEDs as the garland connected to sends to, 32 with none; a long chain is
+// drawn smaller, to stay within a few lines, and numbered every few LEDs where the numbers would run together.
+func TestTheChainIsAsLongAsTheGarlands(t *testing.T) {
+	a := sceneTune(t)
+	a.client = nil
+	if a.chainLeds() != previewLeds {
+		t.Fatalf("with no garland, %d", a.chainLeds())
+	}
+	a.client = &api.Client{}
+	a.state.Leds = api.Leds{Count: 100, Setting: 100}
+	if a.chainLeds() != 100 {
+		t.Fatalf("set to 100, %d", a.chainLeds())
+	}
+	a.state.Leds = api.Leds{Count: 100, Kept: 64}
+	if a.chainLeds() != 64 {
+		t.Fatalf("still sending to 64, %d", a.chainLeds())
+	}
+	a.state.Leds = api.Leds{Count: 100, Setting: 100}
+	var ops op.Ops
+	var router input.Router
+	a.Frame(sceneContext(&ops, &router, sceneWidth, sceneHeight))
+	if len(a.tune.frame) != 100 || !strings.Contains(stripText(a.chainLeds()), "on 100 LEDs") {
+		t.Fatalf("Tune draws %d LEDs", len(a.tune.frame))
+	}
+	const cell, gap = 42, 14
+	if chainFit(1200, 33, cell, gap) != 1 {
+		t.Fatal("32 LEDs drawn smaller than they need")
+	}
+	if scale := chainFit(1200, 101, cell, gap); scale >= 1 || scale < chainScales[len(chainScales)-1] {
+		t.Fatalf("100 LEDs at %v", scale)
+	}
+	if chainNumberStep(56, 26) != 1 || chainNumberStep(20, 26) != 5 || chainNumberStep(4, 26) != 10 || chainNumberStep(1, 26) != 20 {
+		t.Fatal("numbers run together, or are left out with room for them")
 	}
 }
 

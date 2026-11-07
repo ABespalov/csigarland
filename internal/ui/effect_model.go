@@ -135,6 +135,49 @@ func rawSpan(decoder *json.Decoder) (span, error) {
 	return span{start: end - len(raw), end: end}, nil
 }
 
+// firstMembers is an object's members as the firmware's parser finds them: by the exact key, case and all,
+// the first of a key written twice. Nil when raw is no object.
+func firstMembers(raw json.RawMessage) map[string]json.RawMessage {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	if expectDelim(decoder, '{') != nil {
+		return nil
+	}
+	members := map[string]json.RawMessage{}
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return nil
+		}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return nil
+		}
+		if name, _ := key.(string); members[name] == nil {
+			members[name] = value
+		}
+	}
+	return members
+}
+
+// wholeNumber is a member's whole number, or fallback when it is not there or no whole number.
+func wholeNumber(members map[string]json.RawMessage, key string, fallback int) int {
+	var value float64
+	if raw := members[key]; raw != nil && json.Unmarshal(raw, &value) == nil && value == float64(int(value)) {
+		return int(value)
+	}
+	return fallback
+}
+
+// zoneEvery is a zone of every n-th LED from an offset, 0 for a member left out.
+type zoneEvery struct{ Every, Offset int }
+
+// readZoneEvery reads a zone's object as the firmware's parse_zone does, so that a control shows the period
+// and offset that play, and a change of one writes back the other as it plays.
+func readZoneEvery(raw json.RawMessage) zoneEvery {
+	members := firstMembers(raw)
+	return zoneEvery{Every: wholeNumber(members, "every", 0), Offset: wholeNumber(members, "offset", 0)}
+}
+
 // Layers is how many there are.
 func (m *EffectModel) Layers() int { return len(m.layers) }
 
@@ -226,11 +269,20 @@ func (m *EffectModel) DeleteField(layer int, key string) []byte {
 	if layer < 0 || layer >= len(m.layers) {
 		return m.file
 	}
-	at, known := m.layers[layer].fields[key]
-	if !known || at.key < 0 {
-		return m.file
+	// Every copy of a key written twice, each taken out as the first, as the parser reads that one: one left
+	// would be the one it reads then, and the field would stay set.
+	model := m
+	for {
+		at, known := model.layers[layer].fields[key]
+		if !known || at.key < 0 {
+			return model.file
+		}
+		next, err := ReadEffect(model.cut(at.key, at.value.end))
+		if err != nil || len(next.layers) != len(m.layers) {
+			return model.cut(at.key, at.value.end)
+		}
+		model = next
 	}
-	return m.cut(at.key, at.value.end)
 }
 
 // cut takes out an item of a list or an object, and the comma between it and its neighbour.

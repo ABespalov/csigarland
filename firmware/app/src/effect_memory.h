@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 #include "garland_state.h"
@@ -134,6 +135,30 @@ struct Remembered {
     bool operator==(const Remembered&) const = default;
 };
 
+// The remembered effect while the catalog lacks it and uploaded effects not read yet may hold it. The state
+// plays another for now, which no save of the power, brightness or speed alone may write as the owner's:
+// the id is written in its place. Put on once the catalog has it, unless what plays was chosen since, and
+// dropped once that is chosen, or once all are read without it, which makes it an effect gone.
+enum class PendingEffectStep : uint8_t { Keep, Resolve, Drop };
+
+constexpr PendingEffectStep pending_effect_step(bool play_chosen, int found, bool all_read) {
+    return play_chosen ? PendingEffectStep::Drop
+           : found >= 0 ? PendingEffectStep::Resolve
+           : all_read   ? PendingEffectStep::Drop
+                        : PendingEffectStep::Keep;
+}
+
+class PendingEffect {
+public:
+    void hold(const char* id) { std::snprintf(id_, sizeof(id_), "%s", id); }
+    void drop() { id_[0] = '\0'; }
+    bool held() const { return id_[0] != '\0'; }
+    const char* id() const { return id_; }
+
+private:
+    char id_[sizeof(StoredSettings::effect_id)] = {};
+};
+
 // Clicking through effects or levels must not write each one: the settings are saved only
 // once all of them have stayed unchanged for kMemorySaveDelayMs. Turning on or off is saved
 // at once, as a garland is often turned off just before the power goes.
@@ -171,6 +196,10 @@ public:
         waiting_ = false;
         chosen_ = false;
     }
+
+    // The effect flash holds is found in the catalog at last, at that place: see PendingEffect. Nothing else
+    // of what was saved changes, and a change waiting to be saved still waits.
+    void saved_effect_found(uint16_t effect) { saved_.effect = effect; }
 
     // After a failed write: waits the whole delay again before the next try.
     void retry_later(uint32_t now_ms) { since_ms_ = now_ms; }

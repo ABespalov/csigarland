@@ -248,6 +248,28 @@ static void test_an_empty_playlist_starts_nothing() {
     TEST_ASSERT_TRUE(state.snapshot().playlist_mark != started && state.snapshot().playlist_mark != before);
 }
 
+// What a step did is told from the list it was decided on: a list filled or emptied right after neither
+// makes up a start of the playlist nor hides a real one.
+static void test_a_step_says_what_list_it_was_decided_on() {
+    State state;
+    state.set_effect_count(12);
+    ResolvedAction action;
+    merge_entry(action, make_entry(18, 0, PowerStep::None, 0, 0, kPlaylistStep));
+    bool had = true;
+    TEST_ASSERT_TRUE(state.apply_scheduled(0, 0, -1, kPowerKeep, true, -1, kPowerKeep, &had));
+    TEST_ASSERT_FALSE(had);
+    const uint16_t list[] = {5, 7};
+    state.set_playlist(list, 2, 30);  // Filled after: the step still did nothing.
+    TEST_ASSERT_FALSE(action.with_playlist(had).does_something());
+    TEST_ASSERT_TRUE(state.apply_scheduled(0, 0, -1, kPowerKeep, true, -1, kPowerKeep, &had));
+    TEST_ASSERT_TRUE(had);
+    state.set_playlist(list, 0, 30);  // Emptied after: the start still happened.
+    TEST_ASSERT_TRUE(action.with_playlist(had).does_something());
+    // A step with no playlist in it reads none, and is what it is.
+    TEST_ASSERT_TRUE(state.apply_scheduled(0, 0, 3, kPowerKeep, false, -1, kPowerKeep, &had));
+    TEST_ASSERT_FALSE(had);
+}
+
 // Which entries rise goes by place, with the bytes it was saved with: two equal entries, one rising and one
 // not, keep their own in either order, and a list saved since by 1.0.0 takes none of it.
 static void test_rises_keep_to_their_own_entries() {
@@ -654,6 +676,7 @@ static void run_light_tests() {
     RUN_TEST(test_the_playlist_reads_and_writes_its_text_and_json);
     RUN_TEST(test_a_saved_schedule_reads_the_same_in_1_0_0);
     RUN_TEST(test_an_empty_playlist_starts_nothing);
+    RUN_TEST(test_a_step_says_what_list_it_was_decided_on);
     RUN_TEST(test_a_step_takes_its_track_by_the_list_it_reads);
     RUN_TEST(test_an_emptied_list_and_a_start_never_cross);
     RUN_TEST(test_a_step_from_before_a_start_is_stale);

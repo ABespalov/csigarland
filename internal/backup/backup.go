@@ -326,17 +326,26 @@ func Restore(ctx context.Context, client *api.Client, backup Backup, step func(s
 		}
 	}
 	step(fmt.Sprintf("Put back %d uploaded effects.", len(backup.Uploads)))
-	effects, err := client.Effects(ctx)
-	// Whether the garland's effects were read, apart from what is done with its favourites.
-	catalogRead := err == nil
-	if err != nil {
+	effects, whole, err := client.EffectsWhole(ctx)
+	// Whether the garland's effects were read whole: a list that is not leaves out an uploaded effect the
+	// garland could not read yet, which is no effect it lacks. Then nothing is left out of a list sent for
+	// that, and the garland refuses what it does not hold, its own list staying as it was.
+	catalogRead := err == nil && whole
+	switch {
+	case err != nil:
 		fail("read the effects", err)
+	case !whole:
+		fail("read the effects", ErrIncomplete)
 	}
 	// Ticked before untick, so the garland is never left with none, which it refuses; and none at all if
-	// no favourite of the backup is here, which would leave only unticking.
+	// no favourite of the backup is here, which would leave only unticking. Not by a list that is not whole,
+	// whose marks the garland holds back.
 	ticked := effects
+	if !catalogRead {
+		ticked = nil
+	}
 	known := slices.ContainsFunc(effects, func(effect api.Effect) bool { return slices.Contains(backup.Favorites, effect.ID) })
-	if !known && len(effects) > 0 {
+	if catalogRead && !known && len(effects) > 0 {
 		fail("the favourites", errors.New("none of the backup's is on this garland, so its own stay"))
 		ticked = nil
 	}

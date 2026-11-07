@@ -262,10 +262,11 @@ void update_scheduler_text(const State& state, const Snapshot& now, int64_t now_
         }
     }
     SaverMoment behind[4] = {saver_moment(0, "Start"), s_power_event, s_rail_event};
-    uint32_t done_ms = 0;
-    if (schedule_last_step(done_ms, action)) {
-        saver_action_name(action, effect_name, name, sizeof(name));
-        behind[3] = saver_moment(now_ms - static_cast<int32_t>(static_cast<uint32_t>(now_ms) - done_ms), name);
+    // Whole, and named as it was: it may stay the last thing that happened for weeks, and its effect's place
+    // in the catalog be another's by now.
+    int64_t done_ms = 0;
+    if (schedule_last_step(done_ms, name, sizeof(name))) {
+        behind[3] = saver_moment(done_ms, name);
     }
     char text[kSaverTextBytes];
     saver_text(ahead, 2, behind, 4, now_ms, text, sizeof(text));

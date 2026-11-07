@@ -86,14 +86,21 @@ func (f *powerForm) takeRefresh(budget api.PowerBudget, held bool, err error) er
 	return nil
 }
 
-// PowerText says what the settings come to, as the portal does.
+// PowerText says what the settings come to, as the portal does. A chain whose idle draw alone is over the
+// limit is kept off by the garland, as no dimming takes that draw away: that is said in place of dimming.
 func PowerText(budget api.PowerBudget) string {
+	limit := fmt.Sprintf("Limit %d mA: what the supply gives beyond %d mA for the board, the screen and Wi-Fi, less the margin.",
+		budget.LimitMilliamps, budget.BoardMilliamps)
+	if idle := budget.Leds * budget.IdleMilliamps; idle > budget.LimitMilliamps {
+		return fmt.Sprintf("%s %d LEDs draw %d mA dark alone, over the limit, which no dimming takes away, so the LEDs are kept off: fewer LEDs, a lower idle draw, a bigger supply or a smaller margin lets them on.",
+			limit, budget.Leds, idle)
+	}
 	held := "under the limit"
 	if budget.PeakMilliamps > budget.LimitMilliamps {
 		held = "so it is dimmed to the limit"
 	}
-	return fmt.Sprintf("Limit %d mA: what the supply gives beyond %d mA for the board, the screen and Wi-Fi, less the margin. %d LEDs at full white draw %d mA, %s. Full white stays undimmed on up to %d LEDs.",
-		budget.LimitMilliamps, budget.BoardMilliamps, budget.Leds, budget.PeakMilliamps, held, budget.UndimmedLeds)
+	return fmt.Sprintf("%s %d LEDs at full white draw %d mA, %s. Full white stays undimmed on up to %d LEDs.",
+		limit, budget.Leds, budget.PeakMilliamps, held, budget.UndimmedLeds)
 }
 
 func (f *powerForm) card(a *App) layout.Widget {

@@ -312,9 +312,12 @@ func (p *tunePage) body(a *App) layout.Widget {
 // The LEDs and how they play here, which stay in sight.
 func (p *tunePage) previewRows(a *App) []layout.Widget {
 	rows := []layout.Widget{
-		func(gtx C) D { return a.layoutStrip(gtx, p.preview, &p.look, p.frame) },
+		func(gtx C) D {
+			p.frame = fitFrame(p.frame, a.chainLeds())
+			return a.layoutStrip(gtx, p.preview, &p.look, p.frame)
+		},
 		a.lookSliders(&p.look),
-		a.hint(stripWords),
+		a.hint(stripText(a.chainLeds())),
 	}
 	return append(rows, p.currentRows(a)...)
 }

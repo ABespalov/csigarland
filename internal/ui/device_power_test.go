@@ -49,6 +49,16 @@ func TestThePowerCardReadsWhatIsTyped(t *testing.T) {
 	if !strings.Contains(PowerText(api.PowerBudget{LimitMilliamps: 1400, Leds: 32, PeakMilliamps: 1792}), "dimmed to the limit") {
 		t.Fatal("a chain past the limit is not said to be dimmed")
 	}
+	// The review's chain: 64 LEDs at 5 mA dark draw 320 mA, over a limit of 200, and are kept off.
+	idle := api.PowerBudget{LimitMilliamps: 200, BoardMilliamps: 250, Leds: 64, IdleMilliamps: 5, PeakMilliamps: 2880}
+	if words := PowerText(idle); !strings.Contains(words, "64 LEDs draw 320 mA dark alone") || !strings.Contains(words, "kept off") || strings.Contains(words, "dimmed to the limit") {
+		t.Fatalf("%q", words)
+	}
+	// At the limit exactly, the garland lights them, dimmed.
+	idle.IdleMilliamps, idle.LimitMilliamps = 3, 192
+	if words := PowerText(idle); !strings.Contains(words, "dimmed to the limit") {
+		t.Fatalf("%q", words)
+	}
 }
 
 // Tune's current is another garland's while the one connected to cannot have its settings read: none is

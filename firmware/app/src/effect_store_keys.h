@@ -166,4 +166,20 @@ private:
     bool index_unread_ = false;
 };
 
+// The partition of uploads as readying it found it. One the partition table lacks holds nothing, as nothing
+// could ever be saved there: a store known empty. One that is there but could not be readied, as when memory
+// ran short, may hold any upload, so its whole list stays unread until it is readied and listed.
+enum class StorePartition : uint8_t { Ready, Missing, Unready };
+
+inline void note_store_partition(StorePartition partition, UnreadStoreKeys& unread) {
+    if (partition == StorePartition::Unready) {
+        unread.mark_index_unread();
+    }
+}
+
+// Readied again, before what is unread is read again: only one that is there and was not readied.
+inline bool store_partition_retried(StorePartition partition) {
+    return partition == StorePartition::Unready;
+}
+
 }  // namespace garland
