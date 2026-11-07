@@ -72,10 +72,53 @@ static void test_state_holds_the_power_budget() {
     TEST_ASSERT_EQUAL_UINT32(1575, current_model(state.power()).limit_ma);
 }
 
+static void test_the_rail_waits_for_settings_known() {
+    // A start begins with the defaults, not known: a reading that failed is no leave for their 1400 mA, as the
+    // owner may have saved a supply of 500 mA. Known once read, or found to be none, or saved.
+    State state(32);
+    TEST_ASSERT_FALSE(state.power_now().known);
+    TEST_ASSERT_FALSE(rail_may_be_on(state.power_now().known, state.power_now().settings, 32));
+    state.set_power(PowerSettings{});
+    TEST_ASSERT_TRUE(state.power_now().known);
+    TEST_ASSERT_TRUE(state.power_now().settings == PowerSettings{});
+    TEST_ASSERT_TRUE(rail_may_be_on(true, state.power_now().settings, 32));
+    const PowerSettings small{500, 40, 1, 20};
+    state.set_power(small);
+    TEST_ASSERT_TRUE(state.power_now().known && state.power_now().settings == small);
+}
+
+static void test_the_rail_stays_off_when_idle_draw_alone_is_over_the_limit() {
+    // 500 mA, 20 %: 200 mA. A dark LED's draw no brightness lowers: 200 of them at 1 mA are within it, 201 not,
+    // and at 5 mA, 40 and 41.
+    const PowerSettings small{500, 40, 1, 20};
+    TEST_ASSERT_TRUE(rail_may_be_on(true, small, 200));
+    TEST_ASSERT_FALSE(rail_may_be_on(true, small, 201));
+    const PowerSettings hungry{500, 40, 5, 20};
+    TEST_ASSERT_TRUE(rail_may_be_on(true, hungry, 40));
+    TEST_ASSERT_FALSE(rail_may_be_on(true, hungry, 41));
+    // The longest chain at the defaults, and an LED that draws nothing dark.
+    TEST_ASSERT_TRUE(rail_may_be_on(true, PowerSettings{}, CSIGARLAND_MAX_LEDS));
+    TEST_ASSERT_TRUE(rail_may_be_on(true, PowerSettings{500, 40, 0, 20}, CSIGARLAND_MAX_LEDS));
+}
+
+static void test_a_power_record_is_taken_whole_or_not_at_all() {
+    const PowerSettings saved{2200, 40, 1, 20};
+    TEST_ASSERT_TRUE(power_word_is_valid(pack_power(saved)));
+    // A word with bits above the settings, or one whose settings are out of their ranges, is no record.
+    TEST_ASSERT_FALSE(power_word_is_valid(pack_power(saved) | (1U << 30)));
+    TEST_ASSERT_FALSE(power_word_is_valid(0));
+    PowerSettings wide = saved;
+    wide.margin_percent = 4;
+    TEST_ASSERT_FALSE(power_word_is_valid(pack_power(wide)));
+}
+
 static void run_power_tests() {
     RUN_TEST(test_power_defaults_keep_the_old_limit);
     RUN_TEST(test_power_limit_follows_the_settings);
     RUN_TEST(test_power_ranges);
     RUN_TEST(test_power_settings_go_whole_in_one_word);
     RUN_TEST(test_state_holds_the_power_budget);
+    RUN_TEST(test_the_rail_waits_for_settings_known);
+    RUN_TEST(test_the_rail_stays_off_when_idle_draw_alone_is_over_the_limit);
+    RUN_TEST(test_a_power_record_is_taken_whole_or_not_at_all);
 }

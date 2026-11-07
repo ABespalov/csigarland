@@ -177,6 +177,24 @@ static void test_files_not_read_at_the_start_hold_back_uploads_until_read() {
     }
     many.read_again([](const char*) { return true; });
     TEST_ASSERT_TRUE(many.any());
+    // A list that could not be had at all, or stopped short, holds back as one not read, whatever was read.
+    UnreadStoreKeys unlisted;
+    unlisted.mark_index_unread();
+    unlisted.read_again([](const char*) { return true; });
+    TEST_ASSERT_TRUE(unlisted.index_unread());
+    TEST_ASSERT_TRUE(unlisted.any());
+    // Read again whole, it starts afresh.
+    unlisted = UnreadStoreKeys{};
+    TEST_ASSERT_FALSE(unlisted.any());
+}
+
+static void test_an_entry_known_is_passed_by_when_the_list_is_read_again() {
+    StoreKeys keys;
+    TEST_ASSERT_TRUE(keys.add("mine", "e00000001"));
+    TEST_ASSERT_TRUE(keys.knows_key("e00000001"));
+    TEST_ASSERT_FALSE(keys.knows_key("e00000002"));
+    keys.remove("mine");
+    TEST_ASSERT_FALSE(keys.knows_key("e00000001"));
 }
 
 static void test_a_built_in_effect_can_be_replaced_and_restored() {
@@ -284,10 +302,17 @@ static void test_favourites_follow_uploads_by_id() {
     const EffectMask read_back = favorites_from_text(text);
     TEST_ASSERT_TRUE(read_back.test(0));
     TEST_ASSERT_TRUE(read_back.test(static_cast<size_t>(position)));
+    TEST_ASSERT_FALSE(favorites_name_unknown(text));
 
-    // Gone from the catalog, it is simply no favourite any more.
+    // Gone from the catalog, it is simply no favourite any more, and the list is told to name one it lacks,
+    // which, while uploaded effects are not all read, may be one of them: then no save drops its mark.
     catalog_remove(position);
     TEST_ASSERT_FALSE(favorites_from_text(text).test(static_cast<size_t>(position)));
+    TEST_ASSERT_TRUE(favorites_name_unknown(text));
+    // Back, as when its file is read late, it is a favourite again from the same text.
+    const int back = catalog_install(uploaded_spec("mine"));
+    TEST_ASSERT_TRUE(favorites_from_text(text).test(static_cast<size_t>(back)));
+    TEST_ASSERT_FALSE(favorites_name_unknown(text));
     load_shipped_catalog();
 }
 
@@ -300,6 +325,7 @@ static void run_upload_tests() {
     RUN_TEST(test_ids_that_share_a_hash_keep_their_own_keys);
     RUN_TEST(test_the_store_has_room_for_every_upload_beside_refused_files);
     RUN_TEST(test_files_not_read_at_the_start_hold_back_uploads_until_read);
+    RUN_TEST(test_an_entry_known_is_passed_by_when_the_list_is_read_again);
     RUN_TEST(test_a_built_in_effect_can_be_replaced_and_restored);
     RUN_TEST(test_uploads_stop_at_the_limit_and_replacing_still_works);
     RUN_TEST(test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack);

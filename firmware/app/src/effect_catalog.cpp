@@ -336,8 +336,11 @@ EffectMask catalog_default_favorites() {
     return s_default_favorites.any() ? s_default_favorites : EffectMask::all(s_count);
 }
 
-EffectMask favorites_from_text(const char* text) {
-    EffectMask mask;
+namespace {
+
+// Each id of the text, in turn, as favorites_to_text writes them.
+template <typename Each>
+void each_favorite_id(const char* text, Each each) {
     char id[kMaxEffectIdLength + 1];
     while (*text != '\0') {
         const char* comma = std::strchr(text, ',');
@@ -345,17 +348,32 @@ EffectMask favorites_from_text(const char* text) {
         if (length > 0 && length < sizeof(id)) {
             std::memcpy(id, text, length);
             id[length] = '\0';
-            const int index = catalog_find(id);
-            if (index >= 0) {
-                mask.set(static_cast<size_t>(index), true);
-            }
+            each(static_cast<const char*>(id));
         }
         text += length;
         if (*text == ',') {
             ++text;
         }
     }
+}
+
+}  // namespace
+
+EffectMask favorites_from_text(const char* text) {
+    EffectMask mask;
+    each_favorite_id(text, [&mask](const char* id) {
+        const int index = catalog_find(id);
+        if (index >= 0) {
+            mask.set(static_cast<size_t>(index), true);
+        }
+    });
     return mask;
+}
+
+bool favorites_name_unknown(const char* text) {
+    bool unknown = false;
+    each_favorite_id(text, [&unknown](const char* id) { unknown = unknown || catalog_find(id) < 0; });
+    return unknown;
 }
 
 bool favorites_to_text(const EffectMask& mask, char* out, size_t out_size) {

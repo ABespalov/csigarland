@@ -64,8 +64,8 @@ esp_err_t settings_read_playlist(char* out, size_t out_size, uint32_t* revision 
 // is the new list's. Revisions count the saves since the start.
 esp_err_t settings_save_playlist(const char* text, const uint32_t* expected = nullptr, uint32_t* revision = nullptr);
 
-// A POSIX TZ string. False when none was ever chosen.
-bool settings_load_timezone(char* out, size_t out_size);
+// A POSIX TZ string. Missing when none was ever chosen, Unreadable when one may be there and was not read.
+StoredRead settings_read_timezone(char* out, size_t out_size);
 esp_err_t settings_save_timezone(const char* zone);
 
 // Returns how many actions were loaded. Invalid entries are dropped, not fatal.

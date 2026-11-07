@@ -87,6 +87,22 @@ func pictureOf(schedule api.Schedule, effects []api.Effect, files map[string][]b
 // and its file: read it again, as any other change.
 var errChanged = errors.New("the garland changed while it was read")
 
+// ErrIncomplete says the garland could not read all its uploaded effects, or favourites naming them, yet:
+// its list leaves some out, or their marks, and a backup of it would be one the owner did not make.
+var ErrIncomplete = errors.New("the garland has not read all its uploaded effects and favourites yet: try again in a moment")
+
+// wholeEffects lists the effects, and fails while the list is not whole.
+func wholeEffects(ctx context.Context, client *api.Client) ([]api.Effect, error) {
+	effects, whole, err := client.EffectsWhole(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !whole {
+		return nil, ErrIncomplete
+	}
+	return effects, nil
+}
+
 // Collect reads all of it from a garland, as one picture: one that changed while it was read, by another
 // page or program, is read again, up to three times. Every effect its schedule and playlist name must be
 // built into the garland or in the backup, or the backup would put back what it cannot play, but for one
@@ -130,7 +146,7 @@ func readPicture(ctx context.Context, client *api.Client, withPlaylist bool) (pi
 	if err != nil {
 		return picture{}, fmt.Errorf("read the schedule: %w", err)
 	}
-	effects, err := client.Effects(ctx)
+	effects, err := wholeEffects(ctx, client)
 	if err != nil {
 		return picture{}, fmt.Errorf("read the effects: %w", err)
 	}
@@ -189,7 +205,7 @@ func collectOnce(ctx context.Context, client *api.Client, now time.Time) (Backup
 	}
 	backup.Schedule = append(backup.Schedule, schedule.Entries...)
 	backup.ScheduleMissing = schedule.Missing
-	effects, err := client.Effects(ctx)
+	effects, err := wholeEffects(ctx, client)
 	if err != nil {
 		return Backup{}, picture{}, nil, fmt.Errorf("read the effects: %w", err)
 	}
@@ -227,6 +243,8 @@ func collectOnce(ctx context.Context, client *api.Client, now time.Time) (Backup
 	if backup.Display, err = client.Display(ctx); err != nil {
 		return Backup{}, picture{}, nil, fmt.Errorf("read the screen: %w", err)
 	}
+	// What the garland has, not what the owner chose: a backup with it would be one no utility before it reads.
+	backup.Display.ClockModule = nil
 	// As the playlist: 404 only from a release before the power settings.
 	switch budget, err := client.PowerBudget(ctx); {
 	case err == nil:

@@ -93,7 +93,7 @@ The integrated 1.3" IPS LCD follows csiPass's design: the pixel wordmark, the bu
 1. **Active and standby:** as above, with `Standby` and a hint in place of the effect. The whole screen turns amber when no LEDs are detected. The wordmark is white and blue on any coloured frame, and on a grey frame it and the version go grey, `csi` still the brighter. A clock module shows as a small glyph at the end of the wordmark, white when a scheduled action comes within a day and grey otherwise.
 2. **Setup network:** while the access point runs, its name and this board's password replace the effect name.
 3. **Countdown and update:** the seconds left before turning off, or the percent of an update being installed, replace the body and the stats.
-4. **Screensaver:** None, Starfield, Flying Clock, Breathing Dot or Black Screen, after 10-600 s without a button press (default: Starfield after 60 s). Chosen on the portal.
+4. **Screensaver:** None, Starfield, Flying Clock, Breathing Dot, Black Screen or, with the clock module, Scheduler24, what comes next and how soon, or what happened last, after 10-600 s without a button press (default: Starfield after 60 s). Chosen on the portal.
 
 ---
 

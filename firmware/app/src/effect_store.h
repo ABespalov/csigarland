@@ -29,6 +29,8 @@ bool effect_store_read_unread();
 // While any is unread, one of them may hold an id not known, and come back after an upload under it is
 // deleted, as a second copy: such an upload is refused.
 bool effect_store_unread_may_hold(const char* id);
+// None is left unread, nor the list of them: an id the catalog lacks is then no uploaded effect.
+bool effect_store_all_read();
 
 // These read the file from effect_store_body() and return the problem as text, or nullptr.
 const char* effect_store_save(const char* id);

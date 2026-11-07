@@ -70,6 +70,9 @@ public:
         return false;
     }
 
+    // Whether an entry holds key: one known, kept or refused, which a reading of the whole list again passes by.
+    bool knows_key(const char* key) const { return holds_key(key); }
+
     void remove(const char* id) {
         for (Entry& entry : entries_) {
             if (std::strcmp(entry.id, id) == 0) {
@@ -128,8 +131,13 @@ public:
         overflowed_ = true;
     }
 
+    // The list of keys itself could not be had, or stopped short: any key may be one not read, so none is
+    // known to be free until the whole list is read again.
+    void mark_index_unread() { index_unread_ = true; }
+    bool index_unread() const { return index_unread_; }
+
     bool any() const {
-        if (overflowed_) {
+        if (overflowed_ || index_unread_) {
             return true;
         }
         for (const auto& held : keys_) {
@@ -155,6 +163,7 @@ private:
     static constexpr size_t kKeyBytes = 16;
     std::array<char[kKeyBytes], kMaxUnreadStoreKeys> keys_{};
     bool overflowed_ = false;
+    bool index_unread_ = false;
 };
 
 }  // namespace garland

@@ -64,12 +64,15 @@ func ReadEffect(file []byte) (*EffectModel, error) {
 			return nil, fmt.Errorf("the file is not JSON: %w", err)
 		}
 		name, _ := key.(string)
-		if name != "layers" {
+		// The first of a key written twice, layers among them, as the firmware's parser takes it.
+		if name != "layers" || hasLayers {
 			value, err := rawSpan(decoder)
 			if err != nil {
 				return nil, err
 			}
-			model.top[name] = value
+			if _, seen := model.top[name]; !seen && name != "layers" {
+				model.top[name] = value
+			}
 			continue
 		}
 		if err := model.readLayers(decoder); err != nil {
@@ -107,7 +110,11 @@ func (m *EffectModel) readLayers(decoder *json.Decoder) error {
 				return err
 			}
 			name, _ := key.(string)
-			layer.fields[name] = field{key: keyAt, value: value}
+			// The first of a key written twice, as the firmware's parser takes it: a control of the other would
+			// change what nothing plays.
+			if _, seen := layer.fields[name]; !seen {
+				layer.fields[name] = field{key: keyAt, value: value}
+			}
 		}
 		if err := expectDelim(decoder, '}'); err != nil {
 			return err

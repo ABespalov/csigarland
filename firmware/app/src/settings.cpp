@@ -326,8 +326,9 @@ esp_err_t settings_save_playlist(const char* text, const uint32_t* expected, uin
     }
     return err;
 }
-bool settings_load_timezone(char* out, size_t out_size) {
-    return read_string(kTimeZoneKey, out, out_size);
+StoredRead settings_read_timezone(char* out, size_t out_size) {
+    // Either step's NOT_FOUND is none saved, and any other failure one there and not read.
+    return stored_read(NvsAnswer::Ok, nvs_answer(read_string_err(kTimeZoneKey, out, out_size)));
 }
 
 esp_err_t settings_save_timezone(const char* zone) {

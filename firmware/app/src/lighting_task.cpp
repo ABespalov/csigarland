@@ -126,6 +126,8 @@ void lighting_task(void* arg) {
     size_t limited_count = 0;  // The chain length the targets were last rendered and limited for.
     bool rail_on = false;
     bool clamp_reported = false;
+    bool power_allowed = true;  // What the log last said of rail_may_be_on.
+    bool recounted = false;     // Counted again for the turn on now asked for, held off by its count.
     OutputHealth health;
     static EffectRenderer s_renderer(static_cast<uint32_t>(esp_random()));
     // The effect's own clock: the SPEED button scales it, so every algorithm
@@ -187,11 +189,46 @@ void lighting_task(void* arg) {
             s_dither.resend();
         }
 
+        // The rail only by the owner's power settings, known, and with the chain's idle draw within their limit,
+        // which no dimming lowers: see rail_may_be_on. A turn on asked for stays asked for, and comes once they
+        // allow, as when the settings are read late or changed; one on is cut at once when they stop allowing.
+        const State::PowerNow power = state.power_now();
+        const bool may_power = rail_may_be_on(power.known, power.settings, led_count);
+        if (may_power != power_allowed) {
+            power_allowed = may_power;
+            if (!may_power) {
+                ESP_LOGW(TAG, "the rail stays off: %s", !power.known ? "the power settings are not read yet"
+                                                                     : "the LEDs' idle draw alone is over the limit");
+            }
+        }
+        if (rail_on && !may_power) {
+            output.power_off();
+            rail_on = false;
+            state.set_rail_on(false);
+            set_dither_timer(dither_timer, false);
+            continue;
+        }
+
         if (!now.power_requested) {
+            recounted = false;
+        }
+        if (!now.power_requested || !may_power) {
             probed = false;
         }
         const int64_t turn_us = esp_timer_get_time();
-        if (now.power_requested && !rail_on) {
+        if (now.power_requested && !rail_on && !may_power) {
+            // Held off: the light comes in a later turn, once the settings allow it. A count found by the probe
+            // may be one of a chain since replaced, which no presence check counts again: so, once for each
+            // turn on asked for, it is counted again, the rail off, and the turn that reads the new count
+            // decides, at once.
+            if (power.known && now.led_setting == kLedCountAuto && !recounted) {
+                run_probe(state);
+                recounted = true;
+                probed = true;
+                xTaskNotifyGive(xTaskGetCurrentTaskHandle());
+                continue;
+            }
+        } else if (now.power_requested && !rail_on) {
             if (!probed) {
                 // The rail must be off to measure, so this is the only moment to count. Most of a
                 // second goes by, in which the garland may be turned off, an update begin, or the
@@ -237,6 +274,9 @@ void lighting_task(void* arg) {
             }
         }
 
+        if (!rail_on) {
+            state.set_playlist_next_ms(0);
+        }
         if (!rail_on && now.output_failed) {
             // Nothing is being sent, so nothing is failing, and the next turn on starts clean.
             health = OutputHealth{};
@@ -290,6 +330,10 @@ void lighting_task(void* arg) {
                 }
                 effect_since_us = now_us;
             }
+            // When the playlist goes on, for the screensaver to say: while it plays, lit, as it moves on only then.
+            const bool moves_on = now.playlist && fade.target() != 0;
+            const auto next_ms = static_cast<uint32_t>((effect_since_us + int64_t{state.playlist_dwell_seconds()} * 1'000'000) / 1000);
+            state.set_playlist_next_ms(moves_on ? (next_ms != 0 ? next_ms : 1) : 0);
             if (frame_render_due(now_us, last_frame_us, kRenderPeriodUs, led_count, limited_count)) {
                 effect_time_us += static_cast<uint64_t>(now_us - last_frame_us) * now.speed_x4 / 4;
                 last_frame_us = now_us;
@@ -307,7 +351,7 @@ void lighting_task(void* arg) {
                 drawn_since_on = true;
                 apply_brightness(frame, fade.apply(gain, now_us), targets);
                 // The owner's settings in one word, so a save is taken whole, at the next frame.
-                const CurrentModel model = current_model(state.power());
+                const CurrentModel model = current_model(power.settings);
                 const uint32_t current_ma = limit_current(targets, model);
                 limited_count = led_count;
                 if (current_ma > model.limit_ma && !clamp_reported) {

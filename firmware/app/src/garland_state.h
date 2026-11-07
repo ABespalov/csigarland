@@ -96,7 +96,10 @@ constexpr uint32_t kOffCountdownMs = 5000;
 constexpr uint8_t kOffCountdownSeconds = kOffCountdownMs / 1000;
 static_assert(kOffCountdownSeconds <= 7, "the seconds left share a word with what plays, in three bits");
 
-enum class SaverKind : uint8_t { None, Starfield, FlyingClock, BreathingDot, BlackScreen };
+// Scheduler24 tells of the schedule's next step, and is offered only with the clock module, which keeps the
+// time through a power cut; saved, and the module gone since, it runs as the Flying Clock. New after 1.1.1:
+// a firmware before it reads it as no valid kind, and takes the default.
+enum class SaverKind : uint8_t { None, Starfield, FlyingClock, BreathingDot, BlackScreen, Scheduler24 };
 
 constexpr uint16_t kSaverDelayMinSeconds = 10;
 constexpr uint16_t kSaverDelayMaxSeconds = 600;
@@ -107,7 +110,7 @@ constexpr bool saver_delay_is_valid(int seconds) {
 }
 
 constexpr bool saver_kind_is_valid(int kind) {
-    return kind >= static_cast<int>(SaverKind::None) && kind <= static_cast<int>(SaverKind::BlackScreen);
+    return kind >= static_cast<int>(SaverKind::None) && kind <= static_cast<int>(SaverKind::Scheduler24);
 }
 
 // Screen backlight, in percent. A lower limit keeps a setting from leaving the screen
@@ -364,6 +367,11 @@ public:
         return count;
     }
     uint16_t playlist_dwell_seconds() const { return playlist_dwell_seconds_.load(); }
+
+    // When the playlist goes on to its next effect, in ms of the uptime clock, wrapping as it does; 0 while it
+    // does not play, lit. The Lighting task, which times it, tells; the Scheduler24 screensaver says it.
+    void set_playlist_next_ms(uint32_t at_ms) { playlist_next_ms_.store(at_ms); }
+    uint32_t playlist_next_ms() const { return playlist_next_ms_.load(); }
 
     // The owner starts the playlist, or stops it and keeps what plays. Starting turns the garland
     // on at the list's first effect. False for an empty list.
@@ -703,9 +711,19 @@ public:
     uint8_t screen_percent() const { return screen_percent_.load(); }
     uint8_t saver_percent() const { return saver_percent_.load(); }
 
-    // The LEDs' power budget, valid settings only. One word, which the Lighting task reads each frame.
-    void set_power(const PowerSettings& settings) { power_.store(pack_power(settings)); }
+    // The LEDs' power budget, valid settings only. One word, which the Lighting task reads each frame, with
+    // whether they are the owner's, read or saved, or still the defaults a start begins with: one known bit
+    // above the settings, which a reading or a save sets with them.
+    void set_power(const PowerSettings& settings) { power_.store(pack_power(settings) | kPowerKnownBit); }
     PowerSettings power() const { return unpack_power(power_.load()); }
+    struct PowerNow {
+        PowerSettings settings;
+        bool known;
+    };
+    PowerNow power_now() const {
+        const uint32_t word = power_.load();
+        return PowerNow{unpack_power(word), (word & kPowerKnownBit) != 0};
+    }
 
     // Told by the display, so button_down knows the press is only a wake-up.
     void set_saver_active(bool active) { saver_active_.store(active); }
@@ -917,6 +935,8 @@ private:
     std::atomic<uint16_t> saver_delay_seconds_{kSaverDelayDefaultSeconds};
     std::atomic<uint8_t> screen_percent_{kScreenBrightnessDefault};
     std::atomic<uint8_t> saver_percent_{kSaverBrightnessDefault};
+    static constexpr uint32_t kPowerKnownBit = 1U << 31;
+    // The defaults, not known: a start takes the owner's settings, or that there are none, before the rail.
     std::atomic<uint32_t> power_{pack_power(PowerSettings{})};
     std::atomic<bool> saver_active_{false};
     std::atomic<bool> setup_network_{false};
@@ -940,6 +960,7 @@ private:
     // task, which only moves on by advance_playlist.
     std::mutex playlist_lock_;
     std::atomic<uint16_t> playlist_dwell_seconds_{kPlaylistDwellDefaultSeconds};
+    std::atomic<uint32_t> playlist_next_ms_{0};
     std::atomic<uint16_t> cross_fade_ms_{1000};
     std::array<std::atomic<uint32_t>, EffectMask::kWords * 2> favorites_{};
     std::atomic<ProbeStatus> probe_{ProbeStatus::NotChecked};

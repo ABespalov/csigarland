@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -150,11 +151,14 @@ func (p *devicePage) saveCount(a *App) {
 		if err != nil {
 			return nil, fmt.Errorf("could not save: %w", err)
 		}
-		// What the power settings come to depends on the count.
-		budget, held, _ := readPowerBudget(ctx, client)
+		// What the power settings come to depends on the count. Saved all the same if they cannot be read.
+		budget, held, readErr := readPowerBudget(ctx, client)
 		return func() {
 			a.takeState(state)
-			p.power.takeTotals(budget, held)
+			if err := p.power.takeRefresh(budget, held, readErr); err != nil {
+				a.reportError(fmt.Errorf("saved, but %w", err))
+				return
+			}
 			a.report("Saved.")
 		}, nil
 	})
@@ -170,6 +174,17 @@ var savers = []segment{
 	{"black-screen", "Black Screen"},
 }
 
+// scheduler24 tells of the schedule's next step, offered only by a garland with the clock module.
+var scheduler24 = segment{"scheduler24", "Scheduler24"}
+
+// saverChoices is what the garland offers: Scheduler24 only as Display.OffersScheduler24 says.
+func saverChoices(display api.Display) []segment {
+	if !display.OffersScheduler24() {
+		return savers
+	}
+	return append(slices.Clone(savers), scheduler24)
+}
+
 func (p *devicePage) screenCard(a *App) layout.Widget {
 	return func(gtx C) D {
 		if p.savingScreen {
@@ -183,7 +198,7 @@ func (p *devicePage) screenCard(a *App) layout.Widget {
 			a.hint("Screen brightness, %"),
 			func(gtx C) D { return a.field(gtx, &p.screen, "100", 90) },
 			a.hint("Screensaver"),
-			func(gtx C) D { return a.segments(gtx, &p.saver, savers) },
+			func(gtx C) D { return a.segments(gtx, &p.saver, saverChoices(p.last)) },
 		}
 		if p.saver.Value != "none" {
 			rows = append(rows, a.hint("Delay, seconds"), func(gtx C) D { return a.field(gtx, &p.delay, "60", 90) })

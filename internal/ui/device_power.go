@@ -53,7 +53,8 @@ func readPowerBudget(ctx context.Context, client *api.Client) (api.PowerBudget, 
 	return budget, true, nil
 }
 
-// take fills the form as the garland has it, and has Tune go by the same.
+// take fills the form as the garland has it, and has Tune go by the same, though Tune asks for them itself
+// once it opens, as it holds them for the garland they were read from.
 func (f *powerForm) take(budget api.PowerBudget, held bool) {
 	f.takeTotals(budget, held)
 	if !held {
@@ -72,6 +73,17 @@ func (f *powerForm) takeTotals(budget api.PowerBudget, held bool) {
 	if held {
 		f.last = budget
 	}
+}
+
+// takeRefresh takes what a read after a change of the LED count came to. A read that failed says nothing of
+// whether the garland has the settings, so the card and its totals stay as they were, and the error is the
+// caller's to say.
+func (f *powerForm) takeRefresh(budget api.PowerBudget, held bool, err error) error {
+	if err != nil {
+		return err
+	}
+	f.takeTotals(budget, held)
+	return nil
 }
 
 // PowerText says what the settings come to, as the portal does.

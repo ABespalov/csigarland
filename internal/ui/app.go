@@ -135,6 +135,8 @@ type App struct {
 	aboutAt    time.Time // When About was last asked for by refreshState.
 	stateAt    time.Time // When the garland's state last came, pushed or asked for.
 	trialImage string    // The image last seen on trial, see takeAbout.
+	// Whose power settings Tune's current is worked out by: see readGarlandPower.
+	power garlandPower
 
 	connect  connectPage
 	effects  effectsPage

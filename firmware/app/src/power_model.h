@@ -106,6 +106,19 @@ constexpr PowerSettings unpack_power(uint32_t word) {
     return s;
 }
 
+// A word read back, as from flash: the 30 bits of pack_power and nothing above them, and valid settings.
+constexpr bool power_word_is_valid(uint32_t word) {
+    return (word >> 30) == 0 && power_settings_are_valid(unpack_power(word));
+}
+
+// Whether the rail may be on for a chain of leds. Not while the owner's settings are not known: those in
+// force until then are the defaults, whose limit may be above theirs, so a reading that failed would let
+// more current through than they allow. Nor while the chain's idle draw alone is over the limit: dimming
+// takes nothing of it away, and the frame of a dark garland would still draw more than the limit.
+constexpr bool rail_may_be_on(bool settings_known, const PowerSettings& s, uint32_t leds) {
+    return settings_known && leds * uint32_t{s.idle_ma} <= power_limit_ma(s);
+}
+
 static_assert(power_limit_ma(PowerSettings{}) == 1400, "the defaults keep the limit of earlier releases");
 static_assert(kSupplyMaxMa <= 0x7FFF && kLedWhiteMaxMa <= 0x7F && kLedIdleMaxMa <= 0x7 && kMarginMaxPercent <= 0x1F,
               "each setting fits its bits");

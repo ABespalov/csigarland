@@ -137,6 +137,22 @@ esp_err_t send_catalog_change(httpd_req_t* req, const char* body) {
     return send_effect_change(req, body);
 }
 
+// Uploaded effects not read at the start read again first, the catalog and the playlist following any that
+// are, so that favourites naming them come back whole. Before the body of an upload, which goes where they
+// are read.
+void read_unread_effects(State& state) {
+    if (effect_store_read_unread()) {
+        state.note_catalog_changed();
+        playlist_resolve(state);
+    }
+}
+
+// The favourites, read and whole, for a save of them: see looks_favorites_whole.
+bool favorites_whole(State& state) {
+    read_unread_effects(state);
+    return looks_favorites_whole(state);
+}
+
 int read_effect_index(const cJSON* root) {
     const cJSON* id = cJSON_GetObjectItemCaseSensitive(root, "id");
     return cJSON_IsString(id) ? catalog_find(id->valuestring) : -1;
@@ -276,6 +292,9 @@ esp_err_t portal_handle_set_leds(httpd_req_t* req) {
 esp_err_t portal_handle_effects(httpd_req_t* req) {
     auto& state = *static_cast<State*>(req->user_ctx);
     // Favourites not read are the defaults, which a page would save back, and a backup keep, as the owner's.
+    // Whole if they can be by now, though a list that leaves out an uploaded effect not read yet, or the mark of
+    // one, is shown as far as it goes, and says so, for a backup to refuse.
+    const bool complete = favorites_whole(state) && effect_store_all_read();
     if (!looks_favorites_read(state)) {
         return portal_send_status(req, "503 Service Unavailable", "The favourites could not be read yet: ask again");
     }
@@ -297,7 +316,7 @@ esp_err_t portal_handle_effects(httpd_req_t* req) {
         json.add(item);
         first = false;
     }
-    json.add("]}");
+    json.add(complete ? "],\"complete\":true}" : "],\"complete\":false}");
     return json.finish();
 }
 
@@ -341,8 +360,9 @@ esp_err_t portal_handle_favorite(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "needs a known id and a favorite flag");
     }
     auto& state = *static_cast<State*>(req->user_ctx);
-    if (!looks_favorites_read(state)) {
-        return portal_send_status(req, "503 Service Unavailable", "The favourites could not be read yet: ask again");
+    if (!favorites_whole(state)) {
+        return portal_send_status(req, "503 Service Unavailable",
+                                  "The favourites, or an uploaded effect they name, could not be read yet: ask again");
     }
     EffectMask updated = state.snapshot().favorites;
     updated.set(static_cast<size_t>(index), cJSON_IsTrue(favorite));
@@ -386,12 +406,9 @@ esp_err_t portal_handle_effect_upload(httpd_req_t* req) {
     if (!read_id_query(req, id)) {
         return ESP_OK;
     }
-    // Before the body, which goes where they are read: those read now count, the upload taken or not.
-    if (effect_store_read_unread()) {
-        auto& state = *static_cast<State*>(req->user_ctx);
-        state.note_catalog_changed();
-        playlist_resolve(state);
-    }
+    // Before the body, which goes where they are read: those read now count, the upload taken or not, and
+    // favourites that named them have their marks back.
+    favorites_whole(*static_cast<State*>(req->user_ctx));
     if (effect_store_unread_may_hold(id)) {
         return portal_send_status(req, "503 Service Unavailable", "Uploaded effects saved before could not all be read yet, and one may have this id: ask again");
     }
@@ -426,12 +443,17 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
     if (!read_id_query(req, id)) {
         return ESP_OK;
     }
+    auto& state = *static_cast<State*>(req->user_ctx);
+    // Uploaded effects not read yet first, before the effect's place is taken: read after the deletion, one of
+    // them would take the place it freed, and the cleaning up below unmark it. Favourites not read yet are only
+    // defaults, and those that name an uploaded effect not read yet lack its mark: neither is saved over the
+    // list there, which, naming an effect gone, is read as if it did not.
+    const bool favorites_read = favorites_whole(state);
     const int found = catalog_find(id);
     if (found < 0 || !catalog_is_uploaded(static_cast<size_t>(found))) {
         return portal_send_err(req, HTTPD_404_NOT_FOUND, "no such uploaded effect");
     }
     const auto position = static_cast<size_t>(found);
-    auto& state = *static_cast<State*>(req->user_ctx);
     const bool leaves_the_catalog = !catalog_is_built_in(position);
     // A schedule not read yet may name it.
     if (leaves_the_catalog && !schedule_is_read()) {
@@ -453,9 +475,7 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, problem);
     }
     if (leaves_the_catalog) {
-        // Favourites not read yet are only defaults, not to be saved over the list there, which, naming an
-        // effect gone, is read as if it did not.
-        const bool favorites_read = looks_favorites_read(state);
+        // Nothing has been read into the catalog since the place was found, so it is still this effect's.
         const Snapshot now = state.snapshot();
         EffectMask updated = now.favorites;
         updated.set(position, false);

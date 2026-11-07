@@ -101,6 +101,9 @@ EffectMask catalog_default_favorites();
 
 // Saved by id, not position, so adding an effect to the catalog keeps the owner's choice.
 EffectMask favorites_from_text(const char* text);
+// Whether the text names an effect the catalog lacks, which favorites_from_text leaves out: one gone from a
+// newer catalog, or an uploaded effect not read yet.
+bool favorites_name_unknown(const char* text);
 // False, with out empty, when the whole list does not fit: NVS keeps a string of 4000 bytes at most,
 // about 120 of the longest ids, and a list kept in part would lose the rest unsaid.
 [[nodiscard]] bool favorites_to_text(const EffectMask& mask, char* out, size_t out_size);

@@ -37,6 +37,8 @@ bool s_available = false;
 StoreKeys s_keys;
 size_t s_refused_keys = 0;
 UnreadStoreKeys s_unread;
+// Counts the blobs read, so that a reading again can tell whether it read any.
+uint32_t s_entries_read = 0;
 
 // True when the blob was read, kept or refused; false, and nothing known of it, when it could not be. Too
 // short to hold an id is read all the same: it holds none, and is left as it is.
@@ -45,8 +47,10 @@ bool load_entry(nvs_handle_t handle, const char* key) {
     const esp_err_t err = nvs_get_blob(handle, key, s_blob, &bytes);
     if (err != ESP_OK || bytes <= kIdBytes) {
         ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
+        s_entries_read += err == ESP_OK ? 1 : 0;
         return err == ESP_OK;
     }
+    ++s_entries_read;
     s_blob[kIdBytes - 1] = '\0';
     s_blob[bytes - 1] = '\0';
     EffectSpec spec;
@@ -67,23 +71,41 @@ bool load_entry(nvs_handle_t handle, const char* key) {
     return true;
 }
 
-void load_all() {
+// Every entry not known yet, those that cannot be read left in s_unread. True when the whole list was had,
+// none saved among it; false when the namespace could not be opened, or the list could not be had or
+// stopped short, which says nothing of what is there: it is no empty store.
+bool load_all() {
     nvs_handle_t handle = 0;
-    if (nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-        return;  // Nothing saved yet: the namespace does not exist.
+    const esp_err_t opened = nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle);
+    if (opened == ESP_ERR_NVS_NOT_FOUND) {
+        return true;  // Nothing saved yet: the namespace does not exist.
+    }
+    if (opened != ESP_OK) {
+        ESP_LOGW(TAG, "opening the uploaded effects failed: %s", esp_err_to_name(opened));
+        return false;
     }
     nvs_iterator_t entry = nullptr;
     esp_err_t err = nvs_entry_find(kPartition, kNamespace, NVS_TYPE_BLOB, &entry);
     while (err == ESP_OK) {
         nvs_entry_info_t info;
-        nvs_entry_info(entry, &info);
-        if (!load_entry(handle, info.key)) {
+        err = nvs_entry_info(entry, &info);
+        if (err != ESP_OK) {
+            break;
+        }
+        // Read already, as when the whole list is read again: kept, or refused and known.
+        if (!s_keys.knows_key(info.key) && !load_entry(handle, info.key)) {
             s_unread.add(info.key);
         }
         err = nvs_entry_next(&entry);
     }
     nvs_release_iterator(entry);
     nvs_close(handle);
+    // The end of the list, as of an empty one, is NOT_FOUND; any other answer stopped it short.
+    if (err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "listing the uploaded effects failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    return true;
 }
 
 const char* parse_body(const char* id, EffectSpec& spec) {
@@ -115,7 +137,9 @@ void effect_store_start() {
         return;
     }
     s_available = true;
-    load_all();
+    if (!load_all()) {
+        s_unread.mark_index_unread();
+    }
     ESP_LOGI(TAG, "%u uploaded effects", static_cast<unsigned>(catalog_uploaded_count()));
 }
 
@@ -127,21 +151,31 @@ bool effect_store_read_unread() {
     if (!s_available || !s_unread.any()) {
         return false;
     }
-    nvs_handle_t handle = 0;
-    if (nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-        return false;
+    const uint32_t before = s_entries_read;
+    if (s_unread.index_unread()) {
+        // The whole list again, as an entry it did not list may be under any key: those known are passed by,
+        // and those still not read are noted afresh.
+        s_unread = UnreadStoreKeys{};
+        if (!load_all()) {
+            s_unread.mark_index_unread();
+        }
+    } else {
+        nvs_handle_t handle = 0;
+        if (nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle) != ESP_OK) {
+            return false;
+        }
+        s_unread.read_again([handle](const char* key) { return load_entry(handle, key); });
+        nvs_close(handle);
     }
-    bool read = false;
-    s_unread.read_again([handle, &read](const char* key) {
-        const bool now = load_entry(handle, key);
-        read = read || now;
-        return now;
-    });
-    nvs_close(handle);
+    const bool read = s_entries_read != before;
     if (read) {
         ESP_LOGI(TAG, "uploaded effects read late: %u in all", static_cast<unsigned>(catalog_uploaded_count()));
     }
     return read;
+}
+
+bool effect_store_all_read() {
+    return !s_unread.any();
 }
 
 bool effect_store_unread_may_hold(const char* id) {

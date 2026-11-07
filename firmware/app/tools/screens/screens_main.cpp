@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: Draws every screen of the garland to a file, for the documents
+ * Purpose: Draws every screen of the garland, and its screensavers, to a file, for the documents
  * Contributors: None
  *
  * After csiPass's screenshot tool. It draws nothing itself: it gives a State the firmware's own
@@ -22,6 +22,8 @@
 #include "display_view.h"
 #include "garland_state.h"
 #include "network_logic.h"
+#include "saver_schedule.h"
+#include "saver_view.h"
 #include "screen_model.h"
 
 using namespace garland;
@@ -118,6 +120,71 @@ const Picture kPictures[] = {
     {"making-key", ScreenId::MakingKey, [](State& state) { state.set_making_key(true); }},
 };
 
+// The screensavers that draw something, each from its start, its own engine run on to running_ms: the stars
+// spread, the clock and Scheduler24 flown from the middle, the dot at the top of its breath. Black Screen and
+// None draw nothing to show.
+struct SaverPicture {
+    const char* name;
+    SaverKind kind;
+    uint32_t running_ms;
+    // Scheduler24's samples: what comes next and how soon, or with nothing to come what came last.
+    const char* event = nullptr;
+    int64_t seconds = 0;  // To it, or since it, for one that came.
+    bool came = false;
+};
+
+const SaverPicture kSavers[] = {
+    {"saver-starfield", SaverKind::Starfield, 1500},
+    {"saver-flying-clock", SaverKind::FlyingClock, 1500},
+    {"saver-breathing-dot", SaverKind::BreathingDot, kBreathPeriodMs / 2},
+    {"saver-scheduler24", SaverKind::Scheduler24, 600, "Fireplace", 2 * 3600 + 5 * 60},
+    // A name too long for one line wraps, as the playlist's next effect may be.
+    {"saver-scheduler24-wrapped", SaverKind::Scheduler24, 300, "Northern Lights over Snow", 45},
+    {"saver-scheduler24-last", SaverKind::Scheduler24, 900, "Off", 3 * 3600 + 10 * 60, true},
+};
+
+// The words of a sample, as saver_text writes them from one moment.
+void sample_text(const SaverPicture& picture, char* out, size_t size) {
+    constexpr int64_t kNowMs = 10'000'000;
+    const SaverMoment moment = saver_moment(kNowMs + (picture.came ? -picture.seconds : picture.seconds) * 1000, picture.event);
+    saver_text(picture.came ? nullptr : &moment, picture.came ? 0 : 1, picture.came ? &moment : nullptr, picture.came ? 1 : 0, kNowMs, out, size);
+}
+
+bool draw_saver(lv_display_t* display, const std::string& folder, const SaverPicture& picture) {
+    Screensaver& engine = saver_view_engine();
+    constexpr uint64_t kStartMs = 1000;
+    constexpr uint64_t kStepMs = 20;
+    saver_view_forget_layout();
+    engine.set_kind(picture.kind);
+    engine.set_idle_delay(kStartMs);
+    engine.note_activity(0);
+    if (picture.kind == SaverKind::FlyingClock) {
+        saver_view_take_clock("18:05:33", true);
+    } else if (picture.kind == SaverKind::Scheduler24) {
+        char text[kSaverTextBytes];
+        sample_text(picture, text, sizeof(text));
+        saver_view_take_text(text);
+    }
+    ScreensaverView view = engine.poll(kStartMs, false);
+    for (uint64_t ms = kStartMs + kStepMs; ms <= kStartMs + picture.running_ms; ms += kStepMs) {
+        view = engine.poll(ms, false);
+    }
+    if (!view.active) {
+        std::fprintf(stderr, "%s: the screensaver did not start\n", picture.name);
+        return false;
+    }
+    saver_view_show_kind();
+    saver_view_draw(view, picture.running_ms);
+    lv_screen_load(saver_view_root());
+    lv_obj_invalidate(saver_view_root());
+    lv_refr_now(display);
+    if (!write_frame(folder + "/" + picture.name + ".rgb")) {
+        std::fprintf(stderr, "%s: could not write\n", picture.name);
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -160,6 +227,12 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < drawn.size(); ++i) {
         if (!drawn[i]) {
             std::fprintf(stderr, "the screen \"%s\" has no picture\n", screen_row(static_cast<ScreenId>(i)).title);
+            return 1;
+        }
+    }
+    saver_view_build();
+    for (const SaverPicture& picture : kSavers) {
+        if (!draw_saver(display, folder, picture)) {
             return 1;
         }
     }

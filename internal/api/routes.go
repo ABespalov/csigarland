@@ -140,10 +140,20 @@ type Effect struct {
 
 // Effects lists every effect.
 func (c *Client) Effects(ctx context.Context) ([]Effect, error) {
+	effects, _, err := c.EffectsWhole(ctx)
+	return effects, err
+}
+
+// EffectsWhole lists every effect, and whether the list is whole: false while the garland has uploaded
+// effects, or favourites naming them, that it could not read yet, so that some are left out, or their marks.
+// A garland of 1.2.0 or before does not say, and its list counts as whole.
+func (c *Client) EffectsWhole(ctx context.Context) ([]Effect, bool, error) {
 	var answer struct {
-		Effects []Effect `json:"effects"`
+		Effects  []Effect `json:"effects"`
+		Complete *bool    `json:"complete"`
 	}
-	return answer.Effects, c.get(ctx, "effects", nil, &answer)
+	err := c.get(ctx, "effects", nil, &answer)
+	return answer.Effects, answer.Complete == nil || *answer.Complete, err
 }
 
 // Play starts an effect, which also turns the garland on.
@@ -337,6 +347,15 @@ type Display struct {
 	ScreenBrightness int    `json:"screen_brightness"`
 	SaverBrightness  int    `json:"saver_brightness"`
 	BrightnessMin    int    `json:"brightness_min,omitempty"`
+	// Whether the clock module answered, which the Scheduler24 screensaver needs; nil from a garland of 1.2.0
+	// or before, which has no Scheduler24. Read only: a backup leaves it out.
+	ClockModule *bool `json:"clock_module,omitempty"`
+}
+
+// OffersScheduler24 is whether the screensaver Scheduler24 may be chosen: with the clock module, or when it
+// is the one chosen already, as on a garland whose module was taken out since.
+func (d Display) OffersScheduler24() bool {
+	return (d.ClockModule != nil && *d.ClockModule) || d.Saver == "scheduler24"
 }
 
 // Display reads the screen's settings.

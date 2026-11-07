@@ -139,6 +139,21 @@ struct SummaryCache {
 };
 SummaryCache s_summary;  // Under s_lock; forgotten with the next action, see hold_to_catalog.
 
+// The next step within a day, as the Scheduler24 screensaver tells it, for its minute, list and playlist:
+// asked every second, and a walk past steps that only start an empty playlist can take a day of conversions.
+struct SaverCache {
+    int64_t minute = -1;
+    uint32_t revision = 0;
+    bool ready = false;
+    int64_t step_minute = -1;
+    ResolvedAction action;
+};
+SaverCache s_saver_step;  // Under s_lock; forgotten with the next action.
+// The step last done since the start, on the uptime clock, for the same screensaver. Under s_lock.
+bool s_step_done = false;
+uint32_t s_step_done_ms = 0;
+ResolvedAction s_step_done_action;
+
 // Under s_lock. Forgets what was worked out with another catalog.
 void hold_to_catalog(uint16_t catalog) {
     if (s_next.catalog != catalog) {
@@ -146,6 +161,7 @@ void hold_to_catalog(uint16_t catalog) {
         s_next.minute = -1;
         s_seen.minute = -1;
         s_summary.minute = -1;
+        s_saver_step.minute = -1;
     }
 }
 
@@ -176,6 +192,7 @@ void forget_next_action() {
         s_next.minute = -1;
         s_seen.minute = -1;
         s_summary.minute = -1;
+        s_saver_step.minute = -1;
         xSemaphoreGive(s_lock);
 
     }
@@ -218,6 +235,11 @@ void apply(State& state, const ResolvedAction& resolved) {
         return;
     }
     s_last_step_epoch.store(static_cast<int64_t>(std::time(nullptr)));
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_step_done = true;
+    s_step_done_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+    s_step_done_action = resolved.with_playlist(state.snapshot().playlist_size > 0);
+    xSemaphoreGive(s_lock);
     ESP_LOGI(TAG, "applied: power=%d bright=%u speed=%u effect=%d playlist=%d", static_cast<int>(resolved.power),
              resolved.brightness_percent, resolved.speed_x4, resolved.effect, resolved.playlist ? 1 : 0);
 }
@@ -503,6 +525,7 @@ void scheduler_task(void* arg) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPollMs));
         playlist_retry_if_stale(state, uptime_ms());
         looks_retry_if_unread(state, uptime_ms());
+        time_zone_retry_if_unread(uptime_ms());
         if (s_remembered_unread.load() && uptime_ms() - remembered_tried_ms >= kRememberedRetryMs) {
             remembered_tried_ms = uptime_ms();
             if (read_remembered_late(state, memory_timer, real_effect)) {
@@ -553,9 +576,11 @@ void scheduler_task(void* arg) {
 
         const Snapshot seen = state.snapshot();
         state.set_action_soon(action_comes_soon(now, seen.playlist_size > 0, seen.catalog_revision));
-        // Nothing is done of a schedule not read yet. The minutes wait, and once it is read they are done
-        // as at a start, the owner's choices outranking the steps before them.
-        if (!s_schedule_read.load()) {
+        // Nothing is done of a schedule not read yet, nor while a saved time zone is not read: its steps are in
+        // local time, and UTC meanwhile would do them hours off, a step from before the owner's choice among
+        // them. The minutes wait, and once both are read they are done as at a start, the owner's choices
+        // outranking the steps before them; a save meanwhile is dated before them, see first_minute_waiting.
+        if (!s_schedule_read.load() || !time_zone_ready()) {
             continue;
         }
         // The last minute done this pass: before a step starting a playlist not read yet, which would come
@@ -681,6 +706,46 @@ bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool pl
     tm local = {};
     localtime_r(&seconds, &local);
     return std::strftime(when, when_size, "%a %d %b, %H:%M", &local) != 0;
+}
+
+bool schedule_next_step(bool playlist_ready, uint16_t catalog, int64_t& minute, ResolvedAction& action) {
+    // Nothing is known of when while the clock, the list or the zone is not: steps are in local time.
+    if (!time_is_synced() || !s_schedule_read.load() || !time_zone_ready()) {
+        return false;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const int64_t now_minute = now_in_minutes();
+    hold_to_catalog(catalog);
+    refresh_next_action(now_minute);
+    if (s_saver_step.minute != now_minute || s_saver_step.revision != s_schedule_revision || s_saver_step.ready != playlist_ready) {
+        int64_t found = s_next.found ? s_next.action_minute : -1;
+        ResolvedAction does;
+        if (found >= 0) {
+            // As it will come out: one that only starts an empty playlist does nothing, and is passed over.
+            does = s_next.action.with_playlist(playlist_ready);
+            if (!does.does_something()) {
+                found = next_doing_minute(s_entries.data(), s_entry_count, found, now_minute + kActionSoonMinutes, to_local_minute,
+                                          playlist_ready, does);
+            }
+        }
+        s_saver_step = SaverCache{now_minute, s_schedule_revision, playlist_ready, action_is_soon(found, now_minute) ? found : -1, does};
+    }
+    minute = s_saver_step.step_minute;
+    action = s_saver_step.action;
+    xSemaphoreGive(s_lock);
+    return minute >= 0;
+}
+
+bool schedule_last_step(uint32_t& at_ms, ResolvedAction& action) {
+    if (s_lock == nullptr) {
+        return false;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const bool done = s_step_done;
+    at_ms = s_step_done_ms;
+    action = s_step_done_action;
+    xSemaphoreGive(s_lock);
+    return done;
 }
 
 int schedule_timeline_now(TimelineEvent* out, size_t max_events, bool playlist_ready, int64_t* now_epoch) {

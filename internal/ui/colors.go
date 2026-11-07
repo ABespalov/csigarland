@@ -83,20 +83,23 @@ func layerColors(decoder *json.Decoder) ([]FileColor, error) {
 		if err := expectDelim(decoder, '{'); err != nil {
 			return nil, err
 		}
+		// The first of a key written twice, as the firmware's parser and the effect model take it: the colours
+		// of the other are none the effect plays, and would share the first's places.
+		seen := map[string]bool{}
 		for decoder.More() {
 			key, err := decoder.Token()
 			if err != nil {
 				return nil, fmt.Errorf("the file is not JSON: %w", err)
 			}
+			name, _ := key.(string)
 			var colors []FileColor
-			switch key {
-			case "col":
-				colors, err = fieldColors(decoder, layer, "col")
-			case "pal":
-				colors, err = fieldColors(decoder, layer, "pal")
+			switch {
+			case (name == "col" || name == "pal") && !seen[name]:
+				colors, err = fieldColors(decoder, layer, name)
 			default:
 				err = skipValue(decoder)
 			}
+			seen[name] = true
 			if err != nil {
 				return nil, err
 			}

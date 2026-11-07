@@ -254,10 +254,13 @@ ScreensaverView Screensaver::poll(uint64_t now_ms, bool veto) {
             step_starfield();
             view.changed = true;
         }
-    } else if (kind_ == SaverKind::FlyingClock) {
+    } else if (kind_ == SaverKind::FlyingClock || kind_ == SaverKind::Scheduler24) {
+        // Scheduler24's words come from the display, which knows the schedule; it flies as the clock does.
         if (now_ms - last_step_ms_ >= kClockIntervalMs) {
             last_step_ms_ = now_ms;
-            format_uptime(now_ms);
+            if (kind_ == SaverKind::FlyingClock) {
+                format_uptime(now_ms);
+            }
             step_bounce();
             view.changed = true;
         }

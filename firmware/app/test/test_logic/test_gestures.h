@@ -568,6 +568,24 @@ static void test_flying_clock_bounces_inside_the_panel() {
     TEST_ASSERT_TRUE(reached_right);
 }
 
+// Scheduler24 flies as the clock does, its two lines a sprite of the size the display gives it.
+static void test_scheduler24_bounces_as_the_clock_does() {
+    Screensaver saver = running_saver(SaverKind::Scheduler24);
+    saver.set_sprite_size(180, 52);
+    TEST_ASSERT_TRUE(saver.poll(60000, false).active);
+    bool moved = false;
+    int16_t first_x = -1;
+    for (uint64_t ms = 60060; ms < 120000; ms += 60) {
+        const ScreensaverView view = saver.poll(ms, false);
+        TEST_ASSERT_TRUE(view.x >= 0 && view.x <= 60 && view.y >= 0 && view.y <= 188);
+        first_x = first_x < 0 ? view.x : first_x;
+        moved = moved || view.x != first_x;
+    }
+    TEST_ASSERT_TRUE(moved);
+    // It keeps no clock of its own: its words are the display's.
+    TEST_ASSERT_EQUAL_STRING("", saver.clock_time());
+}
+
 static void test_flying_clock_shows_uptime_until_the_time_is_known() {
     Screensaver saver = running_saver(SaverKind::FlyingClock);
     saver.poll(3723000, false);
@@ -596,7 +614,9 @@ static void test_saver_delay_range() {
     TEST_ASSERT_TRUE(saver_delay_is_valid(600));
     TEST_ASSERT_FALSE(saver_delay_is_valid(601));
     TEST_ASSERT_TRUE(saver_kind_is_valid(4));
-    TEST_ASSERT_FALSE(saver_kind_is_valid(5));
+    // Scheduler24, new after 1.1.1, which a firmware before it reads as none valid.
+    TEST_ASSERT_TRUE(saver_kind_is_valid(5));
+    TEST_ASSERT_FALSE(saver_kind_is_valid(6));
 }
 
 /* What the portal shows */

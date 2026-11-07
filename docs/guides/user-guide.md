@@ -114,6 +114,13 @@ The footer shows the portal's address. In the LED count, `N` is set by hand, `~N
 
 <img src="../images/screens/playing-playlist.png" width="200" alt="Playing screen with the playlist's place in the title"><br>Playing the playlist: where it stands, here the last of 16.
 
+The screensavers, chosen on the Device page. Black Screen turns the backlight off, and None keeps the screen above.
+
+| | | |
+|---|---|---|
+| <img src="../images/screens/saver-starfield.png" width="200" alt="Starfield screensaver"><br>Starfield | <img src="../images/screens/saver-flying-clock.png" width="200" alt="Flying Clock screensaver"><br>Flying Clock | <img src="../images/screens/saver-breathing-dot.png" width="200" alt="Breathing Dot screensaver"><br>Breathing Dot |
+| <img src="../images/screens/saver-scheduler24.png" width="200" alt="Scheduler24 with the next scheduled step"><br>Scheduler24: the next scheduled step | <img src="../images/screens/saver-scheduler24-wrapped.png" width="200" alt="Scheduler24 with a long name wrapped"><br>Scheduler24: a long name wrapped | <img src="../images/screens/saver-scheduler24-last.png" width="200" alt="Scheduler24 with the last event"><br>Scheduler24: the last event, with nothing to come |
+
 The pictures come from the firmware's own drawing code with sample data. The version, address and password on yours differ.
 
 ## 8. Portal Pages
@@ -154,8 +161,8 @@ The garland comes back from a power cut as it was left. Then, at the first time 
 <img src="../images/portal/device.png" width="360" alt="The Device page">
 
 * **LED count:** detected automatically, or set by hand, 1 to 256. An exact count cannot be detected, so if the figure is wrong, set it.
-* **Power:** the garland dims a frame that would draw more than its limit, as a whole. The limit is what your power supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that: (2000 - 250) * 80 % = 1400 mA with the 2000 mA supply and the 20 % it comes with. Set what one LED draws at full white, above what it draws dark, and dark: 40 mA and 1 mA unless your LEDs were measured otherwise. The page works out the limit as you type, what the chain draws at full white, and how many LEDs show full white with nothing dimmed. A larger supply, or a smaller margin, lets more of the chain show full white; set only what your supply really gives.
-* **Screen:** its brightness, and the screensaver: None, Starfield, Flying Clock, Breathing Dot or Black Screen, its delay of 10-600 s and its brightness. Saved and applied at once.
+* **Power:** the garland dims a frame that would draw more than its limit, as a whole. The limit is what your power supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that: (2000 - 250) * 80 % = 1400 mA with the 2000 mA supply and the 20 % it comes with. Set what one LED draws at full white, above what it draws dark, and dark: 40 mA and 1 mA unless your LEDs were measured otherwise. The page works out the limit as you type, what the chain draws at full white, and how many LEDs show full white with nothing dimmed. A larger supply, or a smaller margin, lets more of the chain show full white; set only what your supply really gives. The garland stays dark, and lights by itself once that changes, while these settings cannot be read, or while what the chain draws dark alone, as many LEDs times the dark figure, is over the limit, which dimming cannot help.
+* **Screen:** its brightness, and the screensaver: None, Starfield, Flying Clock, Breathing Dot, Black Screen or, with the clock module, Scheduler24, its delay of 10-600 s and its brightness. Saved and applied at once. Scheduler24 flies across the screen as the clock does, with what comes next and how soon: the next scheduled action within a day, or the playlist's next effect while it plays, whichever is sooner, as `next: Fireplace` and `in 2h 05m`. With nothing to come, it says what happened last and how long ago: the garland's start, a turn on or off by any button, page or action, the LEDs going on or off apart from that, as when the power settings hold them off, or a scheduled action done, as `last: Off` and `3h 10m ago`. Its words take no more than 80 % of the screen's width, wrapping to more lines up to 80 % of its height, and past that a smaller letter.
 
 ### Network
 

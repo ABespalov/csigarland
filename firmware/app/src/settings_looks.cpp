@@ -20,10 +20,10 @@ const char* const kSaverKindKey = "saver_kind";
 const char* const kSaverDelayKey = "saver_delay";
 const char* const kScreenLevelKey = "screen_level";
 const char* const kSaverLevelKey = "saver_level";
-const char* const kSupplyKey = "supply_ma";
-const char* const kLedWhiteKey = "led_white_ma";
-const char* const kLedIdleKey = "led_idle_ma";
-const char* const kMarginKey = "power_margin";
+// The four power settings in one record, as pack_power words them: NVS writes one item whole or not at all,
+// where four keys cut short between them would leave a mix of the old and the new, which may allow more
+// current than either. The version is in the key, as the word's layout is pack_power's.
+const char* const kPowerKey = "power_v1";
 
 // The settings opened to read, or why not, closed when done with.
 class Reading {
@@ -129,27 +129,18 @@ esp_err_t settings_save_display(const DisplaySettings& settings) {
 }
 
 StoredRead settings_read_power(PowerSettings& out) {
-    const Reading reading;
-    StoredRead read = read_into(reading, nvs_get_u16, kSupplyKey, out.supply_ma, [](uint16_t value) { return supply_ma_is_valid(value); });
-    read = stored_read_with(read, read_into(reading, nvs_get_u8, kLedWhiteKey, out.white_ma,
-                                            [](uint8_t value) { return led_white_ma_is_valid(value); }));
-    read = stored_read_with(read, read_into(reading, nvs_get_u8, kLedIdleKey, out.idle_ma,
-                                            [](uint8_t value) { return led_idle_ma_is_valid(value); }));
-    return stored_read_with(read, read_into(reading, nvs_get_u8, kMarginKey, out.margin_percent,
-                                            [](uint8_t value) { return margin_percent_is_valid(value); }));
+    uint32_t word = 0;
+    const StoredRead read = Reading().read([&](nvs_handle_t handle) { return nvs_get_u32(handle, kPowerKey, &word); });
+    // A record that holds no valid settings is taken for none, whole: never part of it.
+    if (read == StoredRead::Loaded && power_word_is_valid(word)) {
+        out = unpack_power(word);
+    }
+    return read;
 }
 
 esp_err_t settings_save_power(const PowerSettings& settings) {
-    return write_with([&settings](nvs_handle_t handle) {
-        esp_err_t err = nvs_set_u16(handle, kSupplyKey, settings.supply_ma);
-        if (err == ESP_OK) {
-            err = nvs_set_u8(handle, kLedWhiteKey, settings.white_ma);
-        }
-        if (err == ESP_OK) {
-            err = nvs_set_u8(handle, kLedIdleKey, settings.idle_ma);
-        }
-        return err == ESP_OK ? nvs_set_u8(handle, kMarginKey, settings.margin_percent) : err;
-    });
+    const uint32_t word = pack_power(settings);
+    return write_with([word](nvs_handle_t handle) { return nvs_set_u32(handle, kPowerKey, word); });
 }
 
 }  // namespace garland

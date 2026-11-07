@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 #include "display_view.h"
 #include "driver/gpio.h"
@@ -28,6 +29,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "network_logic.h"
+#include "saver_schedule.h"
+#include "saver_view.h"
 #include "scheduler.h"
 #include "screensaver.h"
 #include "settings.h"
@@ -53,36 +56,21 @@ const char kFirmwareLabel[] = "FW " CSIGARLAND_VERSION;
 // The screen shows the version alone, from the same string.
 constexpr size_t kFirmwareLabelPrefixBytes = 3;
 
-const lv_font_t* const kClockFont = &lv_font_montserrat_28;
-
-constexpr int kDotSize = 10;
-constexpr int kDotMargin = 10;
-constexpr int kClockGap = 4;
-constexpr uint32_t kStarMaxDistQ4 = kScreenSize * 16;
-
-
-struct SaverScreen {
-    lv_obj_t* root;
-    lv_obj_t* stars[Screensaver::kStarCount];
-    lv_obj_t* dot;
-    lv_obj_t* clock_box;
-    lv_obj_t* clock_label;
-    lv_obj_t* clock_time;
-    int clock_width;
-    int clock_time_height;
-    int clock_label_height;
-};
-
-SaverScreen s_saver;
-Screensaver s_engine;
 bool s_first_frame_drawn = false;
 bool s_backlight_dims = false;
 uint8_t s_backlight_percent = 0;
 bool s_saver_shown = false;
 uint32_t s_activity = 0;
-char s_clock_shown[12] = "";
-bool s_clock_layout_valid = false;
-bool s_clock_layout_synced = false;
+// The second Scheduler24's words were last worked out for: once a second is enough.
+int64_t s_step_second = -1;
+// What happened since the start, as note_events saw it, on the uptime clock.
+constexpr int64_t kRailFollowsMs = 5000;
+bool s_events_seen = false;
+bool s_seen_power = false;
+bool s_seen_rail = false;
+int64_t s_power_changed_ms = 0;
+SaverMoment s_power_event;
+SaverMoment s_rail_event;
 Snapshot s_shown;
 bool s_shown_valid = false;
 
@@ -143,42 +131,6 @@ esp_err_t init_lvgl(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel) 
     display_config.flags.swap_bytes = true;
     ESP_RETURN_ON_FALSE(lvgl_port_add_disp(&display_config) != nullptr, ESP_FAIL, TAG, "LVGL display");
     return ESP_OK;
-}
-
-void measure_text(const char* text, const lv_font_t* font, int& width, int& height) {
-    lv_point_t size = {};
-    lv_text_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    width = size.x;
-    height = size.y;
-}
-
-void build_saver_screen() {
-    s_saver.root = lv_obj_create(nullptr);
-    lv_obj_set_style_bg_opa(s_saver.root, LV_OPA_COVER, 0);
-    lv_obj_set_scrollable(s_saver.root, false);
-    for (lv_obj_t*& star : s_saver.stars) {
-        star = display_add_block(s_saver.root);
-    }
-    s_saver.dot = display_add_block(s_saver.root);
-    lv_obj_set_size(s_saver.dot, kDotSize, kDotSize);
-    lv_obj_set_style_radius(s_saver.dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_pos(s_saver.dot, kScreenSize - kDotMargin - kDotSize, kDotMargin);
-
-    // Sized by the widest digits, so the bounce box does not jitter as they change.
-    int unused = 0;
-    measure_text("00:00:00", kClockFont, s_saver.clock_width, s_saver.clock_time_height);
-    measure_text("uptime", kClockFont, unused, s_saver.clock_label_height);
-    s_saver.clock_box = lv_obj_create(s_saver.root);
-    lv_obj_remove_style_all(s_saver.clock_box);
-    lv_obj_set_scrollable(s_saver.clock_box, false);
-    s_saver.clock_label = lv_label_create(s_saver.clock_box);
-    s_saver.clock_time = lv_label_create(s_saver.clock_box);
-    for (lv_obj_t* label : {s_saver.clock_label, s_saver.clock_time}) {
-        lv_obj_set_style_text_font(label, kClockFont, 0);
-        lv_obj_set_style_text_color(label, kMuted, 0);
-        lv_label_set_text_static(label, "");
-    }
-    s_engine.configure(kScreenSize, kScreenSize);
 }
 
 const char* probe_name(ProbeStatus status) {
@@ -244,7 +196,7 @@ void set_backlight_level(uint8_t percent) {
 void update_backlight(const State& state) {
     if (!s_saver_shown) {
         set_backlight_level(state.screen_percent());
-    } else if (s_engine.kind() == SaverKind::BlackScreen) {
+    } else if (saver_view_engine().kind() == SaverKind::BlackScreen) {
         set_backlight_level(0);
     } else {
         set_backlight_level(state.saver_percent());
@@ -252,62 +204,78 @@ void update_backlight(const State& state) {
 }
 
 void update_clock_layout() {
-    char now[sizeof(s_clock_shown)];
+    char now[12];
     const bool synced = time_format_clock(now, sizeof(now));
-    s_engine.set_wall_clock(now, synced);
-    // Only on a change: setting a label's text redraws it, and this runs every poll.
-    if (s_clock_layout_valid && synced == s_clock_layout_synced) {
-        return;
-    }
-    s_clock_layout_valid = true;
-    s_clock_layout_synced = synced;
-    const int label_room = synced ? 0 : s_saver.clock_label_height + kClockGap;
-    const int height = label_room + s_saver.clock_time_height;
-    s_engine.set_sprite_size(static_cast<uint16_t>(s_saver.clock_width), static_cast<uint16_t>(height));
-    lv_obj_set_size(s_saver.clock_box, s_saver.clock_width, height);
-    lv_label_set_text_static(s_saver.clock_label, s_engine.clock_label());
-    lv_obj_set_hidden(s_saver.clock_label, synced);
-    lv_obj_set_pos(s_saver.clock_time, 0, label_room);
+    saver_view_take_clock(now, synced);
 }
 
-void draw_saver(const ScreensaverView& view, uint32_t now_ms) {
-    switch (s_engine.kind()) {
-        case SaverKind::Starfield:
-            for (size_t i = 0; i < Screensaver::kStarCount; ++i) {
-                const ScreensaverStar& star = s_engine.stars()[i];
-                const uint16_t approach = star_approach_q8(star, kStarMaxDistQ4);
-                const int size = star_pixels(approach);
-                lv_obj_set_pos(s_saver.stars[i], star.x, star.y);
-                lv_obj_set_size(s_saver.stars[i], size, size);
-                lv_obj_set_style_bg_color(s_saver.stars[i], lv_color_mix(kWhite, kBackground, star_brightness(star, approach)), 0);
-            }
-            break;
-        case SaverKind::BreathingDot:
-            lv_obj_set_style_bg_color(s_saver.dot, lv_color_mix(kBrandBlue, kBackground, breath_wave(now_ms)), 0);
-            break;
-        case SaverKind::FlyingClock:
-            lv_obj_set_pos(s_saver.clock_box, view.x, view.y);
-            // Only when it changed: setting a label's text redraws it.
-            if (std::strcmp(s_clock_shown, s_engine.clock_time()) != 0) {
-                std::snprintf(s_clock_shown, sizeof(s_clock_shown), "%s", s_engine.clock_time());
-                lv_label_set_text_static(s_saver.clock_time, s_clock_shown);
-            }
-            break;
-        default:
-            break;
+void effect_name(int effect, char* out, size_t size) {
+    std::snprintf(out, size, "%s", catalog_name(static_cast<size_t>(effect)).c_str());
+}
+
+// What happened since the start, for Scheduler24, noted at every poll: the garland turned on or off, by a
+// button, a page or a step, and the LEDs' rail on or off apart from that, as when the power settings hold it
+// off. A rail that follows the turn on or off, or the start, within a few seconds is part of it.
+void note_events(const Snapshot& now, int64_t now_ms) {
+    if (!s_events_seen) {
+        s_events_seen = true;
+        s_seen_power = now.power_chosen;
+        s_seen_rail = now.rail_on;
+        return;
     }
+    if (now.power_chosen != s_seen_power) {
+        s_seen_power = now.power_chosen;
+        s_power_event = saver_moment(now_ms, s_seen_power ? "On" : "Off");
+        s_power_changed_ms = now_ms;
+    }
+    if (now.rail_on != s_seen_rail) {
+        s_seen_rail = now.rail_on;
+        const bool follows = now_ms - s_power_changed_ms < kRailFollowsMs && s_seen_rail == s_seen_power;
+        if (!follows) {
+            s_rail_event = saver_moment(now_ms, s_seen_rail ? "LEDs on" : "LEDs off");
+        }
+    }
+}
+
+// Scheduler24's words, worked out again each second as the time to or since counts: the soonest to come of the
+// schedule's next step and the playlist's next effect, or with neither the latest of what happened.
+void update_scheduler_text(const State& state, const Snapshot& now, int64_t now_ms) {
+    if (now_ms / 1000 == s_step_second) {
+        return;
+    }
+    s_step_second = now_ms / 1000;
+    char name[kSaverNameBytes];
+    SaverMoment ahead[2];
+    int64_t minute = -1;
+    ResolvedAction action;
+    if (schedule_next_step(now.playlist_size > 0, now.catalog_revision, minute, action)) {
+        saver_action_name(action, effect_name, name, sizeof(name));
+        ahead[0] = saver_moment(now_ms + (minute * 60 - static_cast<int64_t>(std::time(nullptr))) * 1000, name);
+    }
+    const uint32_t playlist_next_ms = state.playlist_next_ms();
+    if (now.playlist && playlist_next_ms != 0) {
+        uint16_t effects[kMaxPlaylistEffects] = {};
+        const int following = playlist_next(effects, state.playlist(effects), now.effect);
+        if (following >= 0) {
+            effect_name(following, name, sizeof(name));
+            ahead[1] = saver_moment(now_ms + static_cast<int32_t>(playlist_next_ms - static_cast<uint32_t>(now_ms)), name);
+        }
+    }
+    SaverMoment behind[4] = {saver_moment(0, "Start"), s_power_event, s_rail_event};
+    uint32_t done_ms = 0;
+    if (schedule_last_step(done_ms, action)) {
+        saver_action_name(action, effect_name, name, sizeof(name));
+        behind[3] = saver_moment(now_ms - static_cast<int32_t>(static_cast<uint32_t>(now_ms) - done_ms), name);
+    }
+    char text[kSaverTextBytes];
+    saver_text(ahead, 2, behind, 4, now_ms, text, sizeof(text));
+    saver_view_take_text(text);
 }
 
 void enter_saver(const ScreensaverView& view, uint32_t now_ms, State& state) {
-    const SaverKind kind = s_engine.kind();
-    for (lv_obj_t* star : s_saver.stars) {
-        lv_obj_set_hidden(star, kind != SaverKind::Starfield);
-    }
-    lv_obj_set_hidden(s_saver.dot, kind != SaverKind::BreathingDot);
-    lv_obj_set_hidden(s_saver.clock_box, kind != SaverKind::FlyingClock);
-    lv_obj_set_style_bg_color(s_saver.root, kind == SaverKind::BlackScreen ? kBlack : kBackground, 0);
-    draw_saver(view, now_ms);
-    lv_screen_load(s_saver.root);
+    saver_view_show_kind();
+    saver_view_draw(view, now_ms);
+    lv_screen_load(saver_view_root());
     s_saver_shown = true;
     state.set_saver_active(true);
 }
@@ -320,18 +288,35 @@ void leave_saver(State& state) {
 
 void poll_saver(State& state, const Snapshot& now) {
     const auto now_ms = static_cast<uint64_t>(esp_timer_get_time() / 1000);
+    note_events(now, static_cast<int64_t>(now_ms));
+    Screensaver& engine = saver_view_engine();
     const uint32_t activity = state.activity();
     if (activity != s_activity) {
         s_activity = activity;
-        s_engine.note_activity(now_ms);
+        engine.note_activity(now_ms);
     }
-    s_engine.set_kind(state.saver_kind());
-    s_engine.set_idle_delay(uint32_t{state.saver_delay_seconds()} * 1000);
-    if (s_engine.kind() == SaverKind::FlyingClock) {
+    // Scheduler24 needs the clock module, which keeps the time through a power cut: with none, as one taken
+    // out since it was chosen, it runs as the Flying Clock.
+    const SaverKind chosen = state.saver_kind();
+    const SaverKind kind = chosen == SaverKind::Scheduler24 && !now.clock_module ? SaverKind::FlyingClock : chosen;
+    if (kind != engine.kind()) {
+        // The clock and Scheduler24 share the bouncing sprite, each of its own size: laid out again. One changed
+        // while running starts afresh, its boxes shown or hidden for it.
+        saver_view_forget_layout();
+        s_step_second = -1;
+        if (s_saver_shown) {
+            engine.note_activity(now_ms);
+        }
+    }
+    engine.set_kind(kind);
+    engine.set_idle_delay(uint32_t{state.saver_delay_seconds()} * 1000);
+    if (kind == SaverKind::FlyingClock) {
         update_clock_layout();
+    } else if (kind == SaverKind::Scheduler24) {
+        update_scheduler_text(state, now, static_cast<int64_t>(now_ms));
     }
 
-    const ScreensaverView view = s_engine.poll(now_ms, screen_row(choose_screen(now)).keeps_awake);
+    const ScreensaverView view = engine.poll(now_ms, screen_row(choose_screen(now)).keeps_awake);
     if (view.active != s_saver_shown) {
         if (view.active) {
             enter_saver(view, static_cast<uint32_t>(now_ms), state);
@@ -339,7 +324,7 @@ void poll_saver(State& state, const Snapshot& now) {
             leave_saver(state);
         }
     } else if (view.active && view.changed) {
-        draw_saver(view, static_cast<uint32_t>(now_ms));
+        saver_view_draw(view, static_cast<uint32_t>(now_ms));
     }
 }
 
@@ -383,10 +368,10 @@ esp_err_t start_screen(State& state) {
 
     ESP_RETURN_ON_FALSE(lvgl_port_lock(0), ESP_FAIL, TAG, "LVGL lock");
     display_view_build(kFirmwareLabel + kFirmwareLabelPrefixBytes);
-    build_saver_screen();
+    saver_view_build();
     show_snapshot(state.snapshot());
     s_activity = state.activity();
-    s_engine.note_activity(static_cast<uint64_t>(esp_timer_get_time() / 1000));
+    saver_view_engine().note_activity(static_cast<uint64_t>(esp_timer_get_time() / 1000));
     const lv_timer_t* const poll = lv_timer_create(poll_state, kPollMs, &state);
     lvgl_port_unlock();
     // Without it nothing updates the screen or turns its backlight on.

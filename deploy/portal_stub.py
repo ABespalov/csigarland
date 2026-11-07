@@ -170,7 +170,7 @@ ANSWERS = {
     "/api/ota": {"version": VERSION, "on_trial": False, "trial_left": 0, "effects": len(ALL_EFFECTS), "pack_digest": "0" * 64, "image": "0" * 64, "boot": "0a1b2c3d"},
     "/api/time": TIME,
     "/api/schedule": {"entries": ENTRIES, "max": 32, "revision": 7, "next": NEXT},
-    "/api/display": {"saver": "starfield", "delay": 60, "screen_brightness": 80, "saver_brightness": 30},
+    "/api/display": {"saver": "starfield", "delay": 60, "screen_brightness": 80, "saver_brightness": 30, "clock_module": True},
     "/api/wifi": WIFI,
     "/api/wifi/scan": {"scanning": False, "networks": [{"ssid": "Home", "rssi": -52, "secure": True}, {"ssid": "Neighbours", "rssi": -78, "secure": True}]},
     "/api/info": INFO,

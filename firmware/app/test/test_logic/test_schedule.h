@@ -203,8 +203,84 @@ static void test_schedule_sets_only_what_it_names() {
     TEST_ASSERT_FALSE(state.snapshot().power_requested);
 }
 
+// Scheduler24 tells of the soonest of what comes, a step of the schedule or the playlist's next effect; with
+// nothing to come, of the latest of what came: the start, a turn on or off, the LEDs, a step done.
+static void test_scheduler24_says_what_comes_and_when() {
+    // A day and some hours after the start: 27h 46m 40s.
+    constexpr int64_t kNow = 100'000'000;
+    char text[kSaverTextBytes];
+    const SaverMoment step = saver_moment(kNow + (2 * 3600 + 5 * 60) * 1000, "Fireplace");
+    // The playlist goes on in 45 s: sooner than the step, so it is the next.
+    const SaverMoment playlist = saver_moment(kNow + 45 * 1000, "Candle");
+    const SaverMoment ahead[] = {step, playlist};
+    saver_text(ahead, 2, nullptr, 0, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("next: Candle\nin 45s", text);
+    saver_text(ahead, 1, nullptr, 0, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("next: Fireplace\nin 2h 05m", text);
+    // The playlist plays on, and a step comes before its next effect, which the step will take the place of:
+    // the step is the next, as it comes first.
+    const SaverMoment playing[] = {saver_moment(kNow + 20 * 1000, "Fireplace"), saver_moment(kNow + 45 * 1000, "Candle")};
+    saver_text(playing, 2, nullptr, 0, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("next: Fireplace\nin 20s", text);
+    // Counted up to the second, so "in 0s" comes only as the moment does.
+    const SaverMoment soon = saver_moment(kNow + 1500, "Candle");
+    saver_text(&soon, 1, nullptr, 0, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("next: Candle\nin 2s", text);
+    // Gone by, a moment to come is none: the latest of what came, the start among them, is said.
+    const SaverMoment behind[] = {saver_moment(0, "Start"), saver_moment(kNow - (3 * 3600 + 10 * 60) * 1000, "Off"), SaverMoment{}};
+    saver_text(ahead, 2, behind, 3, kNow + 3 * 3600 * 1000, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("last: Off\n6h 10m ago", text);
+    saver_text(nullptr, 0, behind, 1, kNow + 3 * 86400 * 1000LL, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("last: Start\n4d 03h ago", text);
+    saver_text(nullptr, 0, nullptr, 0, kNow, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("nothing yet", text);
+
+    // What a step does, in its order: the effect by name, not the turn on with it, the playlist, then the
+    // power, the brightness, the speed.
+    const auto name = [](int effect, char* out, size_t size) { std::snprintf(out, size, "%s", effect == 3 ? "Fireplace" : "?"); };
+    char words[kSaverNameBytes];
+    ResolvedAction action;
+    action.effect = 3;
+    action.power = PowerStep::On;
+    saver_action_name(action, name, words, sizeof(words));
+    TEST_ASSERT_EQUAL_STRING("Fireplace", words);
+    action = ResolvedAction{};
+    action.playlist = true;
+    action.power = PowerStep::On;
+    saver_action_name(action, name, words, sizeof(words));
+    TEST_ASSERT_EQUAL_STRING("Playlist", words);
+    action = ResolvedAction{};
+    action.power = PowerStep::Rise;
+    saver_action_name(action, name, words, sizeof(words));
+    TEST_ASSERT_EQUAL_STRING("Rise", words);
+    action = ResolvedAction{};
+    action.brightness_percent = 40;
+    action.speed_x4 = 6;
+    saver_action_name(action, name, words, sizeof(words));
+    TEST_ASSERT_EQUAL_STRING("Brightness 40%", words);
+    action.brightness_percent = 0;
+    saver_action_name(action, name, words, sizeof(words));
+    TEST_ASSERT_EQUAL_STRING("Speed 1.5x", words);
+    char span[24];
+    saver_span_text(-3, span, sizeof(span));
+    TEST_ASSERT_EQUAL_STRING("0s", span);
+    saver_span_text(125, span, sizeof(span));
+    TEST_ASSERT_EQUAL_STRING("2m 05s", span);
+    TEST_ASSERT_TRUE(saver_kind_is_valid(static_cast<int>(SaverKind::Scheduler24)));
+    TEST_ASSERT_FALSE(saver_kind_is_valid(static_cast<int>(SaverKind::Scheduler24) + 1));
+}
+
+// The Lighting task says when the playlist goes on, for Scheduler24, and 0 while it does not.
+static void test_the_state_holds_when_the_playlist_goes_on() {
+    State state(32);
+    TEST_ASSERT_EQUAL_UINT32(0, state.playlist_next_ms());
+    state.set_playlist_next_ms(61'000);
+    TEST_ASSERT_EQUAL_UINT32(61'000, state.playlist_next_ms());
+}
 static void run_schedule_tests() {
     RUN_TEST(test_schedule_entry_rules);
+    RUN_TEST(test_the_state_holds_when_the_playlist_goes_on);
+    RUN_TEST(test_scheduler24_says_what_comes_and_when);
     RUN_TEST(test_schedule_matching);
     RUN_TEST(test_schedule_effect_starts_the_garland);
     RUN_TEST(test_schedule_replay_gives_the_final_state);

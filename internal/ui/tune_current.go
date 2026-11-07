@@ -43,20 +43,51 @@ func enginePower(budget api.PowerBudget) engine.Power {
 	return engine.Power{SupplyMilliamps: budget.SupplyMilliamps, WhiteMilliamps: budget.WhiteMilliamps, IdleMilliamps: budget.IdleMilliamps, MarginPercent: budget.MarginPercent}
 }
 
+// powerAskAgain is how long Tune waits before it asks again for settings it could not read.
+const powerAskAgain = 3 * time.Second
+
+// garlandPower says whose settings the engine's current is worked out by: those read from client, or none
+// read yet from the garland connected to, whose numbers would be another's.
+type garlandPower struct {
+	client *api.Client
+	known  bool
+	asked  time.Time
+}
+
 // readGarlandPower has Tune work its current out as the garland connected to does: by its settings, or
-// by the model of a release before them, which answers 404. With none connected, the last ones stay.
+// by the model of a release before them, which answers 404. A read that fails leaves them unknown for that
+// garland, and Tune asks again. With none connected, the last ones stay, for work offline.
 func (a *App) readGarlandPower() {
+	a.power.asked = time.Now()
 	a.background(func(ctx context.Context, client *api.Client) (func(), error) {
 		budget, err := client.PowerBudget(ctx)
 		var failure *api.Error
 		switch {
 		case err == nil:
-			return func() { _ = engine.SetPower(enginePower(budget)) }, nil
+			return func() { a.takeGarlandPower(client, enginePower(budget)) }, nil
 		case errors.As(err, &failure) && failure.Status == http.StatusNotFound:
-			return func() { _ = engine.SetPower(oldFirmwarePower) }, nil
+			return func() { a.takeGarlandPower(client, oldFirmwarePower) }, nil
 		}
-		return nil, fmt.Errorf("read the power settings: %w", err)
+		return func() { a.power = garlandPower{client: client, asked: a.power.asked} }, fmt.Errorf("read the power settings: %w", err)
 	})
+}
+
+func (a *App) takeGarlandPower(client *api.Client, power engine.Power) {
+	_ = engine.SetPower(power)
+	a.power = garlandPower{client: client, known: true, asked: a.power.asked}
+}
+
+// garlandPowerKnown is whether the engine's model is the connected garland's own: always, with none connected.
+func (a *App) garlandPowerKnown() bool {
+	return a.client == nil || (a.power.known && a.power.client == a.client)
+}
+
+// powerUnknownText says why Tune shows no current, asking again for the settings if it is time to.
+func (a *App) powerUnknownText() string {
+	if time.Since(a.power.asked) >= powerAskAgain {
+		a.readGarlandPower()
+	}
+	return "The current is not shown until this garland's power settings are read: they could not be yet, and are asked for again."
 }
 
 // currentChart is what an effect draws at full brightness over its first 200 s, worked out again only when
@@ -150,6 +181,13 @@ func CurrentText(values []int, limit, idle int) string {
 // preview plays, and its words. All three are of the frame the strip above has just drawn, and read when
 // they are laid out, after it: so the line, the 20 s around it and what Now says are of what the LEDs show.
 func (p *tunePage) currentRows(a *App) []layout.Widget {
+	// Another garland's numbers would be taken for this one's.
+	if !a.garlandPowerKnown() {
+		if p.checked == "" {
+			return nil
+		}
+		return []layout.Widget{a.hint(a.powerUnknownText())}
+	}
 	p.current.update(p.checked, engine.PowerInUse())
 	if p.current.err != nil || len(p.current.full) == 0 || p.preview == nil {
 		return nil

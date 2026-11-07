@@ -56,6 +56,54 @@ func TestTheModelReadsEveryField(t *testing.T) {
 	}
 }
 
+// A key written twice is the first one to the firmware's parser, so it is the one a control shows and
+// changes: the other changes nothing the preview or the garland plays. The rest of the file stays as it was.
+func TestAKeyWrittenTwiceIsTheFirstAsTheFirmwareTakesIt(t *testing.T) {
+	const twice = `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"],"bri":0,"bri":255}]}`
+	model := readModel(t, twice)
+	if model.Int(0, "bri", 128) != 0 {
+		t.Fatalf("brightness read as %d", model.Int(0, "bri", 128))
+	}
+	changed := model.SetField(0, "bri", 128)
+	if want := strings.Replace(twice, `"bri":0`, `"bri":128`, 1); string(changed) != want {
+		t.Fatalf("%s", changed)
+	}
+	lit := func(file []byte) engine.Color {
+		t.Helper()
+		preview, err := engine.NewPreview(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pixels := make([]engine.Color, 1)
+		preview.Frame(0, 100, pixels)
+		return pixels[0]
+	}
+	if dark, shown := lit([]byte(twice)), lit(changed); dark != (engine.Color{}) || shown == (engine.Color{}) {
+		t.Fatalf("the preview went %v, then %v", dark, shown)
+	}
+	// The colours too: those of a col or pal written again are none the effect plays, and no swatch of theirs
+	// shares the first's place, as the picker would then edit the first while showing the second.
+	colors, err := FileColors([]byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FF0000"],"col":["0000FF"],"pal":[0,"00FF00",255,"00FF00"],"pal":[0,"FFFFFF"]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(colors) != 3 || colors[0].Color != (RGB{R: 255}) || colors[0].Field != "col" || colors[1].Field != "pal" || colors[2].Field != "pal" || colors[1].Color != (RGB{G: 255}) {
+		t.Fatalf("%+v", colors)
+	}
+	for i := range colors {
+		for j := i + 1; j < len(colors); j++ {
+			if colors[i].Same(colors[j]) {
+				t.Fatalf("%+v and %+v share a place", colors[i], colors[j])
+			}
+		}
+	}
+	// And a second list of layers is no layer of the effect, as it is none to the parser.
+	const layersTwice = `{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid"}],"layers":[{"fx":"fire"},{"fx":"fire"}]}`
+	if two := readModel(t, layersTwice); two.Layers() != 1 || two.String(0, "fx", "") != "solid" {
+		t.Fatalf("%d layers, the first %q", two.Layers(), two.String(0, "fx", ""))
+	}
+}
+
 func TestAControlChangesItsFieldAndNoOtherByte(t *testing.T) {
 	model := readModel(t, laidOut)
 	// In place: the value alone.

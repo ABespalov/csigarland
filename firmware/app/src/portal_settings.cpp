@@ -72,6 +72,7 @@ constexpr SaverName kSaverNames[] = {
     {"flying-clock", SaverKind::FlyingClock},
     {"breathing-dot", SaverKind::BreathingDot},
     {"black-screen", SaverKind::BlackScreen},
+    {"scheduler24", SaverKind::Scheduler24},
 };
 
 bool is_backlight_percent(const cJSON* item) {
@@ -345,6 +346,8 @@ esp_err_t portal_handle_display_get(httpd_req_t* req) {
     cJSON_AddNumberToObject(root.get(), "screen_brightness", state.screen_percent());
     cJSON_AddNumberToObject(root.get(), "saver_brightness", state.saver_percent());
     cJSON_AddNumberToObject(root.get(), "brightness_min", kBacklightMinPercent);
+    // Whether the clock module answered at the start, which Scheduler24 needs.
+    cJSON_AddBoolToObject(root.get(), "clock_module", state.snapshot().clock_module);
     return send_json(req, root.get());
 }
 
@@ -377,6 +380,10 @@ esp_err_t portal_handle_display_set(httpd_req_t* req) {
     // Every part is saved, and one not read yet would go to the default the page was shown.
     if (!looks_display_read(state)) {
         return portal_send_status(req, "503 Service Unavailable", "The screen settings could not be read yet: ask again");
+    }
+    // Chosen only with the clock module; one chosen before the module went stays, as the form sends it back.
+    if (found->kind == SaverKind::Scheduler24 && !state.snapshot().clock_module && state.saver_kind() != SaverKind::Scheduler24) {
+        return portal_send_status(req, "409 Conflict", "Scheduler24 needs the clock module");
     }
     DisplaySettings settings;
     settings.saver = found->kind;

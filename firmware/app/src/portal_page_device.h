@@ -55,6 +55,7 @@ inline constexpr char kPageDevice[] = R"html(
       <option value="flying-clock">Flying Clock</option>
       <option value="breathing-dot">Breathing Dot</option>
       <option value="black-screen">Black Screen</option>
+      <option value="scheduler24" id="saver-scheduler24">Scheduler24, what comes next</option>
     </select>
     <label for="saver-delay" class="h g">Delay, seconds</label>
     <input type="number" id="saver-delay" min="10" max="600" step="1" inputmode="numeric" required>
@@ -182,6 +183,10 @@ inline constexpr char kPageDevice[] = R"html(
 
   function showSaver(display) {
     if (saverTyped) return;
+    // Scheduler24 only with the clock module, unless it is the one chosen already.
+    const scheduler = $('saver-scheduler24');
+    scheduler.disabled = display.clock_module === false && display.saver !== 'scheduler24';
+    scheduler.textContent = scheduler.disabled ? 'Scheduler24, with the clock module only' : 'Scheduler24, what comes next';
     $('saver').value = display.saver;
     $('saver-delay').value = display.delay;
     $('screen-brightness').value = display.screen_brightness;

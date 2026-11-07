@@ -43,6 +43,13 @@ char s_zone[kZoneBytes] = "";
 // Its words, as a page may read them while they are set. Made with them, before any page.
 SemaphoreHandle_t s_zone_lock = nullptr;
 StaticSemaphore_t s_zone_lock_storage;
+// A zone may be saved and could not be read: UTC meanwhile, which is no zone of the owner's, so no browser
+// is asked to set one, and it is read again every few seconds. Only the scheduler's task retries.
+std::atomic<bool> s_zone_unread{false};
+uint32_t s_zone_tried_ms = 0;
+constexpr int kZoneReadAttempts = 3;
+constexpr uint32_t kZoneReadPauseMs = 50;
+constexpr uint32_t kZoneRetryMs = 5000;
 
 constexpr int64_t kRtcReadBackSeconds = 2;
 // Seven registers go over the bus one acknowledged byte at a time, so setting them can stop half
@@ -54,6 +61,28 @@ StaticSemaphore_t s_rtc_lock_storage;
 void apply_zone(const char* zone) {
     setenv("TZ", zone, 1);
     tzset();
+}
+
+// The saved zone onto the clock while it is unread, under its lock, so a zone the owner sets meanwhile, which
+// is newer, is never replaced: true once it is read, or found to be none, which leaves UTC.
+bool read_zone() {
+    static char s_read[kZoneBytes];
+    const StoredRead read = settings_read_timezone(s_read, sizeof(s_read));
+    if (read == StoredRead::Unreadable) {
+        return false;
+    }
+    const bool saved = read == StoredRead::Loaded && time_zone_is_plausible(s_read);
+    xSemaphoreTake(s_zone_lock, portMAX_DELAY);
+    if (s_zone_unread.load()) {
+        if (saved) {
+            std::snprintf(s_zone, sizeof(s_zone), "%s", s_read);
+            apply_zone(s_zone);
+        }
+        s_zone_set.store(saved);
+        s_zone_unread.store(false);
+    }
+    xSemaphoreGive(s_zone_lock);
+    return true;
 }
 
 // In the network's task, which must not wait on the I2C bus: the scheduler task takes it on.
@@ -140,12 +169,26 @@ void time_pass_ntp_to_rtc() {
 
 void time_load_zone() {
     s_zone_lock = xSemaphoreCreateMutexStatic(&s_zone_lock_storage);
-    const bool saved = settings_load_timezone(s_zone, sizeof(s_zone)) && time_zone_is_plausible(s_zone);
-    s_zone_set.store(saved);
-    if (!saved) {
-        std::snprintf(s_zone, sizeof(s_zone), "%s", kDefaultZone);
-    }
+    std::snprintf(s_zone, sizeof(s_zone), "%s", kDefaultZone);
     apply_zone(s_zone);
+    s_zone_unread.store(true);
+    for (int attempt = 0; attempt < kZoneReadAttempts && !read_zone(); ++attempt) {
+        vTaskDelay(pdMS_TO_TICKS(kZoneReadPauseMs));
+    }
+    if (s_zone_unread.load()) {
+        ESP_LOGE(TAG, "the time zone could not be read: UTC meanwhile, read again every few seconds, and not set from a browser");
+    }
+}
+
+void time_zone_retry_if_unread(uint32_t now_ms) {
+    if (!s_zone_unread.load() || now_ms - s_zone_tried_ms < kZoneRetryMs) {
+        return;
+    }
+    s_zone_tried_ms = now_ms;
+    if (read_zone()) {
+        ESP_LOGI(TAG, "the time zone was read late");
+        schedule_forget_next_action();
+    }
 }
 
 esp_err_t time_sync_init() {
@@ -236,8 +279,13 @@ bool time_is_synced() {
     return s_synced.load();
 }
 
+bool time_zone_ready() {
+    return !s_zone_unread.load();
+}
+
 bool time_zone_is_set() {
-    return s_zone_set.load();
+    // A zone not read yet may be the owner's: no page is to set the browser's over it.
+    return s_zone_set.load() || s_zone_unread.load();
 }
 
 void time_zone_get(char* out, size_t out_size) {
@@ -251,8 +299,10 @@ esp_err_t time_zone_set(const char* zone) {
     xSemaphoreTake(s_zone_lock, portMAX_DELAY);
     std::snprintf(s_zone, sizeof(s_zone), "%s", zone);
     apply_zone(s_zone);
-    xSemaphoreGive(s_zone_lock);
+    // The owner's, and newer than any zone a late reading would bring.
     s_zone_set.store(true);
+    s_zone_unread.store(false);
+    xSemaphoreGive(s_zone_lock);
     schedule_forget_next_action();
     return ESP_OK;
 }

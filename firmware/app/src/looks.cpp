@@ -12,6 +12,7 @@
 #include <atomic>
 
 #include "effect_catalog.h"
+#include "effect_store.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -32,6 +33,9 @@ std::atomic<bool> s_led_unread{true};
 std::atomic<bool> s_favorites_unread{true};
 std::atomic<bool> s_display_unread{true};
 std::atomic<bool> s_power_unread{true};
+// The favourites read name an effect the catalog lacks while uploaded effects are not all read: one of those
+// may be it, so the mask on the state lacks it for now, and a save of that mask would lose its mark.
+std::atomic<bool> s_favorites_partial{false};
 uint32_t s_tried_ms = 0;
 
 // Held across each reading put on the state, and each save that the reading must not come after.
@@ -72,6 +76,7 @@ bool read_favorites(State& state) {
     // Every saved effect may be gone from a newer catalog; then the defaults count again.
     const EffectMask saved = read == StoredRead::Loaded ? favorites_from_text(s_text) : EffectMask{};
     state.set_favorites(saved.any() ? saved : catalog_default_favorites());
+    s_favorites_partial.store(read == StoredRead::Loaded && !effect_store_all_read() && favorites_name_unknown(s_text));
     s_favorites_unread.store(false);
     return true;
 }
@@ -90,7 +95,9 @@ bool read_display(State& state) {
     return true;
 }
 
-// Unread, the defaults hold, which keep the limit of the releases before these settings.
+// Read, or found to be none, which then takes the defaults, the limit of the releases before these settings,
+// and either way known: until then the Lighting task keeps the rail off, as the defaults may allow more
+// current than what the owner saved.
 bool read_power(State& state) {
     if (!s_power_unread.load()) {
         return true;
@@ -142,6 +149,20 @@ void looks_retry_if_unread(State& state, uint32_t now_ms) {
 bool looks_favorites_read(State& state) {
     const Guard guard;
     return read_favorites(state);
+}
+
+bool looks_favorites_whole(State& state) {
+    const Guard guard;
+    if (!read_favorites(state)) {
+        return false;
+    }
+    if (s_favorites_partial.load() && effect_store_all_read()) {
+        // The effects they named are read, or known gone: the saved list again, onto the catalog as it is.
+        // Nothing was saved meanwhile, as a save waits for this, so flash still holds the owner's last list.
+        s_favorites_unread.store(true);
+        read_favorites(state);
+    }
+    return !s_favorites_unread.load() && !s_favorites_partial.load();
 }
 
 bool looks_display_read(State& state) {

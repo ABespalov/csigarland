@@ -34,7 +34,7 @@ struct ScreensaverView {
     bool active = false;
     // True when the screensaver started or stopped, or a new frame is due.
     bool changed = false;
-    // Top-left of the bouncing clock.
+    // Top-left of the bouncing clock, or of Scheduler24's two lines, which bounce alike.
     int16_t x = 0;
     int16_t y = 0;
 };

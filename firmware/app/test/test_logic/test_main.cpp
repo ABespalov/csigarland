@@ -38,6 +38,7 @@
 #include "ota_logic.h"
 #include "playlist_logic.h"
 #include "rtc_logic.h"
+#include "saver_schedule.h"
 #include "schedule.cpp"
 #include "screen_model.h"
 #include "screensaver.cpp"
@@ -735,6 +736,7 @@ int main() {
     RUN_TEST(test_saver_stays_off_the_countdown);
     RUN_TEST(test_starfield_stays_on_the_panel);
     RUN_TEST(test_flying_clock_bounces_inside_the_panel);
+    RUN_TEST(test_scheduler24_bounces_as_the_clock_does);
     RUN_TEST(test_flying_clock_shows_uptime_until_the_time_is_known);
     RUN_TEST(test_breath_rises_and_falls);
     RUN_TEST(test_saver_delay_range);

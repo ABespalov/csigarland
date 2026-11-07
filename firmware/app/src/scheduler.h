@@ -52,7 +52,8 @@ void time_sync_now();
 
 bool time_is_synced();
 
-// False when the owner has not chosen a zone yet, which means times are UTC.
+// False when the owner has not chosen a zone yet, which means times are UTC, and a page may set the browser's.
+// True while one saved could not be read yet, though times are UTC meanwhile: it may be the owner's.
 bool time_zone_is_set();
 void time_zone_get(char* out, size_t out_size);
 esp_err_t time_zone_set(const char* zone);
@@ -97,6 +98,13 @@ size_t schedule_copy(ScheduleEntry* out);
 // False with the clock not set, or nothing due within a week.
 // catalog is the state's catalog_revision: an effect uploaded since may be one a step names.
 bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool playlist_ready, uint16_t catalog);
+
+// For the Scheduler24 screensaver: the next step that does something within a day, its minute since the epoch
+// and what it comes to, worked out once a minute. False with none, or while the clock, the schedule or the
+// time zone is not known. catalog is the state's catalog_revision, as for schedule_next.
+bool schedule_next_step(bool playlist_ready, uint16_t catalog, int64_t& minute, ResolvedAction& action);
+// The step last done since the start, when on the uptime clock in ms, and what it came to. False with none.
+bool schedule_last_step(uint32_t& at_ms, ResolvedAction& action);
 
 // The next 24 hours of the schedule, see schedule_timeline. -1 with the clock not set, as nothing can be
 // said of when.

@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,8 @@ type garland struct {
 	missing []string
 	// When set, what happens on the garland as a route is asked, before its answer.
 	meanwhile func(g *garland, route string)
+	// What GET effects says of the list's being whole: nil says nothing, as a garland of 1.2.0 or before.
+	complete *bool
 }
 
 var builtIn = []string{"aurora", "fireplace", "candle"}
@@ -98,7 +101,11 @@ func (g *garland) serve(t *testing.T) *api.Client {
 			g.schedule, g.revision = sent.Entries, g.revision+1
 			reply(api.Schedule{Entries: g.schedule, Max: 32, Revision: g.revision})
 		case "GET effects":
-			reply(map[string]any{"effects": g.effects()})
+			answer := map[string]any{"effects": g.effects()}
+			if g.complete != nil {
+				answer["complete"] = *g.complete
+			}
+			reply(answer)
 		case "GET effects/file":
 			// As the garland sends it: the file as kept, or 404 for one it does not hold.
 			file, held := g.uploads[r.URL.Query().Get("id")]
@@ -357,6 +364,30 @@ func TestAGarlandOfAReleaseWithAPlaylistMustGiveIt(t *testing.T) {
 		playlistStatus: http.StatusNotFound}
 	if _, err := Collect(context.Background(), from.serve(t), time.Now()); err == nil {
 		t.Fatal("a 1.1.0 garland with no playlist made a backup without it")
+	}
+}
+
+// A list of effects the garland says is not whole, as when an upload it holds could not be read yet, makes
+// no backup, though two readings of it agree; a list that says it is whole, or says nothing, does.
+func TestAListNotWholeMakesNoBackup(t *testing.T) {
+	partial, whole := false, true
+	from := &garland{favorites: map[string]bool{"aurora": true}, uploads: map[string]string{"b": `{"v":1}`}, display: api.Display{Saver: "none"},
+		complete: &partial}
+	if _, err := Collect(context.Background(), from.serve(t), time.Now()); !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("a partial list made a backup: %v", err)
+	}
+	from.complete = &whole
+	if made, err := Collect(context.Background(), from.serve(t), time.Now()); err != nil || len(made.Uploads) != 1 {
+		t.Fatalf("%v, uploads %+v", err, made.Uploads)
+	}
+	// Whole at the first reading and not at the second, read to check it: none either.
+	from.meanwhile = func(g *garland, route string) {
+		if route == "GET effects/file" {
+			g.complete = &partial
+		}
+	}
+	if _, err := Collect(context.Background(), from.serve(t), time.Now()); !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("a list partial at its check made a backup: %v", err)
 	}
 }
 
