@@ -66,7 +66,7 @@ func TestTuneChartsTheEffectsCurrent(t *testing.T) {
 	if low := ScaleCurrents(chart.full, engine.BrightnessShare(25), engine.IdleMilliamps(previewLeds)); low[0] >= engine.LimitMilliamps() {
 		t.Fatalf("at 25%% white still draws %d mA", low[0])
 	}
-	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4300}
+	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4275}
 	if enginePower(budget) != (engine.Power{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
 		t.Fatalf("%+v", enginePower(budget))
 	}

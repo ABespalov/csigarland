@@ -11,7 +11,7 @@ tell builds apart by the hashes of what they hold.
 
 ### Firmware
 
-- The current limit is worked out from the owner's power settings, no longer fixed: the supply's current, less a margin of 5-20 % of it and 200 mA for the board, the screen and Wi-Fi. A garland updated from 1.1.1 starts with 2000 mA and 20 %, so its limit stays 1400 mA.
+- The current limit is worked out from the owner's power settings, no longer fixed: what the supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that. A garland updated from 1.1.1 starts with 2000 mA and 20 %, so its limit stays 1400 mA.
 - An LED at full white counts as 40 mA above 1 mA dark, by default, where it counted 55 mA: one WS2812B of the owner's garland measured 36.1 mA above 0.51 mA. So 32 LEDs on full white draw 1312 mA by the model, under the limit, and are no longer dimmed to about 78 %.
 
 ### Portal

@@ -26,12 +26,12 @@ func TestThePowerCardReadsWhatIsTyped(t *testing.T) {
 	if page.power.held {
 		t.Fatal("a garland without power settings has the card")
 	}
-	page.power.take(api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 200, LimitMilliamps: 4300, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 116}, true)
-	if !page.power.held || engine.LimitMilliamps() != 4300 {
+	page.power.take(api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 250, LimitMilliamps: 4275, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 115}, true)
+	if !page.power.held || engine.LimitMilliamps() != 4275 {
 		t.Fatalf("held %v, Tune's limit %d", page.power.held, engine.LimitMilliamps())
 	}
 	words := PowerText(page.power.last)
-	if !strings.Contains(words, "Limit 4300 mA") || !strings.Contains(words, "draw 1184 mA, under the limit") || !strings.Contains(words, "up to 116 LEDs") {
+	if !strings.Contains(words, "Limit 4275 mA") || !strings.Contains(words, "draw 1184 mA, under the limit") || !strings.Contains(words, "up to 115 LEDs") {
 		t.Fatalf("%q", words)
 	}
 	wanted, err := page.power.read()

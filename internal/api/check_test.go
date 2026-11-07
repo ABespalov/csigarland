@@ -27,7 +27,7 @@ func checkedGarland(t *testing.T, version string, answers map[string]string) *Cl
 		"playlist":          `{"effects":[],"dwell":60,"cross_fade":1000,"revision":2}`,
 		"time":              `{"synced":true,"zone":"UTC0"}`,
 		"display":           `{"saver":"starfield"}`,
-		"leds/power":        `{"supply_ma":2000,"led_white_ma":40,"led_idle_ma":1,"margin_percent":20,"board_ma":200,"limit_ma":1400,"leds":32,"peak_ma":1312,"undimmed_leds":34}`,
+		"leds/power":        `{"supply_ma":2000,"led_white_ma":40,"led_idle_ma":1,"margin_percent":20,"board_ma":250,"limit_ma":1400,"leds":32,"peak_ma":1312,"undimmed_leds":34}`,
 		"firmware":          `{"version":"` + version + `"}`,
 		"effects/store":     `{"available":true,"uploaded":0,"max":32,"max_file_bytes":8192}`,
 		"wifi":              `{"configured":true,"connected":true,"setup_network":false,"ssid":"home","ip":"10.0.0.2","hostname":"csigarland"}`,

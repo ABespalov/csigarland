@@ -205,7 +205,7 @@ func TestABackupPutsAnErasedGarlandBack(t *testing.T) {
 // release with them that does not answer fails the backup, as a 1.1.1 garland's 404 does not.
 func TestThePowerSettingsAreKept(t *testing.T) {
 	from := &garland{version: "1.2.0.120", favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
-		power: &api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4300, Leds: 32}}
+		power: &api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4275, Leds: 32}}
 	ctx := context.Background()
 	made, err := Collect(ctx, from.serve(t), time.Now())
 	if err != nil {

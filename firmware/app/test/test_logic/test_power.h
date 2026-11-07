@@ -14,7 +14,7 @@
 static void test_power_defaults_keep_the_old_limit() {
     const PowerSettings power;
     TEST_ASSERT_TRUE(power_settings_are_valid(power));
-    // 2000 mA less 20 % and the board's 200 mA.
+    // 2000 mA less the board's 250 mA, and 20 % of what is left.
     TEST_ASSERT_EQUAL_UINT32(1400, power_limit_ma(power));
     TEST_ASSERT_EQUAL_UINT32(41, led_full_ma(power));
     TEST_ASSERT_EQUAL_UINT32(1312, peak_ma(power, 32));
@@ -23,14 +23,15 @@ static void test_power_defaults_keep_the_old_limit() {
 
 static void test_power_limit_follows_the_settings() {
     PowerSettings power;
+    // The margin is a share of what the supply gives beyond the board: 95 % of 1750 mA.
     power.margin_percent = 5;
-    TEST_ASSERT_EQUAL_UINT32(1700, power_limit_ma(power));
+    TEST_ASSERT_EQUAL_UINT32(1662, power_limit_ma(power));
     power.supply_ma = 5000;
     power.margin_percent = 10;
-    TEST_ASSERT_EQUAL_UINT32(4300, power_limit_ma(power));
+    TEST_ASSERT_EQUAL_UINT32(4275, power_limit_ma(power));
     // As measured on the owner's garland: 36 mA lit, under 1 mA idle.
     power.white_ma = 36;
-    TEST_ASSERT_EQUAL_UINT32(116, undimmed_leds(power));
+    TEST_ASSERT_EQUAL_UINT32(115, undimmed_leds(power));
     // The smallest supply with the largest margin still leaves the LEDs some current.
     const PowerSettings small{500, 40, 1, 20};
     TEST_ASSERT_EQUAL_UINT32(200, power_limit_ma(small));
@@ -68,7 +69,7 @@ static void test_state_holds_the_power_budget() {
     const PowerSettings measured{2000, 36, 1, 10};
     state.set_power(measured);
     TEST_ASSERT_TRUE(state.power() == measured);
-    TEST_ASSERT_EQUAL_UINT32(1600, current_model(state.power()).limit_ma);
+    TEST_ASSERT_EQUAL_UINT32(1575, current_model(state.power()).limit_ma);
 }
 
 static void run_power_tests() {

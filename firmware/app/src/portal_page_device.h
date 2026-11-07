@@ -26,7 +26,7 @@ inline constexpr char kPageDevice[] = R"html(
 
 <section aria-labelledby="power-title">
   <h2 id="power-title">Power</h2>
-  <p class="m">A frame that would draw more than the limit is dimmed as a whole. The limit is the supply, less its margin and <span id="board">200</span> mA for the board, the screen and Wi-Fi.</p>
+  <p class="m">A frame that would draw more than the limit is dimmed as a whole. The limit is what the supply gives beyond <span id="board">250</span> mA for the board, the screen and Wi-Fi, less the margin, a share of that.</p>
   <form id="power-form">
     <label for="supply" class="h">Power supply, mA</label>
     <input type="number" id="supply" step="1" inputmode="numeric" required>
@@ -34,7 +34,7 @@ inline constexpr char kPageDevice[] = R"html(
     <input type="number" id="white" step="1" inputmode="numeric" required>
     <label for="idle" class="h g">One LED dark, mA</label>
     <input type="number" id="idle" step="1" inputmode="numeric" required>
-    <label for="margin" class="h g">Margin, % of the supply</label>
+    <label for="margin" class="h g">Margin, % of the supply beyond the board</label>
     <input type="number" id="margin" step="1" inputmode="numeric" required>
     <p class="m g" id="budget" aria-live="polite"></p>
     <button data-g="save" type="submit" id="power-save" class="g">Save</button>
@@ -126,7 +126,7 @@ inline constexpr char kPageDevice[] = R"html(
   function budgetText() {
     const [supply, white, idle, margin] = Object.keys(powerFields).map((id) => $(id).valueAsNumber);
     if (!power || ![supply, white, idle, margin].every(Number.isInteger)) return '';
-    const limit = Math.max(0, Math.floor(supply * (100 - margin) / 100) - power.board_ma);
+    const limit = Math.floor(Math.max(0, supply - power.board_ma) * (100 - margin) / 100);
     const peak = power.leds * (white + idle);
     const held = peak > limit ? ', so it is dimmed to the limit' : ', under the limit';
     return `Limit ${limit} mA. ${power.leds} LEDs at full white draw ${peak} mA${held}. Full white stays undimmed on up to ${Math.floor(limit / (white + idle))} LEDs.`;

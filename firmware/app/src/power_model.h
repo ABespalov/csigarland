@@ -15,7 +15,7 @@ namespace garland {
 
 // The owner's settings, on the Device page. The defaults are the Hi-Link's 2000 mA, a WS2812B as measured
 // on a garland of this design, 36.1 mA lit above 0.51 mA idle at full white, with room for the spread of a
-// batch, and the margin that gives the 1400 mA limit of the releases before these settings.
+// batch, and the margin that gives the 1400 mA limit of the releases before these settings: (2000 - 250) * 80 %.
 struct PowerSettings {
     uint16_t supply_ma = 2000;
     uint8_t white_ma = 40;  // One LED at full white, above its idle draw.
@@ -33,8 +33,8 @@ constexpr int kLedIdleMaxMa = 5;
 constexpr int kMarginMinPercent = 5;
 constexpr int kMarginMaxPercent = 20;
 // The ESP32-C6, its screen and Wi-Fi, which the same supply feeds beside the LEDs: 120-180 mA typical by
-// the specification, about 250 mA at a peak, which the margin covers. Not measured yet.
-constexpr uint32_t kBoardReserveMa = 200;
+// the specification, about 250 mA at a peak, which is what is kept for it. Not measured yet.
+constexpr uint32_t kBoardReserveMa = 250;
 
 constexpr bool supply_ma_is_valid(int value) {
     return value >= kSupplyMinMa && value <= kSupplyMaxMa;
@@ -57,11 +57,11 @@ constexpr bool power_settings_are_valid(const PowerSettings& s) {
            margin_percent_is_valid(s.margin_percent);
 }
 
-// What the LEDs may draw: the supply, less its margin and the board's own draw. 200 mA at the least, for
-// the smallest supply with the largest margin.
+// What the LEDs may draw: what the supply gives beyond the board's own draw, less the margin, a share of
+// that. 200 mA at the least, for the smallest supply with the largest margin.
 constexpr uint32_t power_limit_ma(const PowerSettings& s) {
-    const uint32_t usable = uint32_t{s.supply_ma} * (100U - s.margin_percent) / 100U;
-    return usable > kBoardReserveMa ? usable - kBoardReserveMa : 0;
+    const uint32_t beyond_board = s.supply_ma > kBoardReserveMa ? s.supply_ma - kBoardReserveMa : 0;
+    return beyond_board * (100U - s.margin_percent) / 100U;
 }
 
 // One LED at full white, its idle draw with it.

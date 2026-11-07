@@ -210,10 +210,10 @@ func TestTheLimitIsTheFirmwares(t *testing.T) {
 	if defaults != (Power{2000, 40, 1, 20}) || LimitMilliamps() != 1400 {
 		t.Fatalf("defaults %+v, limit %d", defaults, LimitMilliamps())
 	}
-	if err := SetPower(Power{5000, 36, 1, 10}); err != nil || LimitMilliamps() != 4300 {
+	if err := SetPower(Power{5000, 36, 1, 10}); err != nil || LimitMilliamps() != 4275 {
 		t.Fatalf("%v, limit %d", err, LimitMilliamps())
 	}
-	if err := SetPower(Power{5000, 36, 1, 30}); err == nil || LimitMilliamps() != 4300 {
+	if err := SetPower(Power{5000, 36, 1, 30}); err == nil || LimitMilliamps() != 4275 {
 		t.Fatalf("a margin of 30%% taken: %v, limit %d", err, LimitMilliamps())
 	}
 }

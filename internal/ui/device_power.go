@@ -80,7 +80,7 @@ func PowerText(budget api.PowerBudget) string {
 	if budget.PeakMilliamps > budget.LimitMilliamps {
 		held = "so it is dimmed to the limit"
 	}
-	return fmt.Sprintf("Limit %d mA: the supply, less its margin and %d mA for the board, the screen and Wi-Fi. %d LEDs at full white draw %d mA, %s. Full white stays undimmed on up to %d LEDs.",
+	return fmt.Sprintf("Limit %d mA: what the supply gives beyond %d mA for the board, the screen and Wi-Fi, less the margin. %d LEDs at full white draw %d mA, %s. Full white stays undimmed on up to %d LEDs.",
 		budget.LimitMilliamps, budget.BoardMilliamps, budget.Leds, budget.PeakMilliamps, held, budget.UndimmedLeds)
 }
 
@@ -100,7 +100,7 @@ func (f *powerForm) card(a *App) layout.Widget {
 			func(gtx C) D { return a.field(gtx, &f.white, "40", 90) },
 			a.hint("One LED dark, mA"),
 			func(gtx C) D { return a.field(gtx, &f.idle, "1", 90) },
-			a.hint("Margin, % of the supply"),
+			a.hint("Margin, % of the supply beyond the board"),
 			func(gtx C) D { return a.field(gtx, &f.margin, "20", 90) },
 			func(gtx C) D { return a.labelButton(gtx, &f.save, buttonMain, "save", "Save", "", true) },
 		)

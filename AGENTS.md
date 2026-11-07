@@ -33,8 +33,9 @@ repository.
     follow them.
 - **Power architecture:** Hardware power-gating via YZ_CTL_V1 MOSFET module for zero standby
   draw on the LED rail, combined with software power clamping to a limit worked out from the
-  owner's settings (owner's decision of 2026-11-07): the supply's current, less a margin of 5-20 %
-  of it and 200 mA for the board, so 1400 mA on the 2000 mA Hi-Link at the default 20 %.
+  owner's settings (owner's decision of 2026-11-07): what the supply gives beyond 250 mA for the
+  board, less a margin of 5-20 % of that, so (2000 - 250) * 80 % = 1400 mA on the 2000 mA Hi-Link
+  at the default 20 %.
 - **Releases:** 1.0.0 is the first release and the baseline (owner's decision of 2026-11-03):
   nothing from before it is kept compatible with. From it on, a garland updated to a new release
   keeps what a released build saved, settings, pairings, uploaded effects and its root certificate,

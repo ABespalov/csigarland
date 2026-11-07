@@ -74,7 +74,7 @@ Not implemented: see **Planned** below.
 
 ## In the Next Release
 
-* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, what one LED draws at full white and dark, and a margin of 5-20 %, from which the firmware works out the limit, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
+* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
 
 
 ## Planned
@@ -92,7 +92,7 @@ Neither confirmed nor refuted by the running prototype:
 * YZ_CTL_V1's active polarity, reset and boot behaviour, and real off current.
 * Where a 470-1000 uF capacitor goes relative to the gate: the count estimate assumes mostly the LED boards' capacitors on the switched rail.
 * Longest wire run, its gauge, drop at the last LED and temperature of a full 32-LED harness. The figures in [Garland cable](../guides/hardware.md#garland-cable) are calculated.
-* The current limit is a model from colours and the LED count in use, not a measurement of the rail; its draw of an LED rests on one LED measured, and the board's 200 mA on the specification.
+* The current limit is a model from colours and the LED count in use, not a measurement of the rail; its draw of an LED rests on one LED measured, and the board's 250 mA on the specification.
 
 ## Validation Still to Do
 
