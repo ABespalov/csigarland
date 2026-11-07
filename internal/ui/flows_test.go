@@ -699,3 +699,43 @@ func TestEveryChoiceHasItsButton(t *testing.T) {
 		t.Fatalf("%d segments for %d speeds, %d buttons for %d zones, %d for %d days", len(speedSegments), len(ScheduleSpeeds), len(page.zones), len(Zones), len(daySegments), len(page.form.days))
 	}
 }
+
+// A restore replaces the playlist a draft was made of: the draft goes, and the card takes the next reading, not
+// one asked before the restore.
+func TestARestoreDropsADraftOfThePlaylistItReplaced(t *testing.T) {
+	var c playlistCard
+	c.take(api.Playlist{Effects: []string{"aurora", "comet"}, Dwell: 60, CrossFade: 1000})
+	c.list.Effects = c.list.Effects[:1]
+	c.loading = true
+	sent := c.sent
+	if !c.edited() {
+		t.Fatal("no draft to drop")
+	}
+	c.dropEdits()
+	if c.edited() || c.loading || c.sent == sent || len(c.list.Effects) != 2 {
+		t.Fatalf("edited %v, loading %v, sent %d, list %v", c.edited(), c.loading, c.sent, c.list.Effects)
+	}
+	c.list.Effects[0] = "changed"
+	if c.saved.Effects[0] != "aurora" {
+		t.Fatal("the list and what was saved share their effects")
+	}
+	// What the editor held when a restore began is what it may drop: an edit since, or a reading of the list
+	// restored, is newer.
+	before := c.draft()
+	if !c.holds(before) {
+		t.Fatal("the editor does not hold what it held")
+	}
+	c.list.Dwell = 90
+	if c.holds(before) {
+		t.Fatal("an edit since was taken for the draft before")
+	}
+	c.list.Dwell = before.Dwell
+	c.take(api.Playlist{Effects: []string{"candle"}, Dwell: 60, CrossFade: 1000, Revision: 9})
+	if c.holds(before) {
+		t.Fatal("a reading since was taken for the draft before")
+	}
+	before.Effects[0] = "other"
+	if c.list.Effects[0] == "other" {
+		t.Fatal("the draft shares its effects with the editor")
+	}
+}

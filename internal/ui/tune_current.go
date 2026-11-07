@@ -170,6 +170,11 @@ func CurrentText(values []int, limit, idle, leds int) string {
 	if len(values) == 0 {
 		return ""
 	}
+	// The LEDs dark alone draw more than the limit: the garland keeps their rail off, as no dimming takes that
+	// away, whatever the effect draws.
+	if idle > limit {
+		return fmt.Sprintf("%d LEDs draw %d mA dark alone, over the %d mA limit, which no dimming takes away, so the garland keeps them off: fewer LEDs, a lower idle draw, a bigger supply or a smaller margin on the Device page lets them on.", leds, idle, limit)
+	}
 	peak, over := 0, 0
 	for _, value := range values {
 		peak = max(peak, value)

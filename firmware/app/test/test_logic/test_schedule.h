@@ -210,21 +210,33 @@ static void test_schedule_sets_only_what_it_names() {
 static void test_scheduler24_tells_a_step_by_its_name_not_its_power() {
     constexpr int64_t kNow = 100'000'000;
     const SaverMoment step = saver_moment(kNow - 60'000, "Fireplace");
-    SaverMoment events[2] = {saver_moment(kNow - 60'000 + 25, "On"), saver_moment(kNow - 60'000 + 900, "LEDs on")};
-    saver_fold_into_step(step, events, 2);
-    TEST_ASSERT_FALSE(events[0].known || events[1].known);
-    const SaverMoment behind[] = {saver_moment(0, "Start"), events[0], events[1], step};
+    SaverMoment events[1] = {saver_moment(kNow - 60'000 + 25, "On")};
+    saver_fold_into_step(step, false, events, 1);
+    TEST_ASSERT_FALSE(events[0].known);
+    const SaverMoment behind[] = {saver_moment(0, "Start"), events[0], step};
     char text[kSaverTextBytes];
-    saver_text(nullptr, 0, behind, 4, kNow, text, sizeof(text));
+    saver_text(nullptr, 0, behind, 3, kNow, text, sizeof(text));
     TEST_ASSERT_EQUAL_STRING("last: Fireplace\n1m 00s ago", text);
     // An Off of the owner's a minute after the step is the owner's, and the latest.
     SaverMoment later[1] = {saver_moment(kNow - 1'000, "Off")};
-    saver_fold_into_step(step, later, 1);
+    saver_fold_into_step(step, false, later, 1);
     TEST_ASSERT_TRUE(later[0].known);
     // And one before the step is not the step's.
     SaverMoment before[1] = {saver_moment(kNow - 61'000, "On")};
-    saver_fold_into_step(step, before, 1);
+    saver_fold_into_step(step, false, before, 1);
     TEST_ASSERT_TRUE(before[0].known);
+    // An Off of the owner's two seconds after the step is the owner's, though it comes within the step's 5 s:
+    // it stays the last, whatever the owner does not choose after it.
+    const auto step_ms = static_cast<uint32_t>(step.at_ms);
+    TEST_ASSERT_TRUE(saver_owner_chose_after(step.at_ms, true, step_ms + 2'000));
+    TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, true, step_ms + 6'000));
+    TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, true, step_ms - 1));
+    TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, false, step_ms + 2'000));
+    SaverMoment owners[1] = {saver_moment(kNow - 58'000, "Off")};
+    saver_fold_into_step(step, saver_owner_chose_after(step.at_ms, true, step_ms + 2'000), owners, 1);
+    TEST_ASSERT_TRUE(owners[0].known);
+    // Across the wrap of the 32-bit clock of choices too.
+    TEST_ASSERT_TRUE(saver_owner_chose_after(int64_t{0xFFFF'FF00}, true, 0x0000'0100U));
 }
 
 static void test_scheduler24_says_what_comes_and_when() {

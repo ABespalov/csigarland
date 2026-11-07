@@ -56,9 +56,14 @@ func (p *firmwarePage) fetchCatalog(a *App) {
 	c.fetching = true
 	a.progress("Reading the catalog of releases...")
 	client, address, connection := c.client(), c.url(), a.connection
+	garland := a.client
 	go func() {
 		read, err := catalog.Fetch(connection, client, address)
 		a.post(func() {
+			// For a garland since left, whose page this no longer is, as for download.
+			if garland != a.client {
+				return
+			}
 			c.fetching = false
 			if err != nil {
 				a.reportError(err)

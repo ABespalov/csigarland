@@ -32,6 +32,12 @@ func TestTheCurrentIsToldAgainstTheLimit(t *testing.T) {
 	if !strings.Contains(over, "up to 1792 mA") || !strings.Contains(over, "in 50%") || !strings.Contains(over, "about 77%") {
 		t.Fatalf("%q", over)
 	}
+	// 64 LEDs at 5 mA dark, 320 mA, over a limit of 200: kept off, for a dark effect as for a lit one.
+	for _, values := range [][]int{{320, 320}, {320, 2880}} {
+		if words := CurrentText(values, 200, 320, 64); !strings.Contains(words, "64 LEDs draw 320 mA dark alone") || !strings.Contains(words, "keeps them off") || strings.Contains(words, "dims") {
+			t.Fatalf("%q", words)
+		}
+	}
 	if CurrentText(nil, 1400, 32, 32) != "" {
 		t.Fatal("no frames, yet words")
 	}

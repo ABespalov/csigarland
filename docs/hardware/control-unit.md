@@ -99,7 +99,7 @@ The integrated 1.3" IPS LCD follows csiPass's design: the pixel wordmark, the bu
 
 ## 5. Embedded Wi-Fi Web Server Architecture
 
-The ESP32-C6 hosts a standalone web server powered by `esp_http_server` and FreeRTOS. The pages poll over HTTPS; there is no WebSocket. How to reach them is in the [User Guide](../guides/user-guide.md#3-ways-into-the-portal).
+The ESP32-C6 hosts a standalone web server powered by `esp_http_server` and FreeRTOS. The pages talk to it over HTTPS: the state comes pushed as server-sent events (`/api/events`), and is asked for now and then when the stream is not there; there is no WebSocket. How to reach them is in the [User Guide](../guides/user-guide.md#3-ways-into-the-portal).
 
 ```mermaid
 flowchart LR
@@ -128,8 +128,8 @@ flowchart LR
 
 ### 5.2 Web Application Features
 The web interface is six responsive, touch-friendly pages, described one by one in the [User Guide](../guides/user-guide.md#8-portal-pages):
-* **Effects:** what is playing, its brightness and speed on sliders, playing any ready effect, the favourites the EFFECT button cycles through, and uploading effects.
-* **Schedule:** up to 32 actions with a time, days of the week and steps (on or off, brightness, speed, effect), the time zone and the clock module.
+* **Effects:** what is playing, its brightness and speed on sliders, playing any ready effect, the favourites the EFFECT button cycles through, the playlist with how long each effect plays and the cross-fade between them, and uploading effects.
+* **Schedule:** the next 24 hours on a timeline, and up to 32 actions with a time, days of the week and steps (on, on rising from dark over a minute, or off, brightness, speed, an effect or the playlist), the time zone and the clock module.
 * **Device:** the LED count, automatic or set by hand, 1-256; the power supply, an LED's draw at full white and dark, and the margin, which give the current limit; and the screen: brightness in normal use and during a screensaver, the screensaver's type and delay.
 * **Network:** finding, joining and forgetting the home network, the mDNS name, and the HTTPS certificate.
 * **Firmware:** the running version, and installing a signed update file.

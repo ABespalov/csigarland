@@ -145,6 +145,9 @@ func TestASaveOverAFileWithTheExtensionIsAskedAgain(t *testing.T) {
 	if got, err := chooseSaveFile(ended, 0, "Save", "*.json", "Effects", "json", "start.json"); !errors.Is(err, context.Canceled) || got != "" || len(asked) != 0 {
 		t.Fatalf("ended: %q, %v, asked %q", got, err, asked)
 	}
+	if _, err := chooseFile(ended, 0, "Open", "*.json", "Effects"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a dialog to open was asked for after the utility ended: %v", err)
+	}
 	if _, err := zenityChoose(ended, false, "Open", "*.json", "Effects", ""); err == nil {
 		t.Fatal("zenity asked after the utility ended")
 	}

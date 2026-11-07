@@ -29,8 +29,9 @@ void looks_retry_if_unread(State& state, uint32_t now_ms);
 // nothing is to be saved, as it would write the defaults over what is there.
 bool looks_favorites_read(State& state);
 // Read, and whole: not while they name an uploaded effect the catalog lacks for now, as one not read yet,
-// whose mark a save of the mask on the state would lose. Taken again from flash once those are read. For a
-// save of the favourites; the caller has read the uploaded effects again first, see effect_store_read_unread.
+// whose mark a save of the mask on the state would lose. Put on again from what was read, at each call while they
+// are not whole. For a save of the favourites, and by the scheduler after it reads uploads again; the caller has
+// read the uploaded effects again first, see effect_store_read_unread.
 bool looks_favorites_whole(State& state);
 bool looks_display_read(State& state);
 // The same for the power budget, whose page shows what is saved: the defaults shown for settings not read

@@ -23,8 +23,9 @@ void effect_store_start();
 char* effect_store_body();
 
 // Reads again the effects saved before whose reading failed at the start, putting each read in the catalog,
-// through effect_store_body(): before a request's body goes there. True when any was read, and the catalog
-// may have changed.
+// from a buffer of its own, not effect_store_body(). From the server's task, and from the scheduler's every few
+// seconds while any is left, for a garland no browser opens: every call here holds one lock. True when any was
+// read, and the catalog may have changed: the caller tells the state, and resolves the playlist again.
 bool effect_store_read_unread();
 // While any is unread, one of them may hold an id not known, and come back after an upload under it is
 // deleted, as a second copy: such an upload is refused.

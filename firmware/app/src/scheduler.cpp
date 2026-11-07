@@ -84,6 +84,7 @@ constexpr uint32_t kRestartSaveStepMs = 50;
 // What was remembered is there and could not be read at the start: nothing is saved over it until it is.
 std::atomic<bool> s_remembered_unread{false};
 constexpr uint32_t kRememberedRetryMs = 5000;
+constexpr uint32_t kStoreRetryMs = 5000;
 constexpr uint32_t kScheduleRetryMs = 60000;
 SemaphoreHandle_t s_lock = nullptr;
 StaticSemaphore_t s_lock_storage;
@@ -93,6 +94,8 @@ int64_t s_choice_epoch = kNoChoiceYet;
 Remembered s_saved_at_start;
 // Its effect while an uploaded effect not read yet may be it: the start's task, then the scheduler's alone.
 PendingEffect s_pending_effect;
+// The late resumes of the playlist the save timer was told of: the scheduler's task alone.
+uint32_t s_resumes_seen = 0;
 // What the next action was last found to be. Finding it can take a thousand times what a page
 // needs to read it, and the scheduler looks each minute. It stands until that action has come, or
 // the list, the zone or the clock changes: see next_action_still_holds.
@@ -236,6 +239,9 @@ void apply(State& state, const ResolvedAction& resolved) {
         return step == PowerStep::None ? kPowerKeep : step == PowerStep::Rise ? kPowerRise : step == PowerStep::On ? kPowerOn : kPowerOff;
     };
     bool had_playlist = false;
+    // Before the step takes: the screen may see its turn on or off at once, and tells it as the step's only if it
+    // comes at the step's moment or after, see saver_fold_into_step.
+    const int64_t done_ms = esp_timer_get_time() / 1000;
     if (!state.apply_scheduled(resolved.brightness_percent, resolved.speed_x4, resolved.effect, order(resolved.power), resolved.playlist,
                                resolved.effect_without_playlist, order(resolved.power_without_playlist), &had_playlist)) {
         ESP_LOGI(TAG, "the owner chose while this was worked out, so it stands");
@@ -253,7 +259,7 @@ void apply(State& state, const ResolvedAction& resolved) {
         }, name, sizeof(name));
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_step_done = true;
-        s_step_done_ms = esp_timer_get_time() / 1000;
+        s_step_done_ms = done_ms;
         std::snprintf(s_step_done_name, sizeof(s_step_done_name), "%s", name);
         xSemaphoreGive(s_lock);
     }
@@ -343,7 +349,20 @@ void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& rea
     if (s_remembered_unread.load()) {
         return;
     }
-    const Snapshot now = state.snapshot();
+    // A list left playing and resumed once read late is what flash holds: no change of the owner's to save, and
+    // saved with no clock it would date a choice nobody made at 0, which the replay would yield to. The look is
+    // taken between two readings of the count that agree: the portal's task, above this one, resumes and counts
+    // in one go, so a count that did not move says the look holds every resume counted, and none more.
+    uint32_t resumes = playlist_late_resumes();
+    Snapshot now = state.snapshot();
+    for (uint32_t again = playlist_late_resumes(); again != resumes; again = playlist_late_resumes()) {
+        resumes = again;
+        now = state.snapshot();
+    }
+    if (resumes != s_resumes_seen) {
+        s_resumes_seen = resumes;
+        timer.saved_playlist_resumed();
+    }
     // An effect the playlist moved on to is none of the owner's choosing: what is remembered, and when it
     // was chosen, stay as they were when the playlist began, so that a scheduled step since still counts.
     if (!catalog_is_preview(now.effect) && !now.playlist) {
@@ -429,9 +448,30 @@ bool read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_e
         // What flash holds, not what the state holds, whether or not it was put on: a choice made meanwhile,
         // as a turn off, has to stay a change to save, at once if it is one of those. The owner's choice is
         // newer, and stays a choice to save.
+        // Whether all uploads are read, taken before the lookup: published after what was read is in the catalog,
+        // so all read then means the lookup sees every effect, and a lookup older than a read that came between
+        // could not take an effect read meanwhile for one gone.
+        const bool all_read = effect_store_all_read();
         const int index = catalog_find(remembered.effect_id);
         const uint16_t saved_effect = index >= 0 ? static_cast<uint16_t>(index) : real_effect;
         real_effect = untouched ? saved_effect : real_effect;
+        // A choice of the power, brightness or speed alone, made before this reading, chose nothing of what plays:
+        // the effect remembered is still the owner's, put on now, or held until the upload it is is read, the
+        // power and levels left as they were chosen.
+        if (!untouched) {
+            switch (late_remembered_effect(state.owner_chose_play() || state.scheduled_play(), index, remembered.effect_id[0] != '\0',
+                                           all_read)) {
+                case LateEffect::Take:
+                    state.restore_effect_unless_chosen(real_effect, saved_effect);
+                    real_effect = saved_effect;
+                    break;
+                case LateEffect::Hold:
+                    s_pending_effect.hold(remembered.effect_id);
+                    break;
+                case LateEffect::Leave:
+                    break;
+            }
+        }
         timer.saved(Remembered{
             saved_effect,
             remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : before.brightness_percent,
@@ -456,9 +496,11 @@ void resolve_pending_effect(State& state, MemorySaveTimer& timer, uint16_t& real
     if (!s_pending_effect.held()) {
         return;
     }
+    // Before the lookup, for the reason read_remembered_late gives: a stale not-all-read waits a pass, never drops.
+    const bool all_read = effect_store_all_read();
     const int found = catalog_find(s_pending_effect.id());
     const bool chosen = state.owner_chose_play() || state.scheduled_play();
-    switch (pending_effect_step(chosen, found, effect_store_all_read())) {
+    switch (pending_effect_step(chosen, found, all_read)) {
         case PendingEffectStep::Keep:
             return;
         case PendingEffectStep::Resolve:
@@ -559,6 +601,7 @@ void scheduler_task(void* arg) {
     MemorySaveTimer memory_timer(s_saved_at_start);
     uint32_t schedule_tried_ms = uptime_ms();
     uint32_t remembered_tried_ms = uptime_ms();
+    uint32_t store_tried_ms = uptime_ms();
     // The start's replay, stopped before a step that waits for the playlist, goes on from there.
     int64_t replay_from = -1;
 
@@ -566,6 +609,18 @@ void scheduler_task(void* arg) {
         // A turn on or off is saved right away, not at the next look round.
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPollMs));
         playlist_retry_if_stale(state, uptime_ms());
+        // Uploaded effects not read at the start, for a garland that no browser opens, before the favourites,
+        // the playlist and the remembered effect that may name them.
+        if (!effect_store_all_read() && uptime_ms() - store_tried_ms >= kStoreRetryMs) {
+            store_tried_ms = uptime_ms();
+            if (effect_store_read_unread()) {
+                state.note_catalog_changed();
+                playlist_resolve(state);
+            }
+            // The favourites read while an upload they name was not: put on again, so the EFFECT button cycles
+            // through those read since, with no browser to ask for them.
+            looks_favorites_whole(state);
+        }
         looks_retry_if_unread(state, uptime_ms());
         time_zone_retry_if_unread(uptime_ms());
         if (s_remembered_unread.load() && uptime_ms() - remembered_tried_ms >= kRememberedRetryMs) {
@@ -697,11 +752,13 @@ void schedule_forget_next_action() {
 bool remembered_apply(State& state, const StoredSettings& remembered) {
     const uint8_t brightness = remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : 0;
     const uint8_t speed = manual_speed_x4_is_valid(remembered.speed_x4) ? remembered.speed_x4 : 0;
+    // Before the lookup: see read_remembered_late.
+    const bool all_read = effect_store_all_read();
     const int effect = catalog_find(remembered.effect_id);
     const bool restored = state.restore_unless_chosen(brightness, speed, effect, remembered.playing != 0 ? kPowerOn : kPowerOff);
     // An effect the catalog lacks for now, as an uploaded one not read yet may be it: its id is kept for
     // the saves, and the effect put on once read. One gone for good falls back, as ever.
-    if (restored && effect < 0 && remembered.effect_id[0] != '\0' && !effect_store_all_read()) {
+    if (restored && effect < 0 && remembered.effect_id[0] != '\0' && !all_read) {
         s_pending_effect.hold(remembered.effect_id);
     } else if (restored) {
         s_pending_effect.drop();

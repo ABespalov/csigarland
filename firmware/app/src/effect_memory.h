@@ -148,6 +148,18 @@ constexpr PendingEffectStep pending_effect_step(bool play_chosen, int found, boo
                         : PendingEffectStep::Keep;
 }
 
+// The remembered effect, read late after the owner chose the power, brightness or speed alone: what plays is
+// still the one remembered. Put on, Take, once the catalog has it; held as pending, Hold, while uploads not read
+// may hold it; else left, as an effect gone. A choice of what plays, by the owner or a step, leaves it too.
+enum class LateEffect : uint8_t { Leave, Take, Hold };
+
+constexpr LateEffect late_remembered_effect(bool play_chosen, int found, bool named, bool all_read) {
+    return play_chosen         ? LateEffect::Leave
+           : found >= 0        ? LateEffect::Take
+           : named && !all_read ? LateEffect::Hold
+                               : LateEffect::Leave;
+}
+
 class PendingEffect {
 public:
     void hold(const char* id) { std::snprintf(id_, sizeof(id_), "%s", id); }
@@ -206,6 +218,15 @@ public:
             candidate_.effect = effect;
         }
         saved_.effect = effect;
+    }
+
+    // The playlist flash held playing was resumed late, as it was saved: nothing new to save of it, and a change
+    // waiting keeps its time, as for saved_effect_found.
+    void saved_playlist_resumed() {
+        if (waiting_ && candidate_.playlist == saved_.playlist) {
+            candidate_.playlist = true;
+        }
+        saved_.playlist = true;
     }
 
     // After a failed write: waits the whole delay again before the next try.

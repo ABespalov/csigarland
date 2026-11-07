@@ -38,6 +38,8 @@ type garland struct {
 	power *api.PowerBudget
 	// When not 0, what GET playlist answers instead.
 	playlistStatus int
+	// An answer to a POST of the playlist other than taking it, 0 for taking it.
+	playlistRefusal int
 	// What GET firmware says, 1.0.0.103 when empty.
 	version string
 	// What GET schedule says the actions name that the garland lacks.
@@ -131,6 +133,10 @@ func (g *garland) serve(t *testing.T) *api.Client {
 			}
 			reply(g.playlist)
 		case "POST playlist":
+			if g.playlistRefusal != 0 {
+				http.Error(w, "the playlist could not be read yet", g.playlistRefusal)
+				return
+			}
 			_ = json.Unmarshal(body, &g.playlist)
 			reply(g.playlist)
 		case "GET display":
@@ -194,7 +200,7 @@ func TestABackupPutsAnErasedGarlandBack(t *testing.T) {
 	// Erased: the defaults' favourite, nothing uploaded, no list.
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "starfield", Delay: 60}}
 	var steps []string
-	if err := Restore(ctx, to.serve(t), read, func(step string) { steps = append(steps, step) }); err != nil {
+	if _, err := Restore(ctx, to.serve(t), read, func(step string) { steps = append(steps, step) }); err != nil {
 		t.Fatalf("%v, after %v", err, steps)
 	}
 	if !reflect.DeepEqual(to.schedule, from.schedule) || to.uploads["my-snow"] != from.uploads["my-snow"] {
@@ -230,7 +236,7 @@ func TestThePowerSettingsAreKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, power: &api.PowerBudget{SupplyMilliamps: 2000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20}}
-	if err := Restore(ctx, to.serve(t), read, func(string) {}); err != nil {
+	if _, err := Restore(ctx, to.serve(t), read, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
 	if to.power.SupplyMilliamps != 5000 || to.power.WhiteMilliamps != 36 || to.power.MarginPercent != 10 {
@@ -240,7 +246,7 @@ func TestThePowerSettingsAreKept(t *testing.T) {
 	old := read
 	old.Power = nil
 	kept := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, power: &api.PowerBudget{SupplyMilliamps: 3000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20}}
-	if err := Restore(ctx, kept.serve(t), old, func(string) {}); err != nil || kept.power.SupplyMilliamps != 3000 {
+	if _, err := Restore(ctx, kept.serve(t), old, func(string) {}); err != nil || kept.power.SupplyMilliamps != 3000 {
 		t.Fatalf("%v %+v", err, kept.power)
 	}
 	from.power = nil
@@ -329,7 +335,7 @@ func TestARestoreDoesNotOverwriteAScheduleSavedMeanwhile(t *testing.T) {
 			g.schedule, g.revision = saved, 2
 		}
 	}
-	err := Restore(context.Background(), to.serve(t), read, func(string) {})
+	_, err := Restore(context.Background(), to.serve(t), read, func(string) {})
 	if err == nil || !reflect.DeepEqual(to.schedule, saved) {
 		t.Fatalf("%v, schedule %+v", err, to.schedule)
 	}
@@ -418,7 +424,7 @@ func TestAPlaylistKeepsAnEffectItsGarlandLacks(t *testing.T) {
 		t.Fatalf("%v, playlist %+v", err, made.Playlist)
 	}
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}}
-	err = Restore(context.Background(), to.serve(t), made, func(string) {})
+	_, err = Restore(context.Background(), to.serve(t), made, func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "left out gone") || !slices.Equal(to.playlist.Effects, []string{"aurora"}) {
 		t.Fatalf("%v, playlist put back %+v", err, to.playlist)
 	}
@@ -433,7 +439,7 @@ func TestARestoreLeavesNothingOutByAListNotWhole(t *testing.T) {
 		Playlist: &api.Playlist{Effects: []string{"sleeping", "aurora"}, Missing: []string{"sleeping"}, Dwell: 60, CrossFade: 1000}}
 	partial := false
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}, complete: &partial}
-	err := Restore(context.Background(), to.serve(t), made, func(string) {})
+	_, err := Restore(context.Background(), to.serve(t), made, func(string) {})
 	if !errors.Is(err, ErrIncomplete) || strings.Contains(err.Error(), "left out") {
 		t.Fatalf("%v", err)
 	}
@@ -454,11 +460,11 @@ func TestAScheduleKeepsAnEffectItsGarlandLacks(t *testing.T) {
 		t.Fatalf("%v, schedule %+v, missing %v", err, made.Schedule, made.ScheduleMissing)
 	}
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}}
-	err = Restore(context.Background(), to.serve(t), made, func(string) {})
+	_, err = Restore(context.Background(), to.serve(t), made, func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "naming gone") || !reflect.DeepEqual(to.schedule, []api.Action{off}) {
 		t.Fatalf("%v, schedule put back %+v", err, to.schedule)
 	}
-	if err := Restore(context.Background(), from.serve(t), made, func(string) {}); err != nil || len(from.schedule) != 2 {
+	if _, err := Restore(context.Background(), from.serve(t), made, func(string) {}); err != nil || len(from.schedule) != 2 {
 		t.Fatalf("%v, the same garland's schedule %+v", err, from.schedule)
 	}
 }
@@ -469,8 +475,39 @@ func TestARestoreWithNoFavouriteHereStillPutsBackThePlaylist(t *testing.T) {
 	made := Backup{Format: Format, Made: "x", Firmware: "1.1.0.106", Schedule: []api.Action{}, Favorites: []string{"gone-favourite"}, Uploads: []Upload{},
 		Display: api.Display{Saver: "none"}, Playlist: &api.Playlist{Effects: []string{"gone", "aurora"}, Dwell: 60, CrossFade: 1000}}
 	to := &garland{revision: 1, favorites: map[string]bool{"candle": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}}
-	err := Restore(context.Background(), to.serve(t), made, func(string) {})
+	_, err := Restore(context.Background(), to.serve(t), made, func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "left out gone") || !slices.Equal(to.playlist.Effects, []string{"aurora"}) || !to.favorites["candle"] {
 		t.Fatalf("%v, playlist %+v, favourites %v", err, to.playlist, to.favorites)
+	}
+}
+
+// What came of the playlist is said apart, for the Effects page's draft: replaced, kept as the garland had it,
+// when the backup holds none or the garland refused it, or unsure, when no answer came.
+func TestARestoreSaysWhatCameOfThePlaylist(t *testing.T) {
+	ctx := context.Background()
+	from := &garland{favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
+		playlist: api.Playlist{Effects: []string{"aurora"}, Dwell: 60, CrossFade: 1000}}
+	made, err := Collect(ctx, from.serve(t), time.Now())
+	if err != nil || made.Playlist == nil {
+		t.Fatalf("%v %+v", err, made.Playlist)
+	}
+	fresh := func() *garland {
+		return &garland{favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"}}
+	}
+	if restored, err := Restore(ctx, fresh().serve(t), made, func(string) {}); err != nil || restored.Playlist != PlaylistReplaced {
+		t.Fatalf("replaced: %v %v", restored.Playlist, err)
+	}
+	none := made
+	none.Playlist = nil
+	if restored, err := Restore(ctx, fresh().serve(t), none, func(string) {}); err != nil || restored.Playlist != PlaylistKept {
+		t.Fatalf("a backup of 1.0.0, with none: %v %v", restored.Playlist, err)
+	}
+	refusing := fresh()
+	refusing.playlistRefusal = http.StatusServiceUnavailable
+	if restored, err := Restore(ctx, refusing.serve(t), made, func(string) {}); err == nil || restored.Playlist != PlaylistKept {
+		t.Fatalf("refused: %v %v", restored.Playlist, err)
+	}
+	if playlistOutcome(errors.New("connection reset")) != PlaylistUnsure {
+		t.Fatal("a request with no answer taken for one refused")
 	}
 }

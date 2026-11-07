@@ -15,9 +15,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 
 #include "effect_store_keys.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -32,15 +35,22 @@ constexpr size_t kIdBytes = kStoreIdBytes;
 // A blob is the id in a fixed place, then the file.
 constexpr size_t kBlobBytes = kIdBytes + kMaxEffectFileBytes + 1;
 
-// Static: too large for any stack here, and only the server task writes it once started.
+// Static: too large for any stack here, and only the server task writes it once started: a request's body, and
+// the file it asks for.
 char s_blob[kBlobBytes];
+// What the store knows, and the blobs read from its list, apart from s_blob: the scheduler's task reads what is
+// left unread too, for a garland that no browser opens, so all of it is under s_store_lock, and so are the
+// changes to the catalog's uploads made here.
+std::mutex s_store_lock;
+char s_read_blob[kBlobBytes];
+constexpr int kStartReadAttempts = 3;
+constexpr uint32_t kStartReadPauseMs = 50;
 bool s_available = false;
 StorePartition s_partition = StorePartition::Unready;
 StoreKeys s_keys;
 size_t s_refused_keys = 0;
 UnreadStoreKeys s_unread;
-// Whether none is left unread, for the other tasks, which ask without the server task's turn: published each
-// time the server task has read, as s_unread is its alone.
+// Whether none is left unread, for any task without the lock: published each time a reading is done.
 std::atomic<bool> s_all_read{false};
 // Counts the blobs read, so that a reading again can tell whether it read any.
 uint32_t s_entries_read = 0;
@@ -48,30 +58,31 @@ uint32_t s_entries_read = 0;
 // True when the blob was read, kept or refused; false, and nothing known of it, when it could not be. Too
 // short to hold an id is read all the same: it holds none, and is left as it is.
 bool load_entry(nvs_handle_t handle, const char* key) {
-    size_t bytes = sizeof(s_blob);
-    const esp_err_t err = nvs_get_blob(handle, key, s_blob, &bytes);
+    char* const blob = s_read_blob;
+    size_t bytes = sizeof(s_read_blob);
+    const esp_err_t err = nvs_get_blob(handle, key, blob, &bytes);
     if (err != ESP_OK || bytes <= kIdBytes) {
         ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
         s_entries_read += err == ESP_OK ? 1 : 0;
         return err == ESP_OK;
     }
     ++s_entries_read;
-    s_blob[kIdBytes - 1] = '\0';
-    s_blob[bytes - 1] = '\0';
+    blob[kIdBytes - 1] = '\0';
+    blob[bytes - 1] = '\0';
     EffectSpec spec;
     const char* error = nullptr;
     // Left where it is when refused: it may suit a later firmware.
     bool kept = false;
-    if (!parse_effect(s_blob + kIdBytes, s_blob, spec, error)) {
-        ESP_LOGW(TAG, "effect %s refused: %s", s_blob, error);
+    if (!parse_effect(blob + kIdBytes, blob, spec, error)) {
+        ESP_LOGW(TAG, "effect %s refused: %s", blob, error);
     } else if (catalog_install(spec) < 0) {
-        ESP_LOGW(TAG, "no room for effect %s", s_blob);
+        ESP_LOGW(TAG, "no room for effect %s", blob);
     } else {
         kept = true;
     }
     if (kept || s_refused_keys < kMaxRefusedStoreKeys) {
         s_refused_keys += kept ? 0 : 1;
-        s_keys.add(s_blob, key);
+        s_keys.add(blob, key);
     }
     return true;
 }
@@ -145,15 +156,23 @@ StorePartition ready_partition() {
     return StorePartition::Ready;
 }
 
+bool read_unread_locked();
+
 }  // namespace
 
 void effect_store_start() {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     s_partition = ready_partition();
     note_store_partition(s_partition, s_unread);
     if (s_partition == StorePartition::Ready && !load_all()) {
         s_unread.mark_index_unread();
     }
     s_all_read.store(!s_unread.any());
+    // A reading that failed is tried again a few times here, as the other settings are, then by the scheduler.
+    for (int attempt = 1; attempt < kStartReadAttempts && s_unread.any(); ++attempt) {
+        vTaskDelay(pdMS_TO_TICKS(kStartReadPauseMs));
+        read_unread_locked();
+    }
     ESP_LOGI(TAG, "%u uploaded effects", static_cast<unsigned>(catalog_uploaded_count()));
 }
 
@@ -162,6 +181,13 @@ char* effect_store_body() {
 }
 
 bool effect_store_read_unread() {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
+    return read_unread_locked();
+}
+
+namespace {
+
+bool read_unread_locked() {
     if (!s_unread.any()) {
         return false;
     }
@@ -200,15 +226,27 @@ bool effect_store_read_unread() {
     return read;
 }
 
+}  // namespace
+
 bool effect_store_all_read() {
     return s_all_read.load();
 }
 
-bool effect_store_unread_may_hold(const char* id) {
+namespace {
+
+bool unread_may_hold_locked(const char* id) {
     return s_keys.find(id) == nullptr && s_unread.any();
 }
 
+}  // namespace
+
+bool effect_store_unread_may_hold(const char* id) {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
+    return unread_may_hold_locked(id);
+}
+
 const char* effect_store_read(const char* id) {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     const char* const key = s_keys.find(id);
     nvs_handle_t handle = 0;
     if (key == nullptr || !s_available || nvs_open_from_partition(kPartition, kNamespace, NVS_READONLY, &handle) != ESP_OK) {
@@ -225,6 +263,7 @@ const char* effect_store_read(const char* id) {
 }
 
 const char* effect_store_save(const char* id) {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     if (!s_available) {
         return s_partition == StorePartition::Unready
                    ? "the uploaded effects could not be opened yet: try again"
@@ -244,7 +283,7 @@ const char* effect_store_save(const char* id) {
     std::snprintf(s_blob, kIdBytes, "%s", id);
 
     const char* const known_key = s_keys.find(id);
-    if (effect_store_unread_may_hold(id)) {
+    if (unread_may_hold_locked(id)) {
         return "uploaded effects saved before could not all be read yet, and one may have this id: try again";
     }
     if (known_key == nullptr && !s_keys.has_room()) {
@@ -283,6 +322,7 @@ const char* effect_store_save(const char* id) {
 }
 
 const char* effect_store_preview() {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     EffectSpec spec;
     const char* const problem = parse_body(kPreviewEffectId, spec);
     if (problem != nullptr) {
@@ -293,6 +333,7 @@ const char* effect_store_preview() {
 }
 
 const char* effect_store_delete(const char* id) {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     const int position = catalog_find(id);
     if (position < 0 || !catalog_is_uploaded(static_cast<size_t>(position))) {
         return "no such uploaded effect";
@@ -322,6 +363,7 @@ const char* effect_store_delete(const char* id) {
 }
 
 EffectStoreStatus effect_store_status() {
+    const std::lock_guard<std::mutex> guard(s_store_lock);
     EffectStoreStatus status;
     status.available = s_available;
     nvs_stats_t stats = {};

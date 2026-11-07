@@ -315,8 +315,10 @@ func Parse(data []byte) (Backup, error) {
 // first, then the favourites, the playlist, the screen, the power settings and last the schedule, which replaces the
 // garland's whole list. Each step that fails is said, and the rest still go on, so a garland that
 // lacks one effect takes all else. step hears each part as it is done. The schedule replaced is the one
-// read before anything is sent: one saved meanwhile, from here or elsewhere, is not overwritten.
-func Restore(ctx context.Context, client *api.Client, backup Backup, step func(string)) error {
+// read before anything is sent: one saved meanwhile, from here or elsewhere, is not overwritten. What came of the
+// playlist is said apart, for an editor of it to know whether its draft was of a list replaced.
+func Restore(ctx context.Context, client *api.Client, backup Backup, step func(string)) (Restored, error) {
+	var restored Restored
 	var problems []error
 	fail := func(what string, err error) { problems = append(problems, fmt.Errorf("%s: %w", what, err)) }
 	before, scheduleErr := client.Schedule(ctx)
@@ -375,7 +377,9 @@ func Restore(ctx context.Context, client *api.Client, backup Backup, step func(s
 				left = append(left, id)
 			}
 		}
-		if _, err := client.SetPlaylist(ctx, kept, backup.Playlist.Dwell, backup.Playlist.CrossFade); err != nil {
+		_, err = client.SetPlaylist(ctx, kept, backup.Playlist.Dwell, backup.Playlist.CrossFade)
+		restored.Playlist = playlistOutcome(err)
+		if err != nil {
 			fail("the playlist", err)
 		}
 		if len(left) > 0 {
@@ -425,5 +429,34 @@ func Restore(ctx context.Context, client *api.Client, backup Backup, step func(s
 	if len(left) > 0 {
 		fail("the schedule", fmt.Errorf("left out the actions naming %s, which this garland lacks", strings.Join(left, ", ")))
 	}
-	return errors.Join(problems...)
+	return restored, errors.Join(problems...)
+}
+
+// PlaylistOutcome is what a restore did to the garland's playlist.
+type PlaylistOutcome int
+
+const (
+	// PlaylistKept: the backup holds none, or the garland refused it with an answer, its own list staying.
+	PlaylistKept PlaylistOutcome = iota
+	// PlaylistReplaced: the garland took the backup's list.
+	PlaylistReplaced
+	// PlaylistUnsure: no answer came, so the list may or may not have been replaced.
+	PlaylistUnsure
+)
+
+// Restored is what a restore says of its parts beside its error.
+type Restored struct {
+	Playlist PlaylistOutcome
+}
+
+// playlistOutcome tells a refusal, an answer of the garland's, from a request that may have reached it.
+func playlistOutcome(err error) PlaylistOutcome {
+	var refused *api.Error
+	switch {
+	case err == nil:
+		return PlaylistReplaced
+	case errors.As(err, &refused):
+		return PlaylistKept
+	}
+	return PlaylistUnsure
 }

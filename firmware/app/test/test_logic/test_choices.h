@@ -83,6 +83,14 @@ static void test_a_remembered_effect_not_read_yet_outlives_a_save_of_the_power()
     TEST_ASSERT_TRUE(pending_effect_step(false, 4, true) == PendingEffectStep::Resolve);
     TEST_ASSERT_TRUE(pending_effect_step(false, -1, true) == PendingEffectStep::Drop);
     TEST_ASSERT_TRUE(pending_effect_step(true, 4, false) == PendingEffectStep::Drop);
+    // Read late after the owner chose the power alone: put on once there, held while unread, left once gone or once
+    // what plays was chosen.
+    TEST_ASSERT_TRUE(late_remembered_effect(false, 4, true, false) == LateEffect::Take);
+    TEST_ASSERT_TRUE(late_remembered_effect(false, -1, true, false) == LateEffect::Hold);
+    TEST_ASSERT_TRUE(late_remembered_effect(false, -1, true, true) == LateEffect::Leave);
+    TEST_ASSERT_TRUE(late_remembered_effect(false, -1, false, false) == LateEffect::Leave);
+    TEST_ASSERT_TRUE(late_remembered_effect(true, 4, true, false) == LateEffect::Leave);
+    TEST_ASSERT_TRUE(late_remembered_effect(true, -1, true, false) == LateEffect::Leave);
     PendingEffect pending;
     TEST_ASSERT_FALSE(pending.held());
     pending.hold("my-upload");
@@ -114,6 +122,18 @@ static void test_a_remembered_effect_not_read_yet_outlives_a_save_of_the_power()
     waiting.saved_effect_found(5);
     TEST_ASSERT_FALSE(waiting.should_save(Remembered{5, 70, 4, true, false}, 1000 + kMemorySaveDelayMs - 1));
     TEST_ASSERT_TRUE(waiting.should_save(Remembered{5, 70, 4, true, false}, 1000 + kMemorySaveDelayMs));
+    // A playlist flash held playing, resumed once read late, is nothing to save, at once or later: saved then,
+    // with no clock, it would date a choice no one made.
+    MemorySaveTimer resumed(Remembered{2, 50, 4, true, false});
+    resumed.saved_playlist_resumed();
+    TEST_ASSERT_TRUE(resumed.holds(Remembered{2, 50, 4, true, true}));
+    TEST_ASSERT_FALSE(resumed.should_save(Remembered{2, 50, 4, true, true}, 0));
+    // A change of the brightness waiting meanwhile keeps its time.
+    MemorySaveTimer levels(Remembered{2, 50, 4, true, false});
+    TEST_ASSERT_FALSE(levels.should_save(Remembered{2, 70, 4, true, false}, 1000));
+    levels.saved_playlist_resumed();
+    TEST_ASSERT_FALSE(levels.should_save(Remembered{2, 70, 4, true, true}, 1000 + kMemorySaveDelayMs - 1));
+    TEST_ASSERT_TRUE(levels.should_save(Remembered{2, 70, 4, true, true}, 1000 + kMemorySaveDelayMs));
     // An effect chosen since is newer, and stays.
     State chosen(32);
     chosen.set_effect_count(6);

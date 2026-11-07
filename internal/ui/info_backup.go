@@ -138,6 +138,9 @@ func (p *infoPage) restoreBackup(a *App) {
 			}
 			c.busy = true
 			a.progress("Restoring from " + path + "...")
+			// The playlist's editor as it stands before anything is sent: only that draft is one the restore can
+			// make out of date. One edited since, as of the list restored, read meanwhile, is newer, and stays.
+			before := a.effects.playlist.draft()
 			// In the window's own queue: a change made here meanwhile goes after it, not between its parts.
 			a.work(func(_ context.Context, client *api.Client) (func(), error) {
 				if client != garland {
@@ -146,13 +149,21 @@ func (p *infoPage) restoreBackup(a *App) {
 				// Its own limit, past a single request's, and it ends as the connection does.
 				ctx, cancel := context.WithTimeout(connection, restoreLimit)
 				defer cancel()
-				err := backup.Restore(ctx, client, read, func(step string) { a.post(func() { a.progress(step) }) })
+				restored, err := backup.Restore(ctx, client, read, func(step string) { a.post(func() { a.progress(step) }) })
 				return func() {
 					c.busy = false
 					p.load(a)
 					// The power settings it may have put back: Tune and the Device page read them again.
 					a.power = garlandPower{}
 					a.device.load(a)
+					// A playlist put back replaced what was there: a draft of the old one is dropped, and the card reads the
+					// list again, as an edited card would not. One the backup lacks, or the garland refused, left the list as
+					// it was, and the draft stands; one that may have gone through keeps it too, and a save of it is held
+					// to the revision it was read with, so the garland says if the list changed.
+					if restored.Playlist == backup.PlaylistReplaced && a.effects.playlist.holds(before) {
+						a.effects.playlist.dropEdits()
+						a.effects.loadPlaylist(a)
+					}
 					if err == nil {
 						a.report(fmt.Sprintf("Restored the backup made %s from firmware %s.", read.Made, read.Firmware))
 					}
@@ -163,12 +174,12 @@ func (p *infoPage) restoreBackup(a *App) {
 }
 
 // writeWhole writes data through a file beside path, then puts it in path's place: a write that fails
-// or is cut short leaves the file there as it was, an earlier backup among them. The file beside it is
+// or is cut short leaves the file there as it was, an earlier backup or effect file among them. The file beside it is
 // this write's own, so two saves to one path at once each put only their own bytes there.
 func writeWhole(path string, data []byte) error {
 	file, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.new")
 	if err != nil {
-		return fmt.Errorf("write the backup: %w", err)
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
 	partial := file.Name()
 	_, err = file.Write(data)
@@ -177,11 +188,11 @@ func writeWhole(path string, data []byte) error {
 	}
 	if err != nil {
 		_ = os.Remove(partial)
-		return fmt.Errorf("write the backup: %w", err)
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
 	if err := os.Rename(partial, path); err != nil {
 		_ = os.Remove(partial)
-		return fmt.Errorf("write the backup: %w", err)
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }

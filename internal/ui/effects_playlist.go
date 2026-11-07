@@ -59,6 +59,30 @@ func (c *playlistCard) edited() bool {
 	return c.read && (!slices.Equal(c.list.Effects, c.saved.Effects) || c.list.Dwell != c.saved.Dwell || c.list.CrossFade != c.saved.CrossFade)
 }
 
+// draft is what the editor holds now, its effects its own, for holds to tell later whether it changed.
+func (c *playlistCard) draft() api.Playlist {
+	held := c.list
+	held.Effects = slices.Clone(c.list.Effects)
+	return held
+}
+
+// holds says the editor holds still what draft took: no edit since, and no reading taken since.
+func (c *playlistCard) holds(draft api.Playlist) bool {
+	return slices.Equal(c.list.Effects, draft.Effects) && c.list.Dwell == draft.Dwell && c.list.CrossFade == draft.CrossFade &&
+		c.list.Revision == draft.Revision
+}
+
+// dropEdits forgets a draft, as after a restore replaced the list it was a draft of: the card then holds what
+// the garland last said, and takes the next reading, and none asked before it.
+func (c *playlistCard) dropEdits() {
+	if c.read {
+		c.take(c.saved)
+	}
+	// A reading on its way is older than the restore: its answer is passed by, and a new one may go now.
+	c.sent++
+	c.loading = false
+}
+
 // loadPlaylist asks apart from the page's own load, as a garland of 1.0.0 has no such route. Only an
 // editor that holds no edit takes the answer, so a Refresh shows a list changed elsewhere and never
 // throws away the owner's.

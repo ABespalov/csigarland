@@ -10,8 +10,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -122,6 +120,10 @@ func (p *tunePage) recheck() {
 }
 
 // newEffectFile is where a new effect starts: one layer of one colour, laid out as the built-in ones.
+// tuneFileLimit bounds a file opened in Tune: well past the garland's own 4 KB, so that one a little over it
+// opens and the garland says what is wrong, and short of a file chosen by mistake.
+const tuneFileLimit = 64 << 10
+
 const newEffectFile = `{
   "format": "csigarland.effect/1",
   "name": "My effect",
@@ -161,9 +163,8 @@ func (p *tunePage) openFile(a *App) {
 		var id string
 		var idErr error
 		if err == nil && path != "" {
-			if data, err = os.ReadFile(path); err != nil {
-				err = fmt.Errorf("read the file: %w", err)
-			}
+			// Bounded, as a file chosen by mistake may be of any size: the garland takes far less.
+			data, err = readBounded(path, tuneFileLimit)
 			id, idErr = EffectIDFromPath(path)
 		}
 		a.post(func() {
@@ -203,9 +204,8 @@ func (p *tunePage) saveToDisk(a *App) {
 	go func() {
 		path, err := chooseSaveFile(a.lifetime, owner, "Save the effect file", "*.json", "Effect files (*.json)", "json", name+".json")
 		if err == nil && path != "" {
-			if err = os.WriteFile(path, []byte(text), 0o644); err != nil {
-				err = fmt.Errorf("write the file: %w", err)
-			}
+			// Whole or not at all: a save cut short leaves the file there as it was.
+			err = writeWhole(path, []byte(text))
 		}
 		a.post(func() {
 			a.choosing = false

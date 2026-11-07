@@ -13,9 +13,10 @@ tell builds apart by the hashes of what they hold.
 
 - The current limit is worked out from the owner's power settings, no longer fixed: what the supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that. A garland updated from 1.1.1 starts with 2000 mA and 20 %, so its limit stays 1400 mA. While its saved settings cannot be read, or while the LEDs' idle draw alone is over the limit, it stays dark rather than light by the defaults or past the limit, and lights once they allow.
 - An uploaded effect no longer comes back after it is uploaded again and deleted when the whole list of uploaded effects, not only one of them, could not be read at a start: until it is, an upload under an id the garland does not know is refused, 503, and the list is read again before each upload.
-- A favourite that is an uploaded effect not read at a start is no longer lost when another favourite is changed: until that effect is read, a change of a favourite is refused, 503, and once it is, it is a favourite again. So too when the flash partition of uploaded effects could not be opened at the start, which is now tried again, where until a restart its effects were missing and an upload was refused.
+- A favourite that is an uploaded effect not read at a start is no longer lost when another favourite is changed: until that effect is read, a change of a favourite is refused, 503, and once it is, it is a favourite again. So too when the flash partition of uploaded effects could not be opened at the start, which is now tried again, where until a restart its effects were missing and an upload was refused. Uploaded effects not read at a start are read again every few seconds whether or not a browser opens the portal, where they waited for one.
 - The effect the garland was left on is no longer lost to the first favourite when it is an uploaded effect not read at a start and only the power, brightness or speed is changed meanwhile: it stays the one saved, and plays once read, unless another was chosen since.
-- With a playlist left playing at a start, a change of only the power, brightness or speed no longer saves the playlist's first effect as the one the garland was left on: the effect saved stays, and plays when the playlist is stopped after a restart.
+- A playlist left playing, whose list could not be read at a start and plays once read, no longer makes a garland with no clock yet save a choice as made just then, which kept the schedule from catching up on its steps of the last day once the time was known.
+- The effect the garland was left on is no longer lost to the first favourite when the remembered choice could not be read at a start and the owner turned the garland on or off, or changed the brightness or speed, before it was: it plays once read, as chosen since. the power, brightness or speed no longer saves the playlist's first effect as the one the garland was left on: the effect saved stays, and plays when the playlist is stopped after a restart.
 - A saved time zone that cannot be read at a start is no longer replaced by the zone of the next browser to open the portal: the garland goes by UTC until it is read again, a few seconds on, and does no scheduled step meanwhile, which by UTC would come hours off, an Off from before the owner's own choice among them.
 - A new screensaver, Scheduler24, for a garland with the clock module: it flies across the screen as the Flying Clock does, with what comes next and how soon, the next scheduled action within a day or the playlist's next effect, `next: Fireplace` and `in 2h 05m`; with nothing to come, what happened last and how long ago, the start, a turn on or off, the LEDs going on or off, or a scheduled action done, `last: Off` and `3h 10m ago`. Its words wrap, and take a smaller letter, to stay within 80 % of the screen.
 - An LED at full white counts as 40 mA above 1 mA dark, by default, where it counted 55 mA: one WS2812B of the owner's garland measured 36.1 mA above 0.51 mA. So 32 LEDs on full white draw 1312 mA by the model, under the limit, and are no longer dimmed to about 78 %.
@@ -29,6 +30,7 @@ tell builds apart by the hashes of what they hold.
 
 - `GET` and `POST /api/v1/leds/power`: the power settings, and what they come to. 503 while they could not be read.
 - `/api/v1/display` takes the saver `scheduler24`, and its `GET` says `clock_module`; without the module a `POST` of it is 409.
+- `POST /api/v1/time/rtc` with a time of day by hand is 503 while a saved time zone could not be read yet, where it set the clock module hours off.
 - `GET /api/v1/effects` says `complete`, false while an uploaded effect, or a favourite's mark of one, could not be read yet.
 
 ### Utility
@@ -41,7 +43,14 @@ tell builds apart by the hashes of what they hold.
 - A restore no longer shortens the playlist or the schedule it puts back by a list of effects the garland says is not whole: it leaves out none of their effects for it, changes no favourite, and says to try again.
 - A backup is refused, to be tried again in a moment, while the garland says its list of effects is not whole, as when an uploaded effect could not be read yet: it was made without that effect, or without a favourite's mark, and called made.
 - The Device page offers the Scheduler24 screensaver, for a garland with the clock module.
+- A restore that puts the playlist back drops a draft of it on the Effects page and shows the list restored, where the draft hid it; one whose backup holds no playlist, or that the garland refused, leaves the draft, and so does an edit made while the restore ran.
+- Tune opens a file of up to 64 KB, where it read any file whole, and saves one whole or not at all, as a backup is saved.
+- Leaving a garland while the catalog of releases is read no longer reports its end on the next page, and an attempt to reach or pair a garland given up for a newer one no longer frees the newer one's buttons before it ends.
 - A backup holds the power settings, and a restore puts them back; one of a garland of 1.1.1 or before holds none, and its restore leaves the garland's own.
+
+### Site
+
+- The figurines on the main page in their order along the cable, and the current limit said as the owner's power settings give it, 1400 mA by default. The roadmap lists Scheduler24 and Tune on the garland's own chain as done for the next release.
 
 ### Build and release
 

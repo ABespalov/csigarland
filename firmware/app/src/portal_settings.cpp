@@ -23,6 +23,7 @@
 #include "rtc.h"
 #include "schedule.h"
 #include "scheduler.h"
+#include "scheduler_clock.h"
 #include "settings.h"
 
 namespace garland {
@@ -296,6 +297,11 @@ esp_err_t portal_handle_rtc_set(httpd_req_t* req) {
         LocalDateTime parsed;
         if (!rtc_parse_local(local->valuestring, parsed)) {
             return portal_send_err(req, HTTPD_400_BAD_REQUEST, "not a date and time");
+        }
+        // A time of day is in the garland's zone: while a saved one cannot be read, the clock goes by UTC, and the
+        // module would be set hours off.
+        if (!time_zone_ready()) {
+            return portal_send_status(req, "503 Service Unavailable", "The time zone saved could not be read yet: try again in a few seconds");
         }
         done = time_set_rtc_local(parsed, ClockSource::Manual);
     } else {

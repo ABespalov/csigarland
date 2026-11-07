@@ -156,6 +156,9 @@ func (p *devicePage) saveCount(a *App) {
 		budget, held, readErr := readPowerBudget(ctx, client)
 		return func() {
 			a.takeState(state)
+			if readErr == nil {
+				a.takeGarlandBudget(client, budget, held)
+			}
 			if err := p.power.takeRefresh(budget, held, readErr); err != nil {
 				a.reportError(fmt.Errorf("saved, but %w", err))
 				return

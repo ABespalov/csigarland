@@ -31,6 +31,10 @@ void playlist_apply_if_stale(State& state, const PlaylistSettings& read);
 // A list just saved, applied to the state as it was saved: no older reading can come after it.
 void playlist_apply_saved(State& state, const PlaylistSettings& saved);
 
+// How many times since the start a list left playing was resumed once it was read late: flash held it playing
+// all along, so a save of the remembered choice has nothing new to write of it. Counted after the state plays.
+uint32_t playlist_late_resumes();
+
 bool playlist_is_stale();
 
 // At a start, for a list left playing: resumed now if the list was read, else once it is, unless the owner

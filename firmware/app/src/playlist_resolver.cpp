@@ -38,6 +38,8 @@ bool s_playing_unknown = false;
 // How many effects the list holds as saved, those the catalog lacks among them. Under s_lock.
 size_t s_saved_count = 0;
 uint32_t s_last_try_ms = 0;
+// How many times a list left playing was resumed once read late, after the start: see playlist_late_resumes.
+std::atomic<uint32_t> s_late_resumes{0};
 // Static: too large for a task's stack, and used only under s_lock.
 char s_text[kPlaylistTextBytes];
 
@@ -59,6 +61,8 @@ void read_now_locked(State& state) {
     if (s_resume && !nothing_to_play_yet(state)) {
         s_resume = false;
         if (state.resume_playlist_unless_chosen()) {
+            // After the state, so that whoever sees the playlist playing and reads this after sees it counted.
+            s_late_resumes.fetch_add(1);
             ESP_LOGI(TAG, "the playlist read late plays on, as it was left");
         }
     }
@@ -140,6 +144,10 @@ void playlist_apply_saved(State& state, const PlaylistSettings& saved) {
     const std::lock_guard<std::mutex> guard(s_lock);
     apply_locked(state, saved);
     read_now_locked(state);
+}
+
+uint32_t playlist_late_resumes() {
+    return s_late_resumes.load();
 }
 
 bool playlist_is_stale() {

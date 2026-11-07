@@ -268,8 +268,10 @@ void update_scheduler_text(const State& state, const Snapshot& now, int64_t now_
     if (schedule_last_step(done_ms, name, sizeof(name))) {
         behind[3] = saver_moment(done_ms, name);
     }
-    // The turn on or off a step made, seen at the next poll, is that step.
-    saver_fold_into_step(behind[3], &behind[1], 2);
+    // The turn on or off a step made, seen at the next poll, is that step; not one of the owner's just after it,
+    // and never the rail, which note_events keeps only when it changed apart from the power.
+    const bool owner_after = saver_owner_chose_after(behind[3].at_ms, state.owner_chose(), state.owner_choice_ms());
+    saver_fold_into_step(behind[3], owner_after, &behind[1], 1);
     char text[kSaverTextBytes];
     saver_text(ahead, 2, behind, 4, now_ms, text, sizeof(text));
     saver_view_take_text(text);

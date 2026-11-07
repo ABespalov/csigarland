@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gioui.org/app"
 	"github.com/godbus/dbus/v5"
@@ -33,6 +34,8 @@ const (
 	portalResponse  = portalRequest + ".Response"
 	portalRequests  = "/org/freedesktop/portal/desktop/request/"
 	portalCancelled = 1
+	// How long a close of the dialog's request may take, at the utility's end.
+	portalCloseLimit = time.Second
 )
 
 var errNoFileDialog = errors.New("this system has neither the desktop portal nor zenity to choose a file with")
@@ -172,8 +175,11 @@ func portalChoose(ctx context.Context, owner uintptr, save bool, title, pattern,
 	for {
 		select {
 		case <-ctx.Done():
-			// The dialog goes with the utility: the request closed, which the portal answers with nothing.
-			_ = conn.Object(portalName, handle).Call(portalRequest+".Close", 0).Err
+			// The dialog goes with the utility: the request closed, which the portal answers with nothing. Bounded, as a
+			// portal that hangs must not hold the utility's end.
+			closing, cancel := context.WithTimeout(context.Background(), portalCloseLimit)
+			_ = conn.Object(portalName, handle).CallWithContext(closing, portalRequest+".Close", 0).Err
+			cancel()
 			return "", fmt.Errorf("the file dialog: %w", ctx.Err())
 		case signal, open := <-signals:
 			if !open {
@@ -239,6 +245,10 @@ func zenityChoose(ctx context.Context, save bool, title, pattern, description, s
 }
 
 func runFileDialog(ctx context.Context, owner uintptr, save bool, title, pattern, description, startName string) (string, error) {
+	// Ended already: no dialog is opened, nor the session bus asked.
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("the file dialog: %w", err)
+	}
 	path, err := portalChoose(ctx, owner, save, title, pattern, description, startName)
 	if errors.Is(err, errNoPortal) {
 		return zenityChoose(ctx, save, title, pattern, description, startName)

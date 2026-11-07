@@ -70,10 +70,15 @@ char s_favorites_text[kFavoritesTextBytes];
 
 // The favourites read, or none saved, onto the catalog as it is now.
 void take_favorites(State& state, bool loaded) {
+    // What is unknown is looked at before the mask is made, and whether all uploads are read before that: the
+    // catalog only gains uploads while they are read, so every name known then is in the mask, and a reading
+    // that comes between can only leave the list partial a while longer, never whole without a mark it names.
+    const bool all_read = effect_store_all_read();
+    const bool partial = loaded && !all_read && favorites_name_unknown(s_favorites_text);
     // Every saved effect may be gone from a newer catalog; then the defaults count again.
     const EffectMask saved = loaded ? favorites_from_text(s_favorites_text) : EffectMask{};
     state.set_favorites(saved.any() ? saved : catalog_default_favorites());
-    s_favorites_partial.store(loaded && !effect_store_all_read() && favorites_name_unknown(s_favorites_text));
+    s_favorites_partial.store(partial);
 }
 
 bool read_favorites(State& state) {
@@ -164,10 +169,11 @@ bool looks_favorites_whole(State& state) {
     if (!read_favorites(state)) {
         return false;
     }
-    // The effects they named are read, or all are and the rest are gone: the list read, onto the catalog as it
-    // is. From what was read, not flash again, whose reading could fail this time: nothing was saved meanwhile,
-    // as a save waits for this. Other uploads not read yet keep nothing back.
-    if (s_favorites_partial.load() && (effect_store_all_read() || !favorites_name_unknown(s_favorites_text))) {
+    // The list read, onto the catalog as it is now, while any it names may still be unread: those read since get
+    // their mark at once, and it is whole once the rest are read, or all are and the rest are gone. From what was
+    // read, not flash again, whose reading could fail this time: nothing was saved meanwhile, as a save waits
+    // for this.
+    if (s_favorites_partial.load()) {
         take_favorites(state, true);
     }
     return !s_favorites_unread.load() && !s_favorites_partial.load();

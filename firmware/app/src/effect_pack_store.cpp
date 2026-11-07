@@ -55,7 +55,12 @@ bool digest_of_pack(const esp_partition_t* slot, size_t bytes, std::array<uint8_
         done += length;
     }
     size_t length = 0;
-    return psa_hash_finish(&hash, digest.data(), digest.size(), &length) == PSA_SUCCESS && length == digest.size();
+    if (psa_hash_finish(&hash, digest.data(), digest.size(), &length) != PSA_SUCCESS) {
+        // A finish that failed leaves the operation to be aborted, and the hardware it holds let go, as ota.cpp does.
+        psa_hash_abort(&hash);
+        return false;
+    }
+    return length == digest.size();
 }
 
 const char* check_mapped(const esp_partition_t* slot, size_t bytes) {

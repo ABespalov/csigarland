@@ -282,10 +282,11 @@ func (p *connectPage) fetchRoot(a *App) {
 		defer cancel()
 		root, err := api.FetchRoot(ctx, address)
 		a.post(func() {
-			p.busy = false
+			// A newer attempt, or leaving, owns busy now: this one leaves it as it is.
 			if generation != p.pairing.Load() {
 				return
 			}
+			p.busy = false
 			if err != nil {
 				a.reportError(err)
 				return
@@ -366,11 +367,12 @@ func (p *connectPage) startPairing(a *App) {
 			asked, err = client.RequestPairing(ctx, ClientLabel(host))
 		}
 		a.post(func() {
-			p.busy = false
+			// A newer attempt, or leaving, owns busy now: this one leaves it as it is.
 			if generation != p.pairing.Load() {
 				client.Close()
 				return
 			}
+			p.busy = false
 			if err != nil {
 				client.Close()
 				var failure *api.Error

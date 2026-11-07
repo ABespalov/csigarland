@@ -296,6 +296,9 @@ int catalog_install(const EffectSpec& spec) {
 }
 
 void catalog_remove(size_t position) {
+    if (position >= s_positions.size()) {
+        return;
+    }
     s_positions[position].store(nullptr);
     s_revisions[position].fetch_add(1);
 }
@@ -322,15 +325,15 @@ size_t catalog_planned_size() {
 }
 
 const char* catalog_planned_id(size_t index) {
-    return s_planned[index].id;
+    return index < s_planned_count ? s_planned[index].id : "";
 }
 
 const char* catalog_planned_name(size_t index) {
-    return s_planned[index].name;
+    return index < s_planned_count ? s_planned[index].name : "";
 }
 
 const char* catalog_planned_group(size_t index) {
-    return s_planned[index].group;
+    return index < s_planned_count ? s_planned[index].group : "";
 }
 
 // Whatever the owner uploaded, a replacement for a built-in effect too, which goes back when restored.

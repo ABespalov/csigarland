@@ -88,10 +88,16 @@ inline void saver_span_text(int64_t seconds, char* out, size_t size) {
 // off after the scheduled step that made it, which the screen sees at its next poll.
 constexpr int64_t kSaverFollowsMs = 5000;
 
-// A turn on or off, or the rail with it, that came of the scheduled step: within kSaverFollowsMs after it, and
-// not before. Left out, so the step is told by its own name, "Fireplace", not as "On".
-inline void saver_fold_into_step(const SaverMoment& step, SaverMoment* events, size_t count) {
-    if (!step.known) {
+// Whether the owner chose anything within kSaverFollowsMs after the step, by the uptime clock of choices, which
+// is 32 bits and wraps: a turn on or off then is the owner's, and no part of the step.
+inline bool saver_owner_chose_after(int64_t step_ms, bool chose, uint32_t choice_ms) {
+    return chose && static_cast<uint32_t>(choice_ms - static_cast<uint32_t>(step_ms)) < kSaverFollowsMs;
+}
+
+// A turn on or off that came of the scheduled step: within kSaverFollowsMs after it, and not before, with no
+// choice of the owner's then. Left out, so the step is told by its own name, "Fireplace", not as "On".
+inline void saver_fold_into_step(const SaverMoment& step, bool owner_chose_after, SaverMoment* events, size_t count) {
+    if (!step.known || owner_chose_after) {
         return;
     }
     for (size_t i = 0; i < count; ++i) {
