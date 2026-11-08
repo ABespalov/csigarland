@@ -71,7 +71,7 @@ To use other pins, change the `CSIGARLAND_*_GPIO` flags in [`platformio.ini`](..
 | 4 | M3 × 6 button-head hex screws | From the bottom |
 | 4 | M2 × 10 screws | Hold U1 to its posts |
 | 4 | Rubber feet, Ø8 mm | |
-| 1 set | Hook-up wire, heat-shrink, hot glue | Mains wire rated for at least 300 V, such as 0.5-0.75 mm². 22-24 AWG for the 5 V rail, as it carries up to 1.4 A plus the board |
+| 1 set | Hook-up wire, heat-shrink, hot glue | Mains wire rated for at least 300 V, such as 0.5-0.75 mm². 22-24 AWG for the 5 V rail. It carries the owner's limit, 1.4 A by default and at most about 3.9 A, plus the board, so the wire, J2 and the supply must be rated for that limit |
 
 ### Garland
 
@@ -113,7 +113,7 @@ Leave the board out of its posts until step 3 of the checks below has passed.
 
 Use flexible stranded wire, 20 to 26 AWG, silicone-insulated if you can get it, as the garland is handled and hung every year. Solid wire breaks at the pads. Three colours make the wiring hard to get wrong: red `+5V`, black `GND`, any other for data.
 
-**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated, not measured, for the current spread evenly along the chain, counting both `+5V` and `GND`. 1400 mA is the most the firmware allows with the 2000 mA supply at its default margin, and typical effects draw about half of that. A larger supply set on the Device page raises the limit, and the drop with it.
+**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated, not measured, for the current spread evenly along the chain, counting both `+5V` and `GND`. 1400 mA is the most the firmware allows with the 2000 mA supply at its default margin, and typical effects draw about half of that. A larger supply set on the Device page raises the limit, and the drop with it, up to about 3.9 A: the wire, J2 and the supply must be rated for the limit set.
 
 | Wire | Section | Resistance of one wire | Drop per metre of garland, at 1400 mA | The same, at 700 mA | Longest garland, for 1 V at 1400 mA |
 |---|---|---|---|---|---|

@@ -20,11 +20,14 @@
 #
 #   -Force
 #       Replace existing certificates with a new root and signing certificate. The old
-#       root key is gone after this, and a board whose firmware trusts the old root takes
-#       the next firmware over USB only.
+#       root key is gone after this. Firmware trusts one root, and nothing here builds one
+#       that trusts two, so a sealed garland on the old root takes no update signed under the
+#       new one: keep the root, and use -RenewSigning, for a new signing key. A garland still
+#       open on the bench can be flashed. The script asks for the word REPLACE.
 #
 # A first run makes both. It asks for a passphrase that protects the root key, and nothing
-# recovers either: without the root key and passphrase, boards can only be updated over USB.
+# recovers either: without the root key and passphrase, a sealed garland cannot take another
+# update.
 # Everything goes to cert/ at the repository root. Keep the root key and the passphrase
 # apart, off this machine. Builds need only:
 #   cert/ota-root-ca.local.crt, cert/ota-signing.local.key, cert/ota-signing.local.crt
@@ -40,7 +43,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidatePattern('^([A-Z]{2})?$')][string]$Country = '',
+    [string]$Country = '',
     [string]$Organization = '',
     [string]$Person = '',
     [string]$Email = '',
@@ -66,6 +69,9 @@ function Invoke-Tool {
     }
 }
 
+if ($Country -cnotmatch '^([A-Z]{2})?$') {
+    throw "Country is two capital letters, not $Country."
+}
 if ($RenewSigning -and $Force) {
     throw '-RenewSigning keeps the root and -Force replaces it. Choose one.'
 }
@@ -75,6 +81,12 @@ if ($RenewSigning) {
     }
 } elseif (-not $Force -and ((Test-Path -LiteralPath $RootKey) -or (Test-Path -LiteralPath $SigningKey))) {
     throw 'Certificates exist already, and a new root would lock out every board that trusts this one. -RenewSigning replaces the signing key only, -Force replaces everything.'
+}
+if ($Force -and ((Test-Path -LiteralPath $RootKey) -or (Test-Path -LiteralPath $SigningKey))) {
+    $typed = Read-Host 'Type REPLACE to replace the root. Firmware trusts one root, and nothing here builds one that trusts two, so a sealed garland on the old root takes no update signed under the new one.'
+    if ($typed -cne 'REPLACE') {
+        throw 'The root was not replaced.'
+    }
 }
 
 $Python = Get-csiGarlandSigningPython
@@ -113,5 +125,5 @@ if (-not $IsWindows) {
 }
 Write-Host "Done. Keep $RootKey and its passphrase apart, off this machine."
 if (-not $RenewSigning) {
-    Write-Host 'Firmware built now trusts this root; a board on older firmware takes it over USB once.'
+    Write-Host 'Firmware built now trusts this root alone. A sealed garland on the old root takes no update signed under it.'
 }

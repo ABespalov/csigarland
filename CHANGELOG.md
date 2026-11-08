@@ -11,20 +11,25 @@ tell builds apart by the hashes of what they hold.
 
 ### Firmware
 
+- A saved domain recovered by the HTTPS startup retries also becomes available to plain HTTP and open API routes, even if the HTTPS keys still cannot be read; those routes no longer refuse the owner's domain until a restart.
 - The current limit is worked out from the owner's power settings, no longer fixed: what the supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that. A garland updated from 1.1.1 starts with 2000 mA and 20 %, so its limit stays 1400 mA. While its saved settings cannot be read, or while the LEDs' idle draw alone is over the limit, it stays dark rather than light by the defaults or past the limit, and lights once they allow.
 - An uploaded effect no longer comes back after it is uploaded again and deleted when the whole list of uploaded effects, not only one of them, could not be read at a start: until it is, an upload under an id the garland does not know is refused, 503, and the list is read again before each upload.
 - A favourite that is an uploaded effect not read at a start is no longer lost when another favourite is changed: until that effect is read, a change of a favourite is refused, 503, and once it is, it is a favourite again. So too when the flash partition of uploaded effects could not be opened at the start, which is now tried again, where until a restart its effects were missing and an upload was refused. Uploaded effects not read at a start are read again every few seconds whether or not a browser opens the portal, where they waited for one.
 - The effect the garland was left on is no longer lost to the first favourite when it is an uploaded effect not read at a start and only the power, brightness or speed is changed meanwhile: it stays the one saved, and plays once read, unless another was chosen since.
 - A playlist left playing, whose list could not be read at a start and plays once read, no longer makes a garland with no clock yet save a choice as made just then, which kept the schedule from catching up on its steps of the last day once the time was known.
-- The effect the garland was left on is no longer lost to the first favourite when the remembered choice could not be read at a start and the owner turned the garland on or off, or changed the brightness or speed, before it was: it plays once read, as chosen since. the power, brightness or speed no longer saves the playlist's first effect as the one the garland was left on: the effect saved stays, and plays when the playlist is stopped after a restart.
+- The effect the garland was left on is no longer lost to the first favourite when the remembered choice could not be read at a start and the owner turned the garland on or off, or changed the brightness or speed, before it was: it plays once read, as chosen since.
+- With a playlist left playing, a change of only the power, brightness or speed no longer saves the playlist's first effect as the one the garland was left on: the effect saved stays, and plays when the playlist is stopped after a restart.
 - A saved time zone that cannot be read at a start is no longer replaced by the zone of the next browser to open the portal: the garland goes by UTC until it is read again, a few seconds on, and does no scheduled step meanwhile, which by UTC would come hours off, an Off from before the owner's own choice among them.
 - A new screensaver, Scheduler24, for a garland with the clock module: it flies across the screen as the Flying Clock does, with what comes next and how soon, the next scheduled action within a day or the playlist's next effect, `next: Fireplace` and `in 2h 05m`; with nothing to come, what happened last and how long ago, the start, a turn on or off, the LEDs going on or off, or a scheduled action done, `last: Off` and `3h 10m ago`. Its words wrap, and take a smaller letter, to stay within 80 % of the screen.
 - An LED at full white counts as 40 mA above 1 mA dark, by default, where it counted 55 mA: one WS2812B of the owner's garland measured 36.1 mA above 0.51 mA. So 32 LEDs on full white draw 1312 mA by the model, under the limit, and are no longer dimmed to about 78 %.
+- The power supply can be set from 500 to 4400 mA, so the limit stays under the 4.3 A of the LED switch, at most 3942 mA, and 1400 mA by default. Saved power settings that are not valid no longer stand in as the defaults: the garland runs on the most cautious ones, a 200 mA limit, until they are saved again.
+- A new firmware confirms itself only after it has answered a request of a paired browser or program, at the end of its first minute if one came, a refusal not counting, and otherwise waits up to 10 minutes and then goes back to the previous firmware. Keep the Firmware page, the utility or the build machine's script open until it says the update is done.
 
 ### Portal
 
 - The Device page sets the power supply, what one LED draws at full white and dark, and the margin, and works out as they are typed the limit, what the chain draws at full white, and how many LEDs that leaves undimmed.
 - The Device page offers the Scheduler24 screensaver with the clock module, and says it needs one without.
+- The Device page warns when the saved power settings could not be used. After a firmware update that confirmed itself, the Firmware page opens Info. A browser paired on plain HTTP pairs again once HTTPS is up.
 
 ### Public API
 
@@ -32,9 +37,12 @@ tell builds apart by the hashes of what they hold.
 - `/api/v1/display` takes the saver `scheduler24`, and its `GET` says `clock_module`; without the module a `POST` of it is 409.
 - `POST /api/v1/time/rtc` with a time of day by hand is 503 while a saved time zone could not be read yet, where it set the clock module hours off.
 - `GET /api/v1/effects` says `complete`, false while an uploaded effect, or a favourite's mark of one, could not be read yet.
+- `GET` and `POST /api/v1/leds/power` add `invalid_record`, true when the saved settings could not be used and the cautious ones stand in. The supply is 500 to 4400 mA.
 
 ### Utility
 
+- Tune hides its earlier current chart and conclusion while recalculating after a file, power model or LED count changes, and keeps showing the preview's current demand.
+- Cancelling an update that was not installed leaves the utility on Firmware and does not start an API check; only a confirmed installation does.
 - The Device page has the power settings, for a garland that has them.
 - The preview and Tune draw as many LEDs as the garland connected to sends to, where they always drew 32, and Tune works the current out for that many: a garland set to 100 LEDs showed 32 and their current. A long chain is drawn smaller, numbered every few LEDs where the numbers would run together; with no garland it is 32.
 - Tune's chart draws the part of a frame past the limit in the limit's red, the rest blue, where the whole frame was amber, and keeps the limit's line below its top edge.
@@ -47,6 +55,7 @@ tell builds apart by the hashes of what they hold.
 - Tune opens a file of up to 64 KB, where it read any file whole, and saves one whole or not at all, as a backup is saved.
 - Leaving a garland while the catalog of releases is read no longer reports its end on the next page, and an attempt to reach or pair a garland given up for a newer one no longer frees the newer one's buttons before it ends.
 - A backup holds the power settings, and a restore puts them back; one of a garland of 1.1.1 or before holds none, and its restore leaves the garland's own.
+- The Device page warns when the saved power settings could not be used, and takes the ranges the garland sends. After a firmware update that confirmed itself, the utility opens Info. Tune's chart is worked out off the window.
 
 ### Site
 
@@ -56,6 +65,7 @@ tell builds apart by the hashes of what they hold.
 
 - `flash-device.ps1` refuses a build that recorded no zlib, as `flash-device.sh` does, where it wrote an empty one or failed on it. `new-third-party-notices.ps1` says when Go is missing, and fetches a module from anywhere it is run, as its bash version does. The digest of the engine's sources sorts them as the bash version does whatever the computer's language, the same digest as before for today's files.
 - `build-utility.ps1`, `flash-device.ps1` and `ota-update.ps1` let go of their build lock however they end, also when run inside another script's PowerShell, as `run.ps1` runs `build-utility.ps1`: a build after it, the Linux one in its container too, found the lock held until that PowerShell was closed.
+- `ota-update` waits up to 12 minutes for a new firmware to confirm, and uses only a numeric pairing wait of 1 to 600 seconds. Replacing the signing root asks for the word REPLACE, and says a sealed garland needs a firmware that trusts both roots first.
 
 ## [1.3.0] - 2026-11-06
 
@@ -201,7 +211,7 @@ The first release: firmware 1.0.0.102 and the csiGarland utility 1.0.0.27 for Wi
 ### Firmware
 
 - 32 WS2812B LEDs by default, chains of up to 256 set by hand or estimated by a probe on the gated rail, with the 1400 mA limit applied to every frame and the power sequence of data low, gate, output.
-- 154 effects in groups, from 98 algorithms in up to four layers, in an effects pack apart from the firmware with room for 512, favourites for the EFFECT button, and up to 32 effects uploaded or previewed from files.
+- 154 effects in groups, from 98 algorithms in up to four layers, in an effects pack apart from the firmware, which holds up to 256 effects, in flash slots with room for 512 of today's size, favourites for the EFFECT button, and up to 32 effects uploaded or previewed from files.
 - Three buttons, POWER, EFFECT and SPEED, with brightness steps, the off countdown and pairing; the screen in the csiPass design, with screensavers.
 - Home Wi-Fi, a setup network with its password on the screen, a captive portal and mDNS; NTP time, an optional DS3231 clock module, and a schedule of up to 32 actions in the garland's time zone, where a choice made by hand outranks the steps before it.
 - HTTPS with each garland's own root and certificates, made on the board, and browsers and programs paired by a press on the garland.

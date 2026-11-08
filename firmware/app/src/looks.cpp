@@ -109,17 +109,18 @@ bool read_display(State& state) {
 }
 
 // Read, or found to be none, which then takes the defaults, the limit of the releases before these settings,
-// and either way known: until then the Lighting task keeps the rail off, as the defaults may allow more
-// current than what the owner saved.
+// or found not valid, which takes the most cautious, and either way known: until then the Lighting task keeps the
+// rail off, as the defaults may allow more current than what the owner saved.
 bool read_power(State& state) {
     if (!s_power_unread.load()) {
         return true;
     }
     PowerSettings power;
-    if (settings_read_power(power) == StoredRead::Unreadable) {
+    bool invalid = false;
+    if (settings_read_power(power, invalid) == StoredRead::Unreadable) {
         return false;
     }
-    state.set_power(power);
+    state.set_power(power, invalid);
     s_power_unread.store(false);
     return true;
 }

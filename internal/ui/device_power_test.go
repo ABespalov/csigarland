@@ -30,12 +30,12 @@ func TestThePowerCardReadsWhatIsTyped(t *testing.T) {
 	if page.power.held {
 		t.Fatal("a garland without power settings has the card")
 	}
-	budget := api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 250, LimitMilliamps: 4275, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 115}
+	budget := api.PowerBudget{SupplyMilliamps: 4000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, BoardMilliamps: 250, LimitMilliamps: 3375, Leds: 32, PeakMilliamps: 1184, UndimmedLeds: 91}
 	page.power.take(budget, true)
 	// What the page read or saved is what Tune goes by, for this garland, at once.
 	a := &App{client: &api.Client{}}
 	a.takeGarlandBudget(a.client, budget, true)
-	if !page.power.held || engine.LimitMilliamps() != 4275 || !a.garlandPowerKnown() {
+	if !page.power.held || engine.LimitMilliamps() != 3375 || !a.garlandPowerKnown() {
 		t.Fatalf("held %v, Tune's limit %d, known %v", page.power.held, engine.LimitMilliamps(), a.garlandPowerKnown())
 	}
 	// A garland of 1.1.1 or before, which has no settings: the model of its release.
@@ -44,11 +44,11 @@ func TestThePowerCardReadsWhatIsTyped(t *testing.T) {
 		t.Fatalf("%+v", engine.PowerInUse())
 	}
 	words := PowerText(page.power.last)
-	if !strings.Contains(words, "Limit 4275 mA") || !strings.Contains(words, "draw 1184 mA, under the limit") || !strings.Contains(words, "up to 115 LEDs") {
+	if !strings.Contains(words, "Limit 3375 mA") || !strings.Contains(words, "draw 1184 mA, under the limit") || !strings.Contains(words, "up to 91 LEDs") {
 		t.Fatalf("%q", words)
 	}
 	wanted, err := page.power.read()
-	if err != nil || wanted.SupplyMilliamps != 5000 || wanted.WhiteMilliamps != 36 || wanted.IdleMilliamps != 1 || wanted.MarginPercent != 10 {
+	if err != nil || wanted.SupplyMilliamps != 4000 || wanted.WhiteMilliamps != 36 || wanted.IdleMilliamps != 1 || wanted.MarginPercent != 10 {
 		t.Fatalf("%+v, %v", wanted, err)
 	}
 	page.power.margin.SetText("ten")
@@ -86,7 +86,7 @@ func TestTuneShowsNoCurrentOfAnotherGarland(t *testing.T) {
 		answer(t, w, api.PowerBudget{SupplyMilliamps: 500, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20, LimitMilliamps: 200})
 	})
 	// The garland before it left its own model in the engine.
-	_ = engine.SetPower(engine.Power{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10})
+	_ = engine.SetPower(engine.Power{SupplyMilliamps: 4000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10})
 	a.power = garlandPower{}
 	if a.garlandPowerKnown() {
 		t.Fatal("the model of no garland read is taken for this one's")
@@ -100,7 +100,7 @@ func TestTuneShowsNoCurrentOfAnotherGarland(t *testing.T) {
 	}
 	a.readGarlandPower()
 	wait(func() bool { return a.power.client == a.client })
-	if a.garlandPowerKnown() || engine.LimitMilliamps() != 4275 {
+	if a.garlandPowerKnown() || engine.LimitMilliamps() != 3375 {
 		t.Fatalf("known %v after a 503, limit %d", a.garlandPowerKnown(), engine.LimitMilliamps())
 	}
 	// Asked again, as Tune does while it shows none, once the garland can read them.

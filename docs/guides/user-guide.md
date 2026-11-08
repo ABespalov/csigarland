@@ -61,7 +61,7 @@ Open to anyone with no pairing: the pages themselves, which hold no data until t
 The garland is its own small certificate authority, so a browser warns until its root is installed. Do this once per device.
 
 1. Download `csigarland-root.crt` from the Network page. The pairing page links to it too, as a browser may warn before you have paired.
-2. Compare its fingerprint with the SHA-256 on the Network page. That is the hash of the certificate itself, not of the file: on Windows `certutil -dump csigarland-root.crt` shows it as `Cert Hash(sha256)`, elsewhere `openssl x509 -in csigarland-root.crt -noout -fingerprint -sha256`. Compare it with the one on the page, and if you can, with the `root SHA-256` line of the [board's log](build-and-flash.md#what-a-good-first-start-looks-like). The log over USB is the check that nobody stood between you and the garland: the page comes over the same connection as the file. On a closed unit there is no such check: `temp/trial-log.<time>.txt` holds the same line, but it comes over the same network too, so it shows only that the page and the log agree. Install the root while on a network you trust.
+2. Compare its fingerprint with the SHA-256 on the Network page. That is the hash of the certificate itself, not of the file: on Windows `certutil -dump csigarland-root.crt` shows it as `Cert Hash(sha256)`, elsewhere `openssl x509 -in csigarland-root.crt -noout -fingerprint -sha256`. The page comes over the same connection as the file, so a match shows that the file is the one the page names, not that nobody stood between you and the garland: install the root while on a network you trust. Whoever built the garland can also hold it to the board's log, as [Building](build-and-flash.md#checking-the-root-against-the-log) says.
 3. Install it:
 
 | System | Steps |
@@ -114,7 +114,7 @@ The footer shows the portal's address. In the LED count, `N` is set by hand, `~N
 
 <img src="../images/screens/playing-playlist.png" width="200" alt="Playing screen with the playlist's place in the title"><br>Playing the playlist: where it stands, here the last of 16.
 
-The screensavers, chosen on the Device page. Black Screen turns the backlight off, and None keeps the screen above.
+The screensavers, chosen on the Device page. Black Screen turns the backlight off, and None keeps the screen above. Scheduler24, for a garland with the clock module, is new in firmware 1.4.0.
 
 | | | |
 |---|---|---|
@@ -161,8 +161,23 @@ The garland comes back from a power cut as it was left. Then, at the first time 
 <img src="../images/portal/device.png" width="360" alt="The Device page">
 
 * **LED count:** detected automatically, or set by hand, 1 to 256. An exact count cannot be detected, so if the figure is wrong, set it.
-* **Power:** the garland dims a frame that would draw more than its limit, as a whole. The limit is what your power supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of 5-20 % of that: (2000 - 250) * 80 % = 1400 mA with the 2000 mA supply and the 20 % it comes with. Set what one LED draws at full white, above what it draws dark, and dark: 40 mA and 1 mA unless your LEDs were measured otherwise. The page works out the limit as you type, what the chain draws at full white, and how many LEDs show full white with nothing dimmed. A larger supply, or a smaller margin, lets more of the chain show full white; set only what your supply really gives. The garland stays dark, and lights by itself once that changes, while these settings cannot be read, or while what the chain draws dark alone, as many LEDs times the dark figure, is over the limit, which dimming cannot help: the page then says so in place of what full white draws.
-* **Screen:** its brightness, and the screensaver: None, Starfield, Flying Clock, Breathing Dot, Black Screen or, with the clock module, Scheduler24, its delay of 10-600 s and its brightness. Saved and applied at once. Scheduler24 flies across the screen as the clock does, with what comes next and how soon: the next scheduled action within a day, or the playlist's next effect while it plays, whichever is sooner, as `next: Fireplace` and `in 2h 05m`. With nothing to come, it says what happened last and how long ago: the garland's start, a turn on or off by any button, page or action, the LEDs going on or off apart from that, as when the power settings hold them off, or a scheduled action done, as `last: Off` and `3h 10m ago`. Its words take no more than 80 % of the screen's width, wrapping to more lines up to 80 % of its height, and past that a smaller letter.
+* **Power,** new in firmware 1.4.0: the garland dims a frame that would draw more than its limit, as a whole. Up to 1.1.1 the limit is a fixed 1400 mA, and the page has no power settings.
+  * **The limit** is what your power supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of that: (2000 - 250) * 80 % = 1400 mA with the 2000 mA supply and the 20 % it comes with. At most it is (4400 - 250) * 95 % = 3942 mA, about 3.9 A.
+  * **Power supply:** 500 to 4400 mA, 2000 mA by default. A larger supply, or a smaller margin, lets more of the chain show full white. **Set only what your supply, the garland's wire and its connector are all rated for:** the limit goes by these figures alone, and cannot know what the parts can take.
+  * **One LED at full white,** above what it draws dark: 5 to 100 mA, 40 mA by default.
+  * **One LED dark:** 0 to 5 mA, 1 mA by default. Keep both defaults unless your LEDs were measured otherwise.
+  * **Margin:** 5 to 20 %, 20 % by default.
+  * **As you type,** the page works out the limit, what the chain draws at full white, and how many LEDs show full white with nothing dimmed.
+  * **The garland stays dark,** and lights by itself once that changes, while these settings cannot be read, or while what the chain draws dark alone, as many LEDs times the dark figure, is over the limit, which dimming cannot help. The page then says so in place of what full white draws.
+  * **Saved settings that are not valid** give the most cautious ones: a 500 mA supply, 100 mA at full white, 5 mA dark and a 20 % margin, a limit of 200 mA. The Device page, in the portal and in the utility, warns of it until you save the settings again.
+* **Screen:** saved and applied at once.
+  * **Its brightness.**
+  * **The screensaver:** None, Starfield, Flying Clock, Breathing Dot, Black Screen or, with the clock module, Scheduler24, new in firmware 1.4.0.
+  * **The screensaver's delay,** 10-600 s, and **its brightness.**
+* **Scheduler24,** new in firmware 1.4.0, flies across the screen as the clock does:
+  * **What comes next and how soon:** the next scheduled action within a day, or the playlist's next effect while it plays, whichever is sooner, as `next: Fireplace` and `in 2h 05m`.
+  * **With nothing to come, what happened last and how long ago:** the garland's start, a turn on or off by any button, page or action, the LEDs going on or off apart from that, as when the power settings hold them off, or a scheduled action done, as `last: Off` and `3h 10m ago`.
+  * **Its words** take no more than 80 % of the screen's width, wrapping to more lines up to 80 % of its height, and past that a smaller letter.
 
 ### Network
 
@@ -208,40 +223,33 @@ There is no power switch on a page: that is on the buttons and the schedule, tho
 
 ## 10. Updates
 
-A garland takes an update file signed under the root its firmware holds. **The published releases** are on the [Downloads](https://garland.csilab.am/downloads.html) page and in the utility's catalog, signed under the project's root, for a garland whose firmware is a release. A garland you built and flashed with keys of your own takes your own builds: see [Building](build-and-flash.md).
+A garland takes an update file signed under the root its firmware holds.
 
-**From the portal:** the [Firmware page](#firmware).
+* **The published releases** are on the [Downloads](https://garland.csilab.am/downloads.html) page and in the utility's catalog, signed under the project's root, for a garland whose firmware is a release. A release's update file, `csigarland-<version>.ota`, carries the firmware and the effects.
+* **A garland you built and flashed with keys of your own** takes your own builds: see [Building](build-and-flash.md).
 
-**From the build machine:**
+Where to install one from:
 
-```bash
-pwsh -File deploy\ota-update.ps1 -Address csigarland.local
-```
-
-| Add | Sends |
-|---|---|
-| Nothing | A new build: firmware and effects |
-| `-NoBuild` | The last build, with no new build number. With both a Release and a Dev build on the computer, add `-BuildProfile Release` or `-BuildProfile Dev` to say which. A build whose firmware is not of that profile and of this checkout's version, such as one left from 1.0.0, is refused: send it with `-File` if it is meant |
-| `-FirmwareOnly` | Firmware. The effects on the garland stay |
-| `-EffectsOnly` | Only the effects, with no build |
-| `-File <path>` | That file as it is |
-| `-WhatIf` | Nothing: only says what the file holds |
-| `-Insecure` | The same, with no check of who answers, and plain HTTP if HTTPS does not answer |
-
-The first time, the script pairs like a browser, so be at the garland to press POWER and SPEED. It keeps its token in `deploy/portal-token.local.txt`, for the same 100 days.
-
-The script checks the garland's certificate against this computer's trusted roots, so [install its root](#5-stopping-the-certificate-warning) first and use its name. Otherwise it stops before sending anything. `-Insecure` is for reaching it by address or when its HTTPS has failed, and is the way out if the check ever stands between you and an update. Anyone on the network between could then read the token and fake the confirmation, though the garland still refuses a file not signed under its root.
+* **The portal:** the [Firmware page](#firmware).
+* **The utility:** its Firmware page, from a file or the catalog of releases, as [its guide](utility.md) says.
+* **The build machine,** for a garland you built: `ota-update.ps1`, in [Building](build-and-flash.md#10-updates-from-the-build-machine).
 
 **What happens:**
 
 1. The garland refuses anything not signed under its root, before touching flash. The running firmware carries on.
-2. The screen shows the progress. The LEDs hold their last frame.
-3. It restarts. A new firmware has its **first minute on trial**, and confirms itself if it started a server through which the next update can come, and its buttons and screen.
-4. If it restarts for any reason in that minute, a power cut included, the previous firmware comes back. **So do not unplug it during that minute.**
+2. The screen shows the progress, receiving and then applying the update. The LEDs hold their last frame.
+3. It restarts, and the new firmware is **on trial**:
+   * **A firmware of 1.4.0 or later** confirms itself only once it has also answered a request of a paired browser or program over the network, as the Firmware page, the utility and the build machine's script send while they wait for it; a refusal does not count. With no such request within 10 minutes, it goes back to the previous firmware. **So keep the page or the utility open until it says the update is done.**
+   * **A firmware of 1.1.1 or before** has its first minute on trial, and confirms itself if it started a server through which the next update can come, and its buttons and screen.
+4. If it restarts for any reason while on trial, a power cut included, the previous firmware comes back. **So do not unplug it until the update is done.**
 
-The page and the script report success only when the garland has restarted, runs exactly what was sent, told by the image's hash and the effects' digest rather than the version, and has confirmed it. They say so if it went back.
+| | | |
+|---|---|---|
+| <img src="../images/screens/update-receiving.png" width="200" alt="Update being received"><br>Receiving | <img src="../images/screens/update-applying.png" width="200" alt="Update being applied"><br>Applying: do not turn it off | <img src="../images/screens/update-restarting.png" width="200" alt="Update installed"><br>Installed, restarting |
 
-**On a closed unit, with no USB to read a log,** the script prints the log of the firmware on trial as it starts, and saves it in `temp/trial-log.<time>.txt`. A firmware that cannot start HTTPS stays up on plain HTTP so that the next update can reach it. The script falls back to that with a warning, and the token then travels unencrypted, so do it from your home network.
+The page and the utility report success only when the garland has restarted, runs exactly what was sent, told by the image's hash and the effects' digest rather than the version, and has confirmed it. They say so if it went back. The utility from 1.4.0, and the Firmware page of a garland running 1.4.0 or later, then show the [Info page](#info) by themselves.
+
+A firmware that cannot start HTTPS stays up on plain HTTP so that the next update can reach it, and the Info page says **HTTPS: Not working**.
 
 ## 11. When Something Goes Wrong
 
@@ -255,8 +263,8 @@ The page and the script report success only when the garland has restarted, runs
 | Forgot the setup password | It is on the screen whenever that network runs |
 | Lost a phone | POWER and SPEED held for 10 s |
 | Screen amber, says no LEDs | Check the garland's plug. If the garland works regardless, set the LED count on the Device page: detection only advises |
-| A single effect, Warm white, plays | No readable effects pack. Install `effects.ota` |
-| `Not installed: ... went back to the previous firmware` | The new firmware failed its first minute. Its log is in `temp/`. Nothing is lost, and another try is safe |
+| A single effect, Warm white, plays | No readable effects pack. Install the release's update file from Downloads, which carries the firmware and the effects, or `effects.ota` from your own build |
+| `Not installed: ... went back to the previous firmware` | The new firmware failed its trial, or, from 1.4.0, was asked nothing within 10 minutes of its restart. Nothing is lost, and another try is safe: keep the page or the utility open until it says done. From the build machine, the script keeps the trial's log under `temp/`, as [Building](build-and-flash.md#10-updates-from-the-build-machine) says |
 | The schedule does nothing | The clock is not set: see the Schedule page. It needs the internet or a clock module |
 
 Anything needing USB is in [Building](build-and-flash.md#9-when-something-goes-wrong).

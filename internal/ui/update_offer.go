@@ -28,7 +28,7 @@ type updateOffer struct {
 	later   widget.Clickable
 }
 
-const offerWords = "It is downloaded, held to the catalog's SHA-256, and sent to the garland, which checks its signature, restarts, and confirms the new firmware after its first minute or goes back to this one. Settings, pairings and uploaded effects stay."
+const offerWords = "It is downloaded, held to the catalog's SHA-256, and sent to the garland, which checks its signature, restarts, and confirms the new firmware once it has answered a paired request after its first minute, or goes back to this one. Settings, pairings and uploaded effects stay."
 
 // lookForUpdate asks the garland what it runs and the catalog what is released, and offers the newest
 // release if it is newer. A catalog out of reach, as with no internet, is no failure of the garland's,

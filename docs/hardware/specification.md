@@ -60,7 +60,7 @@ The system utilizes an ultra-compact High-Side MOSFET power switch module:
 * **Pin Pitch:** Standard 2.54 mm (0.1") pitch, suitable for wire soldering or header mounting.
 * **Electrical Ratings:**
   - Maximum Controlled Voltage: **20 V** (operates at 5 V).
-  - Maximum Continuous Current: **4.3 A** (operates at max 1.4 A, providing a >300% safety margin).
+  - Maximum Continuous Current: **4.3 A** (operates at the owner's limit, 1.4 A by default and at most about 3.9 A, under this rating).
   - Maximum Power: **31 W** (operates at max 7.0 W).
   - Switching Response Time: **2 ms**.
   - Standby Quiescent Draw: expected to be very low, which removes the 25–30 mA quiescent drain of idle WS2812B chips. The real off current has not been measured.

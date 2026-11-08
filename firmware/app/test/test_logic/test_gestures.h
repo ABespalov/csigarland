@@ -524,6 +524,31 @@ static void test_saver_starts_after_its_delay_and_a_press_ends_it() {
     TEST_ASSERT_TRUE(saver.poll(121000, false).active);
 }
 
+// A sprite that grows near an edge is kept within the panel at once, not at the next step: Scheduler24's words grow
+// as the time counts, from "59s" to "1m 00s".
+static void test_a_sprite_that_grows_stays_on_the_panel() {
+    Screensaver saver = running_saver(SaverKind::FlyingClock);
+    TEST_ASSERT_TRUE(saver.poll(60000, false).active);
+    for (uint64_t now = 60060; saver.x() < 240 - 100 - 2; now += 60) {
+        saver.poll(now, false);
+    }
+    saver.set_sprite_size(160, 60);
+    TEST_ASSERT_TRUE(saver.x() <= 240 - 160);
+    TEST_ASSERT_TRUE(saver.y() <= 240 - 60);
+    // Shrunk, it stays where it was.
+    const int16_t x = saver.x();
+    saver.set_sprite_size(40, 20);
+    TEST_ASSERT_EQUAL_INT(x, saver.x());
+}
+
+static void test_scheduler_words_start_in_the_centre() {
+    Screensaver saver = running_saver(SaverKind::Scheduler24);
+    saver.set_sprite_size(80, 40);
+    saver.recenter();
+    TEST_ASSERT_EQUAL_INT((240 - 80) / 2, saver.x());
+    TEST_ASSERT_EQUAL_INT((240 - 40) / 2, saver.y());
+}
+
 static void test_saver_none_never_starts() {
     Screensaver saver = running_saver(SaverKind::None);
     TEST_ASSERT_FALSE(saver.poll(10000000, false).active);

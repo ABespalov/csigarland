@@ -210,6 +210,55 @@ inline bool auth_host_is_own(const char* host, const char* address, const char* 
     return true;
 }
 
+// Whether the name in host, before any port, is wanted, in any case. An empty wanted is no name.
+inline bool auth_host_names(const char* host, const char* wanted) {
+    const size_t length = auth_host_name_length(host);
+    if (length == 0 || length != std::strlen(wanted)) {
+        return false;
+    }
+    const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; };
+    for (size_t i = 0; i < length; ++i) {
+        if (lower(host[i]) != lower(wanted[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The latest domain read, independent of whether the HTTPS identity could also be read. A failed read
+// says nothing new; a missing setting, or an empty one, removes the owner's alias.
+struct AuthDomain {
+    char name[kTlsDomainBytes] = "";
+
+    void take(StoredRead read, const char* domain) {
+        if (read == StoredRead::Unreadable) {
+            return;
+        }
+        if (read == StoredRead::Missing) {
+            name[0] = '\0';
+            return;
+        }
+        std::strncpy(name, domain, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+    }
+};
+
+// Off the setup network, the names the garland goes by: its own, as auth_host_is_own has them, its address
+// on the home network and the owner's domain or fixed address, each empty when there is none. A page under
+// a name of its own that its DNS turns to the garland's address, as DNS rebinding does, is sent with that
+// name, and must get nothing from plain HTTP or from what asks for no pairing.
+inline bool auth_host_is_garland(const char* host, const char* setup_address, const char* name, const char* domain,
+                                 const char* station_address) {
+    return auth_host_is_own(host, setup_address, name) || auth_host_names(host, station_address) || auth_host_names(host, domain);
+}
+
+// Whether the cookie plain HTTP gives counts. While HTTPS runs, whoever intercepts plain HTTP could have put
+// one in the browser, so only the HTTPS one counts, and the browser pairs again over HTTPS; the setup
+// network, which uses no HTTPS, takes it as before.
+constexpr bool auth_plain_cookie_counts(bool https_running, bool on_setup_network) {
+    return !https_running || on_setup_network;
+}
+
 // Whatever a page sends that changes something, its browser names where the page came from, which
 // then has to be the name asked for, by the scheme of the server it came to: secure for HTTPS. Firefox
 // and Safari count http:// and https:// of one name as one site, and send a cookie of the one with a

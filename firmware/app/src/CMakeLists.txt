@@ -34,6 +34,7 @@ idf_component_register(
         "rtc.cpp"
         "schedule.cpp"
         "scheduler.cpp"
+        "scheduler_restart.cpp"
         "saver_view.cpp"
         "screensaver.cpp"
         "settings.cpp"

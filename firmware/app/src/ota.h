@@ -49,14 +49,22 @@ size_t ota_slot_bytes();
 // The running version, and whether it is still on trial.
 const char* ota_running_version();
 bool ota_on_trial();
-// The whole seconds of the trial left, 0 off trial and once its time is out.
+// The whole seconds of the trial's kOtaTrialSeconds left, 0 off trial and once they are out, when the
+// first request answered confirms it.
 uint32_t ota_trial_seconds_left();
 
 // Call once at the end of startup. A new image is on trial: if it reports itself
-// unhealthy, or restarts in any way before kOtaTrialSeconds pass, the bootloader goes
-// back to the previous one. The enclosure has no USB opening, so an update that cannot
-// be replaced by the next update must not survive.
+// unhealthy, or restarts in any way before it is confirmed, the bootloader goes back to the
+// previous one. It is confirmed once kOtaTrialSeconds have passed and it has answered a
+// paired request, and goes back if none has come within kOtaTrialLongestSeconds: see ota_trial_step.
+// The enclosure has no USB opening, so an update that cannot be replaced by the next update
+// must not survive.
 constexpr uint32_t kOtaTrialSeconds = 60;
+constexpr uint32_t kOtaTrialLongestSeconds = 600;
 void ota_start_trial(bool healthy);
+
+// A paired client's request to a route of its own was answered, on either server, which a trial waits for: see
+// ota_answer_proves_update_path. Never blocks.
+void ota_note_paired_answer();
 
 }  // namespace garland

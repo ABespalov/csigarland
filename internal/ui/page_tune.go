@@ -290,7 +290,7 @@ func (p *tunePage) body(a *App) layout.Widget {
 			}),
 			layout.Rigid(a.modalStatus),
 			layout.Rigid(layout.Spacer{Height: gap}.Layout),
-			layout.Rigid(func(gtx C) D { return a.column(gtx, p.previewRows(a)...) }),
+			layout.Rigid(func(gtx C) D { return a.column(gtx, p.previewRows(a, gtx.Now)...) }),
 			layout.Rigid(layout.Spacer{Height: gap}.Layout),
 			// The controls and the file below them scroll as one, under the LEDs that stay in sight.
 			layout.Flexed(1, func(gtx C) D {
@@ -310,7 +310,7 @@ func (p *tunePage) body(a *App) layout.Widget {
 }
 
 // The LEDs and how they play here, which stay in sight.
-func (p *tunePage) previewRows(a *App) []layout.Widget {
+func (p *tunePage) previewRows(a *App, now time.Time) []layout.Widget {
 	rows := []layout.Widget{
 		func(gtx C) D {
 			p.frame = fitFrame(p.frame, a.chainLeds())
@@ -319,7 +319,7 @@ func (p *tunePage) previewRows(a *App) []layout.Widget {
 		a.lookSliders(&p.look),
 		a.hint(stripText(a.chainLeds())),
 	}
-	return append(rows, p.currentRows(a)...)
+	return append(rows, p.currentRows(a, now)...)
 }
 
 // Every field of the file as a control. The file below says the same in words, and either can be

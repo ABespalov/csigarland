@@ -56,6 +56,9 @@ public:
     // The sprite never crosses an edge, so its position stays within panel - sprite.
     void configure(uint16_t panel_width, uint16_t panel_height);
     void set_sprite_size(uint16_t width, uint16_t height);
+    // Back to the centre for the sprite's size now, as at the start: for words first given their size as the
+    // screensaver comes up, after it was centred for the old.
+    void recenter();
 
     // Zero, like SaverKind::None, disables it.
     void set_idle_delay(uint32_t idle_ms) { idle_ms_ = idle_ms; }
@@ -69,6 +72,9 @@ public:
     ScreensaverView poll(uint64_t now_ms, bool veto);
 
     bool active() const { return active_; }
+    // Where the sprite stands now, for one drawn again at once after its size changed.
+    int16_t x() const { return x_; }
+    int16_t y() const { return y_; }
     const ScreensaverStar* stars() const { return stars_; }
 
     // A wall clock outranks the uptime it replaces. Passing invalid goes back to

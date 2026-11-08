@@ -119,8 +119,12 @@ func (f *powerForm) card(a *App) layout.Widget {
 		if f.save.Clicked(gtx) {
 			f.store(a)
 		}
+		text := PowerText(f.last)
+		if f.last.InvalidRecord {
+			text = "The power settings saved could not be used, so the garland runs on the most cautious ones: the smallest supply and the largest margin. Saving these again fixes it. " + text
+		}
 		return a.card(gtx, "Power",
-			a.hint(PowerText(f.last)),
+			a.hint(text),
 			a.hint("Power supply, mA"),
 			func(gtx C) D { return a.field(gtx, &f.supply, "2000", 90) },
 			a.hint("One LED at full white, mA, without its idle draw"),
@@ -146,8 +150,22 @@ func (f *powerForm) read() (api.PowerBudget, error) {
 	if wanted.IdleMilliamps, err = number(&f.idle, "an LED dark"); err != nil {
 		return wanted, err
 	}
-	wanted.MarginPercent, err = number(&f.margin, "the margin")
-	return wanted, err
+	if wanted.MarginPercent, err = number(&f.margin, "the margin"); err != nil {
+		return wanted, err
+	}
+	if f.last.SupplyMax != 0 && (wanted.SupplyMilliamps < f.last.SupplyMin || wanted.SupplyMilliamps > f.last.SupplyMax) {
+		return wanted, fmt.Errorf("the power supply must be %d to %d mA", f.last.SupplyMin, f.last.SupplyMax)
+	}
+	if f.last.WhiteMax != 0 && (wanted.WhiteMilliamps < f.last.WhiteMin || wanted.WhiteMilliamps > f.last.WhiteMax) {
+		return wanted, fmt.Errorf("an LED at full white must be %d to %d mA", f.last.WhiteMin, f.last.WhiteMax)
+	}
+	if f.last.IdleMax != 0 && (wanted.IdleMilliamps < 0 || wanted.IdleMilliamps > f.last.IdleMax) {
+		return wanted, fmt.Errorf("an LED dark must be 0 to %d mA", f.last.IdleMax)
+	}
+	if f.last.MarginMax != 0 && (wanted.MarginPercent < f.last.MarginMin || wanted.MarginPercent > f.last.MarginMax) {
+		return wanted, fmt.Errorf("the margin must be %d to %d %%", f.last.MarginMin, f.last.MarginMax)
+	}
+	return wanted, nil
 }
 
 func (f *powerForm) store(a *App) {

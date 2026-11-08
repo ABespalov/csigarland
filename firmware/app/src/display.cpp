@@ -317,13 +317,17 @@ void poll_saver(State& state, const Snapshot& now) {
     engine.set_idle_delay(uint32_t{state.saver_delay_seconds()} * 1000);
     if (kind == SaverKind::FlyingClock) {
         update_clock_layout();
-    } else if (kind == SaverKind::Scheduler24) {
+    } else if (kind == SaverKind::Scheduler24 && s_saver_shown) {
+        // Only while it shows, or as it comes up below: its words ask the schedule, under the scheduler's lock.
         update_scheduler_text(state, now, static_cast<int64_t>(now_ms));
     }
 
     const ScreensaverView view = engine.poll(now_ms, screen_row(choose_screen(now)).keeps_awake);
     if (view.active != s_saver_shown) {
         if (view.active) {
+            if (kind == SaverKind::Scheduler24) {
+                update_scheduler_text(state, now, static_cast<int64_t>(now_ms));
+            }
             enter_saver(view, static_cast<uint32_t>(now_ms), state);
         } else {
             leave_saver(state);

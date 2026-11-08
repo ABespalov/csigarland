@@ -29,7 +29,7 @@ Each figurine is a hollow shell of translucent PETG with one addressable LED ins
 * **A web portal over HTTPS,** served by the garland itself: play and pick favourites, set brightness and speed, keep a schedule of up to 32 actions, join your Wi-Fi.
 * **No passwords.** A browser asks for access, the browser and the screen show the same code, and you press two buttons on the garland.
 * **Safe updates over Wi-Fi.** Released firmware is ready to download and install from the portal or the utility, signed under the project's root; a fork signs its own under its own. A new firmware proves itself on its first start, and the board goes back to the previous one if it does not.
-* **Careful with power.** Software holds the LEDs to a limit worked out from the power supply you set, 1400 mA of the 2000 mA one by default, and in standby a MOSFET cuts their power rail.
+* **Careful with power.** Software holds the LEDs to a current limit, 1400 mA in the released firmware. From 1.4.0 the limit is worked out from the power supply you set, at most about 3.9 A, and stays 1400 mA with the 2000 mA supply by default. In standby a MOSFET cuts their power rail.
 
 ## See It
 
@@ -96,7 +96,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | Document | What is in it |
 |---|---|
 | [Building the Hardware](docs/guides/hardware.md) | Schematic, bill of materials, wiring, checks before power |
-| [Building a Fork and the First Flash](docs/guides/build-and-flash.md) | Tools, certificates, every script, recovery |
+| [Building a Fork and the First Flash](docs/guides/build-and-flash.md) | Tools, certificates, every script, updates from the build machine, recovery |
 | [Building a Release Again](docs/guides/rebuild.md) | Building a published firmware and utility again from a clean fork, the same to the byte |
 | [User Guide](docs/guides/user-guide.md) | Buttons, the screen, portal access, every page, updates, troubleshooting |
 | [Effects Guide](docs/guides/effects.md) | The catalog, the file format, every algorithm, tuning |

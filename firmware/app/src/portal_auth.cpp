@@ -46,6 +46,7 @@ constexpr char kCookieName[] = "csig";
 // Over plain HTTP. A browser will not let plain HTTP replace a Secure cookie of the same name,
 // which it may hold from when HTTPS worked, and would say nothing about it.
 constexpr char kPlainCookieName[] = "csigh";
+constexpr char kPlainCookieCleared[] = "csigh=; Max-Age=0; Path=/";
 constexpr uint32_t kForgottenNoticeUs = 3000000;
 constexpr uint32_t kForgetTaskStackBytes = 4096;
 constexpr size_t kMaxBodyBytes = 192;
@@ -67,6 +68,8 @@ esp_timer_handle_t s_clear_timer = nullptr;
 constexpr size_t kMaxOriginBytes = 96;  // A portal's own is far shorter.
 char s_pending_label[kAuthLabelBytes] = "";
 bool s_secure_cookies = false;
+// Under s_lock: TLS can recover its domain read after plain HTTP has started.
+AuthDomain s_domain;
 
 class Guard {
 public:
@@ -146,9 +149,10 @@ bool cookie_origin_ok(httpd_req_t* req) {
 }
 
 // The paired client a request comes from, and the hash of its token into hash_out if given, or -1. A
-// program gives its token as a bearer, alone; a browser its HTTPS cookie, and the one plain HTTP gave it
-// should HTTPS have failed for a while, each tried in turn: an old HTTPS cookie of a pairing forgotten or
-// out of its days, which the browser still sends, does not hide the pairing it made on plain HTTP since.
+// program gives its token as a bearer, alone; a browser its HTTPS cookie, and while auth_plain_cookie_counts
+// the one plain HTTP gave it, should HTTPS have failed for a while, each tried in turn: an old HTTPS cookie
+// of a pairing forgotten or out of its days, which the browser still sends, does not hide the pairing it
+// made on plain HTTP since.
 // unread_out, if given, says whether a token was looked for in a list not read yet: taken with the look, so
 // that a list read by another request since cannot turn this one's refusal into "not paired".
 int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out = nullptr, bool* unread_out = nullptr) {
@@ -170,7 +174,8 @@ int find_caller(httpd_req_t* req, std::array<uint8_t, kAuthHashBytes>* hash_out 
         return -1;
     }
     const char* const cookies[] = {kCookieName, kPlainCookieName};
-    const size_t tries = bearer != nullptr ? 1 : std::size(cookies);
+    const bool plain_counts = auth_plain_cookie_counts(s_secure_cookies, s_secure_cookies && auth_on_setup_network(req));
+    const size_t tries = bearer != nullptr || !plain_counts ? 1 : std::size(cookies);
     const int64_t now = now_epoch();
     bool settled = false;
     int found = -1;
@@ -354,8 +359,56 @@ void auth_load_devices() {
         ESP_LOGE(TAG, "the paired browsers cannot be read: none is let in, and none saved over them, until they are");
     }
     s_unread.store(read == StoredRead::Unreadable);
+    {
+        Guard guard;
+        s_devices = s_to_save;
+    }
+    // Plain HTTP starts before TLS, whose own retries may recover the domain later.
+    char loaded_domain[kTlsDomainBytes] = "";
+    StoredRead domain = StoredRead::Unreadable;
+    for (int attempt = 0; attempt < kReadAttempts && domain == StoredRead::Unreadable; ++attempt) {
+        domain = settings_load_tls_domain(loaded_domain, sizeof(loaded_domain));
+    }
+    auth_take_domain(domain, loaded_domain);
+}
+
+void auth_take_domain(StoredRead read, const char* domain) {
     Guard guard;
-    s_devices = s_to_save;
+    s_domain.take(read, domain);
+}
+
+bool auth_request_host_is_garland(httpd_req_t* req) {
+    char host[80] = "";
+    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
+        return false;
+    }
+    char station[16] = "";
+    const uint32_t ip = s_state->snapshot().station_ip;
+    if (ip != 0) {
+        std::snprintf(station, sizeof(station), "%u.%u.%u.%u", static_cast<unsigned>(ip & 0xFF),
+                      static_cast<unsigned>((ip >> 8) & 0xFF), static_cast<unsigned>((ip >> 16) & 0xFF),
+                      static_cast<unsigned>(ip >> 24));
+    }
+    const char* const hostname = network_hostname();
+    Guard guard;
+    return auth_host_is_garland(host, CSIGARLAND_PORTAL_IP, hostname, s_domain.name, station);
+}
+
+void auth_clear_plain_cookie(httpd_req_t* req) {
+    httpd_resp_set_hdr(req, "Set-Cookie", kPlainCookieCleared);
+}
+
+bool auth_request_carries_plain_cookie(httpd_req_t* req) {
+    const size_t bytes = httpd_req_get_hdr_value_len(req, "Cookie");
+    if (bytes == 0) {
+        return false;
+    }
+    // Longer than this is not read whole: clearing is the safe side, as the cookie is not accepted anyway.
+    if (bytes >= 512) {
+        return true;
+    }
+    char cookies[512];
+    return httpd_req_get_hdr_value_str(req, "Cookie", cookies, sizeof(cookies)) != ESP_OK || std::strstr(cookies, "csigh=") != nullptr;
 }
 
 bool auth_on_setup_network(httpd_req_t* req) {

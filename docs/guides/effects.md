@@ -450,7 +450,7 @@ The modes of the classic 8-function garland controller, written for this project
 ## 9. What Stays Outside the File
 
 * **Global brightness (POWER) and speed (SPEED):** runtime state. SPEED scales the effect's clock, so every algorithm follows it and `sx` keeps its meaning. An algorithm that moves in steps of its own, such as `fire`, `candle`, `drift` and `dynamic`, takes every step that has come since its last frame, up to 8 in one frame (`kMaxCatchUpSteps`): a fast SPEED or a late frame moves it on as far as the time that passed, and a long stall costs no frame more than that.
-* **The current limiter:** applied to the final frame, at the limit the Device page's power settings give, 1400 mA by default. No file can bypass it.
+* **The current limiter:** applied to the final frame, at 1400 mA up to firmware 1.1.1, and from 1.4.0 at the limit the Device page's power settings give, 1400 mA by default. No file can bypass it.
 * **LED count:** from the portal or the probe.
 
 ## 10. Bad Input

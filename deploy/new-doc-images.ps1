@@ -25,7 +25,7 @@
 #requires -Version 7.2
 
 param(
-    [string]$Version = '1.1.0.113',
+    [string]$Version = '1.4.0.119',
     [switch]$ScreensOnly,
     [switch]$PortalOnly,
     [switch]$UtilityOnly

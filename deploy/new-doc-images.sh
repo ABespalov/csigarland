@@ -26,7 +26,7 @@ set -euo pipefail
 . "$CSG_LIB_DIR/build_version.sh"
 . "$CSG_LIB_DIR/device_detection.sh"
 
-version='1.1.0.113'
+version='1.4.0.119'
 screens_only=0 portal_only=0 utility_only=0
 while [ "$#" -gt 0 ]; do
     case "$1" in

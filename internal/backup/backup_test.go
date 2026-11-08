@@ -218,13 +218,13 @@ func TestABackupPutsAnErasedGarlandBack(t *testing.T) {
 // release with them that does not answer fails the backup, as a 1.1.1 garland's 404 does not.
 func TestThePowerSettingsAreKept(t *testing.T) {
 	from := &garland{version: "1.2.0.120", favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
-		power: &api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 4275, Leds: 32}}
+		power: &api.PowerBudget{SupplyMilliamps: 4000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 3375, Leds: 32}}
 	ctx := context.Background()
 	made, err := Collect(ctx, from.serve(t), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if made.Power == nil || *made.Power != (api.PowerBudget{SupplyMilliamps: 5000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
+	if made.Power == nil || *made.Power != (api.PowerBudget{SupplyMilliamps: 4000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10}) {
 		t.Fatalf("%+v", made.Power)
 	}
 	data, err := Encode(made)
@@ -239,7 +239,7 @@ func TestThePowerSettingsAreKept(t *testing.T) {
 	if _, err := Restore(ctx, to.serve(t), read, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	if to.power.SupplyMilliamps != 5000 || to.power.WhiteMilliamps != 36 || to.power.MarginPercent != 10 {
+	if to.power.SupplyMilliamps != 4000 || to.power.WhiteMilliamps != 36 || to.power.MarginPercent != 10 {
 		t.Fatalf("%+v", to.power)
 	}
 	// A backup from before the settings leaves a garland's own as they are.

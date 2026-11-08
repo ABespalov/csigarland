@@ -104,15 +104,16 @@ constexpr int64_t kClockReadRoundingMs = 2;
 // cannot be read at once, so this can only be a range, and the narrowest of a few tries is used. Its
 // late end, since a choice this close to a minute's start cannot be told from one just after it, and
 // the rule is that what the owner chose outranks the schedule: at worst a step due within that range
-// after the choice waits for the owner's next word, and never overrides it.
+// after the choice waits for the owner's next word, and never overrides it. The uptime clock in 64 bits, as a
+// choice may be older than 32 bits of milliseconds count.
 template <typename Uptime, typename Wall>
-int64_t latest_wall_ms_of_uptime(uint32_t moment_ms, Uptime uptime_ms, Wall wall_ms) {
+int64_t latest_wall_ms_of_uptime(uint64_t moment_ms, Uptime uptime_ms, Wall wall_ms) {
     int64_t latest = 0;
-    uint32_t narrowest = UINT32_MAX;
+    uint64_t narrowest = UINT64_MAX;
     for (int i = 0; i < kClockReadTries && narrowest > kClockReadPauseMs; ++i) {
-        const uint32_t before = uptime_ms();
+        const uint64_t before = uptime_ms();
         const int64_t wall = wall_ms();
-        const uint32_t width = uptime_ms() - before;
+        const uint64_t width = uptime_ms() - before;
         if (width < narrowest) {
             narrowest = width;
             latest = wall - static_cast<int64_t>(before - moment_ms) + kClockReadRoundingMs;
@@ -146,6 +147,12 @@ constexpr PendingEffectStep pending_effect_step(bool play_chosen, int found, boo
            : found >= 0 ? PendingEffectStep::Resolve
            : all_read   ? PendingEffectStep::Drop
                         : PendingEffectStep::Keep;
+}
+
+// Before a save: whether a choice of what plays, by the owner or a step, drops the pending effect held, as the look
+// the save takes may hold that choice already. One of the power, brightness or speed alone leaves it.
+constexpr bool pending_effect_chosen_over(bool held, bool owner_chose_play, bool scheduled_play) {
+    return held && (owner_chose_play || scheduled_play);
 }
 
 // The remembered effect, read late after the owner chose the power, brightness or speed alone: what plays is

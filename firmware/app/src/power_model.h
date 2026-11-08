@@ -26,7 +26,8 @@ struct PowerSettings {
 };
 
 constexpr int kSupplyMinMa = 500;
-constexpr int kSupplyMaxMa = 20000;
+// No more than keeps the limit under the 4.3 A the LEDs' switch, Q1, the YZ_CTL_V1 module, is rated for: see below.
+constexpr int kSupplyMaxMa = 4400;
 constexpr int kLedWhiteMinMa = 5;
 constexpr int kLedWhiteMaxMa = 100;
 constexpr int kLedIdleMaxMa = 5;
@@ -111,6 +112,21 @@ constexpr bool power_word_is_valid(uint32_t word) {
     return (word >> 30) == 0 && power_settings_are_valid(unpack_power(word));
 }
 
+// The most cautious settings there are: the smallest supply and the largest margin, which give the smallest
+// limit, and the largest draw an LED may have.
+constexpr PowerSettings kCautiousPower{kSupplyMinMa, kLedWhiteMaxMa, kLedIdleMaxMa, kMarginMaxPercent};
+
+// What a record read back comes to: its settings, or for one that holds none valid, the most cautious, said by
+// invalid. Never the defaults: their limit may be above what the owner saved, and never part of the record.
+struct PowerRecord {
+    PowerSettings settings;
+    bool invalid;
+};
+
+constexpr PowerRecord power_from_record(uint32_t word) {
+    return power_word_is_valid(word) ? PowerRecord{unpack_power(word), false} : PowerRecord{kCautiousPower, true};
+}
+
 // Whether the rail may be on for a chain of leds. Not while the owner's settings are not known: those in
 // force until then are the defaults, whose limit may be above theirs, so a reading that failed would let
 // more current through than they allow. Nor while the chain's idle draw alone is over the limit: dimming
@@ -124,5 +140,12 @@ static_assert(kSupplyMaxMa <= 0x7FFF && kLedWhiteMaxMa <= 0x7F && kLedIdleMaxMa 
               "each setting fits its bits");
 static_assert(power_limit_ma(PowerSettings{kSupplyMinMa, kLedWhiteMinMa, 0, kMarginMaxPercent}) > 0,
               "the smallest supply leaves the LEDs some current");
+// The LEDs' switch, Q1, the YZ_CTL_V1 module, carries 4.3 A at most: the largest supply at the smallest margin,
+// (4400 - 250) * 95 % = 3942 mA, stays under it.
+constexpr uint32_t kSwitchRatingMa = 4300;
+static_assert(power_limit_ma(PowerSettings{kSupplyMaxMa, kLedWhiteMinMa, 0, kMarginMinPercent}) < kSwitchRatingMa,
+              "no setting lets more current through than the switch is rated for");
+static_assert(power_settings_are_valid(kCautiousPower) && power_limit_ma(kCautiousPower) == 200,
+              "the most cautious settings are settings, with the smallest limit");
 
 }  // namespace garland

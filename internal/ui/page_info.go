@@ -31,7 +31,7 @@ import (
 const (
 	updateLookEvery = 3 * time.Second
 	updateLookLimit = 5 * time.Second
-	updateGiveUp    = 150 * time.Second
+	updateGiveUp    = 12 * time.Minute
 	// Longer than a request ahead of it on the one connection can take.
 	updateBeforeLimit = 20 * time.Second
 	// Long past the 1.5 s from an update taken to the restart, so that the same boot this long after
@@ -92,7 +92,7 @@ func (p *firmwarePage) rows(a *App) []layout.Widget {
 		}
 		current := fmt.Sprintf("Running version %s with %d built-in effects.", p.running.Version, p.running.Effects)
 		if p.running.OnTrial {
-			current += " It confirms itself after its first minute, or goes back to the previous version."
+			current += " It confirms itself once it has answered a paired request after its first minute, from 1.4.0 on within 10 minutes, or goes back to the previous version."
 		}
 		rows := []layout.Widget{
 			a.body(current),
@@ -294,6 +294,18 @@ func (p *firmwarePage) send(a *App, onlyIfNewer string) {
 					a.about.Version = now.Version
 					a.about.OnTrial = now.OnTrial
 				}
+				if said.finished {
+					p.busy = false
+					// A firmware update this utility sent, and the page still showing it: Info is where it stands now.
+					// Opening a page clears the footer, so the last words are said after it.
+					if goesToInfoAfterUpdate(a.page, said, update.Image != "") {
+						a.choosePage(PageInfo)
+					}
+					// A firmware that came up and confirmed itself is held to the API this utility reads.
+					if said.confirmed {
+						p.checkAPI(a)
+					}
+				}
 				switch {
 				case said.words == "":
 				case said.failed:
@@ -302,13 +314,6 @@ func (p *firmwarePage) send(a *App, onlyIfNewer string) {
 					a.report(said.words)
 				default:
 					a.progress(said.words)
-				}
-				if said.finished {
-					p.busy = false
-					// A firmware that came up and confirmed itself is held to the API this utility reads.
-					if !said.failed {
-						p.checkAPI(a)
-					}
 				}
 			})
 			if said.finished {
@@ -342,10 +347,11 @@ type updateWatch struct {
 // What a look at the garland says. The footer shows the words at every look, as they count down, and
 // the journal takes them only when they begin a stage, rather than every few seconds.
 type watchSaid struct {
-	words    string
-	news     bool
-	failed   bool
-	finished bool
+	words     string
+	news      bool
+	failed    bool
+	finished  bool
+	confirmed bool // Set only after the running identity proves the file was installed and confirmed.
 }
 
 func (w *updateWatch) end(words string, failed bool) watchSaid {
@@ -369,6 +375,11 @@ func (w *updateWatch) firstWords() string {
 	default:
 		return "Sent. The garland is restarting..."
 	}
+}
+
+// goesToInfoAfterUpdate is a firmware file this window sent, confirmed, while Firmware is still showing.
+func goesToInfoAfterUpdate(page Page, said watchSaid, hadImage bool) bool {
+	return said.confirmed && hadImage && page == PageFirmware
 }
 
 func (w *updateWatch) look(now time.Time, running api.Firmware, err error) watchSaid {
@@ -399,7 +410,7 @@ func (w *updateWatch) look(now time.Time, running api.Firmware, err error) watch
 		if w.unknown && !w.sawTrial && !tookEffects {
 			return w.end(fmt.Sprintf("The garland restarted and runs %s. The upload got no answer, so whether it took this file cannot be told from here: send it again if need be.", running.Version), true)
 		}
-		return w.end("Update finished and confirmed.", false)
+		return watchSaid{words: "Update finished and confirmed.", news: true, finished: true, confirmed: true}
 	case api.UpdateOnTrial:
 		// Only a file with firmware starts a trial: one of effects alone did not start this one.
 		if w.update.Image != "" {

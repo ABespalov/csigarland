@@ -178,7 +178,7 @@ func (c *Client) EffectFile(ctx context.Context, id string) ([]byte, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxAnswerBytes))
+	data, err := readUpTo(response.Body, maxAnswerBytes)
 	if err != nil {
 		return nil, fmt.Errorf("read the effect: %w", err)
 	}
@@ -379,22 +379,23 @@ func (c *Client) SetDisplay(ctx context.Context, display Display) (Display, erro
 // PowerBudget is the LEDs' power settings, from firmware 1.2.0 on, and what they come to on the chain in
 // use: the limit, what it draws all at full white, and how many LEDs full white leaves undimmed.
 type PowerBudget struct {
-	SupplyMilliamps int `json:"supply_ma"`
-	WhiteMilliamps  int `json:"led_white_ma"`
-	IdleMilliamps   int `json:"led_idle_ma"`
-	MarginPercent   int `json:"margin_percent"`
-	BoardMilliamps  int `json:"board_ma,omitempty"`
-	LimitMilliamps  int `json:"limit_ma,omitempty"`
-	Leds            int `json:"leds,omitempty"`
-	PeakMilliamps   int `json:"peak_ma,omitempty"`
-	UndimmedLeds    int `json:"undimmed_leds,omitempty"`
-	SupplyMin       int `json:"supply_min,omitempty"`
-	SupplyMax       int `json:"supply_max,omitempty"`
-	WhiteMin        int `json:"led_white_min,omitempty"`
-	WhiteMax        int `json:"led_white_max,omitempty"`
-	IdleMax         int `json:"led_idle_max,omitempty"`
-	MarginMin       int `json:"margin_min,omitempty"`
-	MarginMax       int `json:"margin_max,omitempty"`
+	SupplyMilliamps int  `json:"supply_ma"`
+	WhiteMilliamps  int  `json:"led_white_ma"`
+	IdleMilliamps   int  `json:"led_idle_ma"`
+	MarginPercent   int  `json:"margin_percent"`
+	BoardMilliamps  int  `json:"board_ma,omitempty"`
+	LimitMilliamps  int  `json:"limit_ma,omitempty"`
+	Leds            int  `json:"leds,omitempty"`
+	PeakMilliamps   int  `json:"peak_ma,omitempty"`
+	UndimmedLeds    int  `json:"undimmed_leds,omitempty"`
+	SupplyMin       int  `json:"supply_min,omitempty"`
+	SupplyMax       int  `json:"supply_max,omitempty"`
+	WhiteMin        int  `json:"led_white_min,omitempty"`
+	WhiteMax        int  `json:"led_white_max,omitempty"`
+	IdleMax         int  `json:"led_idle_max,omitempty"`
+	MarginMin       int  `json:"margin_min,omitempty"`
+	MarginMax       int  `json:"margin_max,omitempty"`
+	InvalidRecord   bool `json:"invalid_record,omitempty"`
 }
 
 // PowerBudget reads the LEDs' power settings.
@@ -632,7 +633,7 @@ func (c *Client) Log(ctx context.Context, after uint32) (LogPart, error) {
 		return LogPart{}, err
 	}
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxAnswerBytes))
+	data, err := readUpTo(response.Body, maxAnswerBytes)
 	if err != nil {
 		return LogPart{}, fmt.Errorf("read the log: %w", err)
 	}

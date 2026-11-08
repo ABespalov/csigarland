@@ -143,7 +143,7 @@ inline constexpr char kPageFirmware[] = R"html(
      boot this send's own look found, never one a slower answer to another look left, and packBefore and
      imageBefore the effects and firmware it found running. */
   async function waitForRestart(expected, unknown, bootBefore, packBefore, imageBefore) {
-    const deadline = Date.now() + 150000;
+    const deadline = Date.now() + 720000;
     const settled = Date.now() + 15000;
     const finish = (text, isError) => {
       report('firmware-status', text, isError);
@@ -183,7 +183,10 @@ inline constexpr char kPageFirmware[] = R"html(
       if (expected.digest !== null && info.pack_digest !== expected.digest) {
         return finish('Not installed: the garland is not running the effects in this file.', true);
       }
-      if (!info.on_trial) return finish('Update finished and confirmed.', false);
+      if (!info.on_trial) {
+        if (expected.image !== null) location.assign('/info');
+        return finish('Update finished and confirmed.', false);
+      }
       if (late) return finish('Running the new firmware, but it has not confirmed itself yet.', true);
       report('firmware-status', `Running the new firmware, which confirms itself ${trialLeft(info)}...`, false);
     }

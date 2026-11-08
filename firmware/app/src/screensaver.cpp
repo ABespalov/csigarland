@@ -146,6 +146,16 @@ void Screensaver::configure(uint16_t panel_width, uint16_t panel_height) {
 void Screensaver::set_sprite_size(uint16_t width, uint16_t height) {
     sprite_width_ = width > panel_width_ ? panel_width_ : width;
     sprite_height_ = height > panel_height_ ? panel_height_ : height;
+    // Within the panel at once, not at the next step: words that grow near an edge would stand past it until then.
+    const auto maximum_x = static_cast<int16_t>(panel_width_ - sprite_width_);
+    const auto maximum_y = static_cast<int16_t>(panel_height_ - sprite_height_);
+    x_ = x_ > maximum_x ? maximum_x : x_;
+    y_ = y_ > maximum_y ? maximum_y : y_;
+}
+
+void Screensaver::recenter() {
+    x_ = static_cast<int16_t>((panel_width_ - sprite_width_) / 2);
+    y_ = static_cast<int16_t>((panel_height_ - sprite_height_) / 2);
 }
 
 void Screensaver::note_activity(uint64_t now_ms) {
@@ -174,8 +184,7 @@ void Screensaver::activate(uint64_t now_ms) {
     last_step_ms_ = now_ms;
     step_x_ = kSpeed;
     step_y_ = kSpeed;
-    x_ = static_cast<int16_t>((panel_width_ - sprite_width_) / 2);
-    y_ = static_cast<int16_t>((panel_height_ - sprite_height_) / 2);
+    recenter();
     if (kind_ == SaverKind::Starfield) {
         for (ScreensaverStar& star : stars_) {
             spawn_star(star, drift_, panel_width_, panel_height_, true);

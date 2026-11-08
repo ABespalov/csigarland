@@ -13,7 +13,8 @@
 # roots on Linux, where the garland's root is installed as docs/guides/user-guide.md says; on macOS curl
 # does not read the Keychain, so name the root with --ca-file. Without trust nothing is sent, not even the
 # token. The garland refuses anything not signed under the root its firmware holds, and goes back to the
-# previous firmware by itself if a new one does not survive its first minute.
+# previous firmware by itself if a new one has not answered a paired request within 10 minutes. Keep this script
+# running: its requests are what let the new firmware confirm.
 #
 # Options
 #
@@ -190,6 +191,25 @@ request() {
     http_status="$(curl -sS --max-time "$timeout" ${tls[@]+"${tls[@]}"} -H "@$auth_header" -o "$out" -w '%{http_code}' "$@")"
 }
 
+# The garland says how long the pairing code lasts. Only a whole number from 1 to 600 is used.
+wait_seconds() {
+    case $1 in
+        ''|*[!0-9.]*) printf '%s\n' 60; return ;;
+    esac
+    case $1 in
+        *.*.*) printf '%s\n' 60; return ;;
+    esac
+    whole=${1%%.*}
+    case $whole in
+        ''|*[!0-9]*) printf '%s\n' 60; return ;;
+    esac
+    if [ "$whole" -lt 1 ] || [ "$whole" -gt 600 ]; then
+        printf '%s\n' 60
+        return
+    fi
+    printf '%s\n' "$whole"
+}
+
 # Asks the owner at the panel, and keeps the token the garland gives this script.
 request_token() {
     local asked code seconds id deadline state
@@ -197,13 +217,13 @@ request_token() {
         csg_die "The garland did not answer the request for access. Nothing was sent."
     [ "$http_status" = 200 ] || csg_die "The garland refused the request for access ($http_status). Nothing was sent."
     code="$(csg_tool json-get "$work/asked.json" code '')"
-    seconds="$(csg_tool json-get "$work/asked.json" seconds 60)"
+    seconds="$(wait_seconds "$(csg_tool json-get "$work/asked.json" seconds 60)")"
     id="$(csg_tool json-get "$work/asked.json" request '')"
     csg_say "If the garland shows the code $code, press POWER and SPEED together there."
     # The request's id is what the token is handed over for, so it goes in a file as the token does.
     (umask 077 && printf '{"request":%s}' "$(printf '%s' "$id" | csg_python -c 'import json, sys; print(json.dumps(sys.stdin.read()))')" \
         >"$work/wait-body.json") || csg_die 'The request for access could not be written. Nothing was sent.'
-    deadline=$(($(date +%s) + ${seconds%.*}))
+    deadline=$(($(date +%s) + seconds))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 2
         request 15 "$work/wait.json" -D "$work/wait.headers" -X POST -H 'Content-Type: application/json' \
@@ -281,7 +301,7 @@ want_image="$(field_of image "$contents")"
 want_pack="$(field_of pack_digest "$contents")"
 # In a variable, as bash 3.2 and later read a pattern written inline differently.
 plain_pattern='^version=([^ ]+) on_trial=([0-9]) https=0 boot=([^ ]*) image=([^ ]*) pack=([^ ]*)'
-deadline=$(($(date +%s) + 180))
+deadline=$(($(date +%s) + 720))
 while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 0.5
     plain_state=''
@@ -363,7 +383,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     fi
     if [ -z "$said" ]; then
         said=trial
-        csg_say "Running $running_version, which confirms itself after its first minute..."
+        csg_say "Running $running_version, which confirms itself once it has answered a paired request, within 10 minutes..."
     fi
 done
 if [ "$https_failed" -eq 1 ] && [ "$insecure" -eq 0 ]; then
@@ -373,6 +393,6 @@ if [ -n "$unproved" ]; then
     csg_die "Not confirmed: the garland answers with version $unproved but cannot say which firmware or effects it runs. It may have gone back to the previous firmware. What it logged is in $log_path"
 fi
 if [ -n "$sent_unknown" ] && [ "$went_down" -eq 0 ]; then
-    csg_die "Not installed, as far as can be seen: the update got no answer ($sent_unknown), and in 180 s the garland did not restart. Check its Info page before sending it again."
+    csg_die "Not installed, as far as can be seen: the update got no answer ($sent_unknown), and in 12 minutes the garland did not restart. Check its Info page before sending it again."
 fi
-csg_die "The garland did not confirm the update within 180 s. If it restarted more than once it went back to the previous firmware. What it logged is in $log_path"
+csg_die "The garland did not confirm the update within 12 minutes. If it restarted more than once it went back to the previous firmware. What it logged is in $log_path"

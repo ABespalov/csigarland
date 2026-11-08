@@ -411,7 +411,8 @@ esp_err_t portal_handle_display_set(httpd_req_t* req) {
 }
 
 // The settings, the ranges each takes, and what they come to on the chain in use: the limit, what it
-// draws all at full white, and how many LEDs full white leaves undimmed.
+// draws all at full white, and how many LEDs full white leaves undimmed. invalid_record: the most cautious
+// settings stand in for a saved record that held none valid, until the owner saves theirs.
 esp_err_t portal_handle_led_power_get(httpd_req_t* req) {
     auto& state = *static_cast<State*>(req->user_ctx);
     if (!looks_power_read(state)) {
@@ -421,7 +422,8 @@ esp_err_t portal_handle_led_power_get(httpd_req_t* req) {
     if (root == nullptr) {
         return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
     }
-    const PowerSettings power = state.power();
+    const State::PowerNow now = state.power_now();
+    const PowerSettings power = now.settings;
     const uint16_t leds = state.snapshot().led_count;
     cJSON_AddNumberToObject(root.get(), "supply_ma", power.supply_ma);
     cJSON_AddNumberToObject(root.get(), "led_white_ma", power.white_ma);
@@ -439,6 +441,7 @@ esp_err_t portal_handle_led_power_get(httpd_req_t* req) {
     cJSON_AddNumberToObject(root.get(), "led_idle_max", kLedIdleMaxMa);
     cJSON_AddNumberToObject(root.get(), "margin_min", kMarginMinPercent);
     cJSON_AddNumberToObject(root.get(), "margin_max", kMarginMaxPercent);
+    cJSON_AddBoolToObject(root.get(), "invalid_record", now.stands_in);
     return send_json(req, root.get());
 }
 
@@ -450,7 +453,7 @@ esp_err_t portal_handle_led_power_set(httpd_req_t* req) {
     }
     PowerSettings power;
     if (!read_whole(root.get(), "supply_ma", supply_ma_is_valid, power.supply_ma)) {
-        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "supply_ma must be 500 to 20000");
+        return portal_send_err(req, HTTPD_400_BAD_REQUEST, "supply_ma must be 500 to 4400");
     }
     if (!read_whole(root.get(), "led_white_ma", led_white_ma_is_valid, power.white_ma)) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "led_white_ma must be 5 to 100");

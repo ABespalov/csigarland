@@ -27,6 +27,7 @@ inline constexpr char kPageDevice[] = R"html(
 <section aria-labelledby="power-title">
   <h2 id="power-title">Power</h2>
   <p class="m">A frame that would draw more than the limit is dimmed as a whole. The limit is what the supply gives beyond <span id="board">250</span> mA for the board, the screen and Wi-Fi, less the margin, a share of that.</p>
+  <p class="e" id="power-invalid" role="alert" hidden>The power settings saved could not be used, so the garland runs on the most cautious ones: the smallest supply and the largest margin. Set your own below and save them to fix it.</p>
   <form id="power-form">
     <label for="supply" class="h">Power supply, mA</label>
     <input type="number" id="supply" step="1" inputmode="numeric" required>
@@ -111,7 +112,8 @@ inline constexpr char kPageDevice[] = R"html(
       ledsTyped = false;
       showState(saved);
       report('status', 'Saved.', false);
-      loadPower();
+      /* What the power settings come to depends on the count: read again, its failure said on the power card. */
+      loadPower().catch((error) => report('power-status', `Could not read the power settings again: ${error.message}`, true));
     } catch (error) {
       report('status', `Could not save: ${error.message}`, true);
     } finally {
@@ -142,6 +144,7 @@ inline constexpr char kPageDevice[] = R"html(
   function showPower(answer) {
     power = answer;
     $('board').textContent = answer.board_ma;
+    $('power-invalid').hidden = answer.invalid_record !== true;
     const ranges = { supply: ['supply_min', 'supply_max'], white: ['led_white_min', 'led_white_max'], idle: [null, 'led_idle_max'], margin: ['margin_min', 'margin_max'] };
     for (const [id, [low, high]] of Object.entries(ranges)) {
       $(id).min = low ? answer[low] : 0;

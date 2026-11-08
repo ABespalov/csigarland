@@ -8,6 +8,8 @@
 package engine
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -210,10 +212,11 @@ func TestTheLimitIsTheFirmwares(t *testing.T) {
 	if defaults != (Power{2000, 40, 1, 20}) || LimitMilliamps() != 1400 {
 		t.Fatalf("defaults %+v, limit %d", defaults, LimitMilliamps())
 	}
-	if err := SetPower(Power{5000, 36, 1, 10}); err != nil || LimitMilliamps() != 4275 {
+	// (4000 - 250) * 90 %.
+	if err := SetPower(Power{4000, 36, 1, 10}); err != nil || LimitMilliamps() != 3375 {
 		t.Fatalf("%v, limit %d", err, LimitMilliamps())
 	}
-	if err := SetPower(Power{5000, 36, 1, 30}); err == nil || LimitMilliamps() != 4275 {
+	if err := SetPower(Power{4000, 36, 1, 30}); err == nil || LimitMilliamps() != 3375 {
 		t.Fatalf("a margin of 30%% taken: %v, limit %d", err, LimitMilliamps())
 	}
 }
@@ -223,12 +226,13 @@ func TestTheLimitIsTheFirmwares(t *testing.T) {
 func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
 	defaults := DefaultPower()
 	t.Cleanup(func() { _ = SetPower(defaults) })
+	ctx := context.Background()
 	white := []byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`)
-	full, err := Currents(white, []uint32{0, 1000}, 100, 32)
+	full, err := Currents(ctx, white, []uint32{0, 1000}, 100, 32, defaults)
 	if err != nil {
 		t.Fatal(err)
 	}
-	half, err := Currents(white, []uint32{0}, 50, 32)
+	half, err := Currents(ctx, white, []uint32{0}, 50, 32, defaults)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,14 +240,12 @@ func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
 	if full[0] != 1312 || half[0] >= full[0] || half[0] <= 0 || full[0] != full[1] {
 		t.Fatalf("full %v, half %v", full, half)
 	}
-	if err := SetPower(Power{2000, 55, 1, 20}); err != nil {
-		t.Fatal(err)
-	}
-	if past, _ := Currents(white, []uint32{0}, 100, 32); past[0] != 1792 || past[0] <= LimitMilliamps() {
+	// A run goes by the settings it is given, whatever the previews go by.
+	if past, _ := Currents(ctx, white, []uint32{0}, 100, 32, Power{2000, 55, 1, 20}); past[0] != 1792 || past[0] <= LimitMilliamps() {
 		t.Fatalf("at 55 + 1 mA white draws %v", past)
 	}
-	if err := SetPower(defaults); err != nil {
-		t.Fatal(err)
+	if _, err := Currents(ctx, white, []uint32{0}, 100, 32, Power{2000, 55, 1, 30}); err == nil {
+		t.Fatal("a run took settings the firmware refuses")
 	}
 	preview, err := NewPreview(white)
 	if err != nil {
@@ -253,7 +255,61 @@ func TestTheCurrentIsTheFirmwaresModel(t *testing.T) {
 	if preview.Milliamps() != full[0] {
 		t.Fatalf("the preview says %d, a run %d", preview.Milliamps(), full[0])
 	}
-	if _, err := Currents(white, []uint32{0}, 100, 0); err == nil {
+	if _, err := Currents(ctx, white, []uint32{0}, 100, 0, defaults); err == nil {
 		t.Fatal("no LEDs drew a current")
+	}
+}
+
+// Tune's chart is worked out away from the window while the preview plays: a chart that runs meanwhile, or
+// ends, takes nothing of the preview's, so it draws its own effect, on, from where it was, with no start
+// again that would set what an algorithm keeps from frame to frame back.
+func TestAChartRunLeavesThePreviewAsItIs(t *testing.T) {
+	red, err := NewPreview([]byte(`{"format":"csigarland.effect/1","name":"R","layers":[{"fx":"solid","col":["FF0000"]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	white := []byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"sparkle","ix":200,"col":["FFFFFF"]}]}`)
+	times := make([]uint32, 400)
+	for i := range times {
+		times[i] = uint32(i * 100)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	running := make(chan struct{})
+	go func() {
+		defer close(running)
+		for ctx.Err() == nil {
+			_, _ = Currents(ctx, white, times, 100, MaxLeds, DefaultPower())
+		}
+	}()
+	frame := make([]Color, MaxLeds)
+	for i := range 200 {
+		red.Frame(uint32(i*50), 100, frame)
+		for led, color := range frame {
+			if color.R == 0 || color.G != 0 || color.B != 0 {
+				t.Fatalf("LED %d of frame %d drew %v beside a chart", led, i, color)
+			}
+		}
+	}
+	if _, err := Currents(context.Background(), white, times[:20], 100, 32, DefaultPower()); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	<-running
+	engineLock.Lock()
+	still := active == red
+	engineLock.Unlock()
+	if !still {
+		t.Fatal("a chart took the engine from the preview, which would start again")
+	}
+}
+
+// A chart no longer wanted stops between two frames.
+func TestACurrentsRunEndsWhenCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	white := []byte(`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","col":["FFFFFF"]}]}`)
+	if out, err := Currents(ctx, white, []uint32{0, 100}, 100, 32, DefaultPower()); !errors.Is(err, context.Canceled) || out != nil {
+		t.Fatalf("%v %v", out, err)
 	}
 }

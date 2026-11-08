@@ -25,12 +25,24 @@ void auth_set_secure_cookies(bool secure);
 // Once settings are up: reads the paired browsers.
 void auth_load_devices();
 
+// Publish a domain read, including a later TLS retry, even if the HTTPS identity could not be read.
+// Unreadable keeps the last known domain; Missing clears it. Safe while the servers run.
+void auth_take_domain(StoredRead read, const char* domain);
+
 // The request came to the setup network's address. Joining it took the password on the screen,
 // and the phone windows that open it neither accept our certificate nor keep a cookie.
 bool auth_on_setup_network(httpd_req_t* req);
 
 // The request on the setup network names another site, which that network's DNS sent here.
 bool auth_setup_host_is_foreign(httpd_req_t* req);
+
+// Off the setup network: the Host is the garland's own name, its address on the home network, or the
+// owner's domain. A name of its own that DNS turns to the garland, as rebinding does, is not.
+bool auth_request_host_is_garland(httpd_req_t* req);
+
+// The plain-HTTP pairing cookie, cleared so a browser that holds one pairs again over HTTPS.
+void auth_clear_plain_cookie(httpd_req_t* req);
+bool auth_request_carries_plain_cookie(httpd_req_t* req);
 
 // For what asks for no pairing, so a page must not reach it on the setup network from another name,
 // which that network's DNS sends here: the token a pairing makes would go to that page.

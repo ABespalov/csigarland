@@ -24,7 +24,10 @@ function Get-csiGarlandBuildNumber {
 }
 
 # Writes a counter whole or not at all: the number into a file in Scratch, a folder on the same disk, which
-# then takes the counter's place, so a write that fails or is stopped leaves the number there before.
+# then takes the counter's place, so a write that fails or is stopped leaves the number there before. Only
+# over the number before it: the lock is a file held open here, and a flock in the bash twin, which a
+# Windows host and a container on one checkout do not see of each other, so a build there that took a
+# number meanwhile is found here, and its number is not taken twice.
 function Set-csiGarlandBuildNumber {
     param(
         [Parameter(Mandatory = $true)][string]$CounterPath,
@@ -32,6 +35,10 @@ function Set-csiGarlandBuildNumber {
         [Parameter(Mandatory = $true)][string]$Scratch
     )
 
+    $now = Get-csiGarlandBuildNumber -CounterPath $CounterPath
+    if ($now -ne $Number - 1) {
+        throw "The build counter $CounterPath holds $now, not $($Number - 1): another build took a number meanwhile, so $Number is not written."
+    }
     $next = Join-Path $Scratch 'build-counter.next'
     try {
         [System.IO.File]::WriteAllText($next, "$Number`n", [System.Text.UTF8Encoding]::new($false))
@@ -243,11 +250,11 @@ function Get-csiGarlandTreeDigest {
     )
 
     if ($Revision) {
-        $listed = (& git -C $RepoRoot ls-tree -r -z --full-tree $Revision -- @Paths) -join ''
+        $listed = Get-csiGarlandGitList -RepoRoot $RepoRoot -Arguments (@('ls-tree', '-r', '-z', '--full-tree', $Revision, '--') + $Paths)
         if ($LASTEXITCODE -ne 0) {
             throw "git ls-tree failed with exit code $LASTEXITCODE for $Revision in $RepoRoot."
         }
-        $held = @($listed -split "`0" | Where-Object { $_ } | ForEach-Object {
+        $held = @($listed | ForEach-Object {
                 $meta, $path = $_ -split "`t", 2
                 $mode, $type, $blob = $meta -split ' '
                 if ($type -eq 'blob' -and $path -cnotin $BuildCounters) { [pscustomobject]@{ Path = $path; Blob = $blob } }
@@ -265,7 +272,7 @@ function Get-csiGarlandTreeDigest {
             $tree.Dispose()
         }
     }
-    $files = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- @Paths | Sort-Object -Culture '' -CaseSensitive |
+    $files = @(Get-csiGarlandGitFiles -RepoRoot $RepoRoot -Paths $Paths | Sort-Object -Culture '' -CaseSensitive |
             Where-Object { $_ -cnotin $BuildCounters -and (Test-Path -LiteralPath (Join-Path $RepoRoot $_) -PathType Leaf) })
     if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) {
         throw "git ls-files listed no files of $($Paths -join ', ') in $RepoRoot (exit code $LASTEXITCODE)."
@@ -294,6 +301,33 @@ function Get-csiGarlandTreeDigest {
 }
 
 function Get-csiGarlandSourceFormat { return $SourceFormat }
+
+# What a git command given -z lists, item by item, in the UTF-8 git writes: without -z git quotes a path that
+# is not ASCII, which then names no file, and the console's code page would garble one. $LASTEXITCODE is git's.
+function Get-csiGarlandGitList {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $encoding = [Console]::OutputEncoding
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    try {
+        $listed = (& git -C $RepoRoot @Arguments) -join "`n"
+    } finally {
+        [Console]::OutputEncoding = $encoding
+    }
+    return @($listed -split "`0" | Where-Object { $_ })
+}
+
+# The files git would keep under Paths, here as they lie.
+function Get-csiGarlandGitFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string[]]$Paths
+    )
+    return Get-csiGarlandGitList -RepoRoot $RepoRoot -Arguments (@('ls-files', '-z', '--cached', '--others', '--exclude-standard', '--') + $Paths)
+}
 
 # The C++ compiler the utility of a release is built with, for each platform it is released for, as
 # docs/guides/rebuild.md names it: another builds, but not the same file, and a release says its file
@@ -432,16 +466,17 @@ function Copy-csiGarlandSources {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    $sources = @(& git -C $RepoRoot ls-files --cached --others --exclude-standard -- firmware/app cmd internal deploy go.mod go.sum LICENSE THIRD_PARTY_NOTICES.md)
+    $sources = @(Get-csiGarlandGitFiles -RepoRoot $RepoRoot -Paths @('firmware/app', 'cmd', 'internal', 'deploy', 'go.mod', 'go.sum', 'LICENSE', 'THIRD_PARTY_NOTICES.md'))
     if ($LASTEXITCODE -ne 0 -or $sources.Count -eq 0) {
         throw "git ls-files listed no sources (exit code $LASTEXITCODE)."
     }
+    # Stopped at the first copy that fails, as the caller's ErrorActionPreference does not reach a module.
     foreach ($path in $sources) {
         $from = Join-Path $RepoRoot $path
         if (Test-Path -LiteralPath $from -PathType Leaf) {
             $to = Join-Path $Destination $path
-            New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
-            Copy-Item -LiteralPath $from -Destination $to
+            New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force -ErrorAction Stop | Out-Null
+            Copy-Item -LiteralPath $from -Destination $to -ErrorAction Stop
         }
     }
     # A tree of git's own, with this one's attributes, so that the digests of its sources are worked out
@@ -449,7 +484,7 @@ function Copy-csiGarlandSources {
     foreach ($name in '.gitattributes', '.gitignore') {
         $from = Join-Path $RepoRoot $name
         if (Test-Path -LiteralPath $from) {
-            Copy-Item -LiteralPath $from -Destination (Join-Path $Destination $name)
+            Copy-Item -LiteralPath $from -Destination (Join-Path $Destination $name) -ErrorAction Stop
         }
     }
     # Had init failed, git would look further up for a repository, this one's own under temp\ among them,
@@ -469,7 +504,7 @@ function Copy-csiGarlandSources {
     $app = Join-Path $Destination 'firmware\app'
     $components = Join-Path $RepoRoot 'firmware\app\managed_components'
     if (Test-Path -LiteralPath $components) {
-        Copy-Item -LiteralPath $components -Destination (Join-Path $app 'managed_components') -Recurse
+        Copy-Item -LiteralPath $components -Destination (Join-Path $app 'managed_components') -Recurse -ErrorAction Stop
     }
     return $app
 }

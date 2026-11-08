@@ -499,12 +499,12 @@ static void test_a_failed_save_of_a_choices_time_is_tried_again() {
     TEST_ASSERT_FALSE(choice_time_is_due(kNoChoiceYet, true, false, 0));
 }
 
-static uint32_t s_uptime_reads[8];
+static uint64_t s_uptime_reads[8];
 static size_t s_uptime_read = 0;
 static int64_t s_wall_reads[4];
 static size_t s_wall_read = 0;
 
-static uint32_t next_uptime_read() {
+static uint64_t next_uptime_read() {
     return s_uptime_reads[s_uptime_read++];
 }
 
@@ -512,7 +512,7 @@ static int64_t next_wall_read() {
     return s_wall_reads[s_wall_read++];
 }
 
-static int64_t read_choice_time(uint32_t choice, std::initializer_list<int64_t> reads) {
+static int64_t read_choice_time(uint64_t choice, std::initializer_list<int64_t> reads) {
     s_uptime_read = 0;
     s_wall_read = 0;
     size_t index = 0;
@@ -520,7 +520,7 @@ static int64_t read_choice_time(uint32_t choice, std::initializer_list<int64_t> 
         if (index % 3 == 1) {
             s_wall_reads[s_wall_read++] = read;
         } else {
-            s_uptime_reads[s_uptime_read++] = static_cast<uint32_t>(read);
+            s_uptime_reads[s_uptime_read++] = static_cast<uint64_t>(read);
         }
         ++index;
     }
@@ -561,9 +561,10 @@ static void test_a_pause_between_clock_reads_does_not_move_a_choice() {
     TEST_ASSERT_EQUAL_size_t(kClockReadTries * 2, s_uptime_read);
     TEST_ASSERT_EQUAL_INT64(kMinute + kClockReadRoundingMs, found);
 
-    // The uptime counter wrapping in between changes nothing.
-    found = read_choice_time(UINT32_MAX - 5, {4, kMinute, 4});
-    TEST_ASSERT_EQUAL_INT64(kMinute - 10 + kClockReadRoundingMs, found);
+    // A moment past 32 bits of milliseconds, about 49.7 days, is dated from the uptime as it stands.
+    constexpr uint64_t kFar = 5000000000ULL;
+    found = read_choice_time(kFar, {5000001000LL, kMinute, 5000001000LL});
+    TEST_ASSERT_EQUAL_INT64(kMinute - 1000 + kClockReadRoundingMs, found);
 }
 
 static void test_a_step_due_before_a_choice_does_not_override_it() {
@@ -586,21 +587,25 @@ static void test_a_step_due_before_a_choice_does_not_override_it() {
     TEST_ASSERT_EQUAL_INT64(kNow, catch_up_first_minute(kLast, kNow, kNow + 500));
 }
 
-static uint32_t s_fake_choice_ms = 0;
+static uint64_t s_fake_choice_ms = 0;
 
 static void test_a_choice_keeps_its_own_moment() {
     State state(32);
     state.set_effect_count(3);
     state.activate_effect(1);
-    TEST_ASSERT_EQUAL_UINT32(0, state.owner_choice_ms());
+    TEST_ASSERT_TRUE(state.owner_choice_ms() == 0);
     state.set_choice_clock([] { return s_fake_choice_ms; });
     s_fake_choice_ms = 1234;
     state.activate_effect(1);
-    TEST_ASSERT_EQUAL_UINT32(1234, state.owner_choice_ms());
+    TEST_ASSERT_TRUE(state.owner_choice_ms() == 1234);
     // The schedule leaves it.
     s_fake_choice_ms = 5678;
     state.apply_action(50, 0, -1, 1);
-    TEST_ASSERT_EQUAL_UINT32(1234, state.owner_choice_ms());
+    TEST_ASSERT_TRUE(state.owner_choice_ms() == 1234);
+    // Past 32 bits of milliseconds, about 49.7 days: the moment is kept whole.
+    s_fake_choice_ms = 5000000000ULL;
+    state.activate_effect(0);
+    TEST_ASSERT_TRUE(state.owner_choice_ms() == 5000000000ULL);
 }
 
 static void run_choice_tests() {

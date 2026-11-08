@@ -227,7 +227,7 @@ static void test_scheduler24_tells_a_step_by_its_name_not_its_power() {
     TEST_ASSERT_TRUE(before[0].known);
     // An Off of the owner's two seconds after the step is the owner's, though it comes within the step's 5 s:
     // it stays the last, whatever the owner does not choose after it.
-    const auto step_ms = static_cast<uint32_t>(step.at_ms);
+    const auto step_ms = static_cast<uint64_t>(step.at_ms);
     TEST_ASSERT_TRUE(saver_owner_chose_after(step.at_ms, true, step_ms + 2'000));
     TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, true, step_ms + 6'000));
     TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, true, step_ms - 1));
@@ -235,8 +235,9 @@ static void test_scheduler24_tells_a_step_by_its_name_not_its_power() {
     SaverMoment owners[1] = {saver_moment(kNow - 58'000, "Off")};
     saver_fold_into_step(step, saver_owner_chose_after(step.at_ms, true, step_ms + 2'000), owners, 1);
     TEST_ASSERT_TRUE(owners[0].known);
-    // Across the wrap of the 32-bit clock of choices too.
-    TEST_ASSERT_TRUE(saver_owner_chose_after(int64_t{0xFFFF'FF00}, true, 0x0000'0100U));
+    // Past 32 bits of milliseconds, 49.7 days, too: a choice that many days after the step is not just after it.
+    TEST_ASSERT_TRUE(saver_owner_chose_after(int64_t{0xFFFF'FF00}, true, uint64_t{0x1'0000'0100}));
+    TEST_ASSERT_FALSE(saver_owner_chose_after(step.at_ms, true, step_ms + (uint64_t{1} << 32) + 2'000));
 }
 
 static void test_scheduler24_says_what_comes_and_when() {

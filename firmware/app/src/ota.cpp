@@ -370,6 +370,9 @@ void restart_task(void*) {
 std::atomic<bool> s_trial_open{false};
 // When it began, in ms since the start. Stored before the trial is opened, so it is there when read.
 std::atomic<uint32_t> s_trial_start_ms{0};
+// A paired request answered since this start, before the trial began too, as plain HTTP answers first.
+std::atomic<bool> s_answered{false};
+constexpr uint32_t kTrialLookMs = 500;
 
 uint32_t uptime_ms() {
     return static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
@@ -396,10 +399,40 @@ bool confirm_held() {
     return ota_confirm_held(running_record(), boots_this_image);
 }
 
+// Marking it returns only if that failed. A restart with the trial not passed goes back all the same.
+void go_back_now() {
+    const esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
+    ESP_LOGE(TAG, "could not mark this firmware invalid: %s, restarting", esp_err_to_name(err));
+    esp_restart();
+}
+
+// The firmware before takes on the settings, so what was chosen meanwhile is saved first, waited for a little.
+void go_back_after_saving() {
+    s_turn.store(Turn::Restarting);
+    scheduler_save_before_restart();
+    if (!scheduler_saved_before_restart(kRestartSaveWaitMs)) {
+        ESP_LOGW(TAG, "going back with the last change of the settings not saved");
+    }
+    go_back_now();
+}
+
 // A firmware still on trial refuses every update, so one that cannot leave trial must not stay on it:
 // a closed garland would have no way on. It restarts instead, which goes back to the previous firmware.
 void trial_task(void*) {
     vTaskDelay(pdMS_TO_TICKS(kOtaTrialSeconds * 1000));
+    for (;;) {
+        const TrialStep step = ota_trial_step(uptime_ms() - s_trial_start_ms.load(), s_answered.load(), kOtaTrialSeconds,
+                                              kOtaTrialLongestSeconds);
+        if (step == TrialStep::Confirm) {
+            break;
+        }
+        if (step == TrialStep::GoBack) {
+            ESP_LOGE(TAG, "no paired request reached the new firmware in %lu s: going back",
+                     static_cast<unsigned long>(kOtaTrialLongestSeconds));
+            go_back_after_saving();
+        }
+        vTaskDelay(pdMS_TO_TICKS(kTrialLookMs));
+    }
     for (int attempt = 0; attempt < kConfirmAttempts; ++attempt) {
         const esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
         if (err == ESP_OK && confirm_held()) {
@@ -413,13 +446,6 @@ void trial_task(void*) {
     ESP_LOGE(TAG, "still on trial with no way to confirm: restarting, to go back");
     ota_restart_soon();
     vTaskDelete(nullptr);
-}
-
-// Marking it returns only if that failed. A restart with the trial not passed goes back all the same.
-void go_back_now() {
-    const esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
-    ESP_LOGE(TAG, "could not mark this firmware invalid: %s, restarting", esp_err_to_name(err));
-    esp_restart();
 }
 
 }  // namespace
@@ -508,6 +534,10 @@ bool ota_on_trial() {
     return s_trial_open.load() || ota_record_means_trial(running_record());
 }
 
+void ota_note_paired_answer() {
+    s_answered.store(true);
+}
+
 uint32_t ota_trial_seconds_left() {
     if (s_trial_open.load()) {
         return ota_trial_seconds_left(s_trial_start_ms.load(), uptime_ms(), kOtaTrialSeconds);
@@ -526,7 +556,8 @@ void ota_start_trial(bool healthy) {
     }
     s_trial_start_ms.store(uptime_ms());
     s_trial_open.store(true);
-    ESP_LOGW(TAG, "new firmware on trial for %lu s", static_cast<unsigned long>(kOtaTrialSeconds));
+    ESP_LOGW(TAG, "new firmware on trial: confirmed after %lu s once a paired request is answered, back after %lu s without",
+             static_cast<unsigned long>(kOtaTrialSeconds), static_cast<unsigned long>(kOtaTrialLongestSeconds));
     // Without the task it would stay on trial and refuse every update, so it goes back as well.
     if (xTaskCreate(trial_task, "ota_trial", kTaskStackBytes, nullptr, tskIDLE_PRIORITY + 1, nullptr) != pdPASS) {
         ESP_LOGE(TAG, "no task to confirm with, going back");

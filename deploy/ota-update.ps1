@@ -44,8 +44,9 @@
 # The script shows what the file holds before sending it, and -WhatIf stops there. The
 # garland installs what the file holds and leaves the rest. It refuses anything not signed
 # under the root certificate its firmware holds, see deploy/new-signing-certificate.ps1. It
-# then restarts, and goes back to the previous firmware by itself if a new one does not
-# survive its first minute.
+# then restarts, and goes back to the previous firmware by itself if a new one has not
+# answered a paired request within 10 minutes. Keep this script running: its requests are what
+# let the new firmware confirm.
 #
 # Examples:
 #   pwsh -File deploy\ota-update.ps1 -Address csigarland.local
@@ -106,16 +107,24 @@ function New-EffectsUpdate {
     $generated = Join-Path $RepoRoot "temp\effects-update-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     [System.IO.Directory]::CreateDirectory($generated) | Out-Null
     $path = Join-Path $generated 'effects.ota'
-    & $python (Join-Path $FirmwareDir 'scripts\effect_pack_tool.py') (Join-Path $FirmwareDir 'effects') $generated | Write-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The effects pack was not made. Nothing was sent.'
+    $made = $false
+    try {
+        & $python (Join-Path $FirmwareDir 'scripts\effect_pack_tool.py') (Join-Path $FirmwareDir 'effects') $generated | Write-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw 'The effects pack was not made. Nothing was sent.'
+        }
+        $certificates = Join-Path $PSScriptRoot '..\cert'
+        & $python (Join-Path $FirmwareDir 'scripts\ota_sign_tool.py') sign $certificates (Join-Path $generated 'effects.pack') '-' $path | Write-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw 'The effects pack was not signed. Nothing was sent.'
+        }
+        $made = $true
+        return $path
+    } finally {
+        if (-not $made) {
+            Remove-Item -LiteralPath $generated -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
-    $certificates = Join-Path $PSScriptRoot '..\cert'
-    & $python (Join-Path $FirmwareDir 'scripts\ota_sign_tool.py') sign $certificates (Join-Path $generated 'effects.pack') '-' $path | Write-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The effects pack was not signed. Nothing was sent.'
-    }
-    return $path
 }
 
 # What the file says it holds, to show before sending. Only the garland checks the signature.
@@ -188,6 +197,7 @@ function Get-BuildVersionProblem {
 }
 
 $UpdateName = if ($FirmwareOnly) { 'firmware-only.ota' } else { 'firmware.ota' }
+$UpdatePath = $null
 # The firmware build lock of this checkout, when this builds or sends the last build: let go however this
 # ends, as a lock left to the end of the PowerShell this runs in, inside another script's, held back every
 # build after it.
@@ -241,6 +251,12 @@ try {
     # has to be what was shown, and what the garland is then held to.
     $UpdateBytes = [System.IO.File]::ReadAllBytes($UpdatePath)
 } finally {
+    if ($EffectsOnly -and $UpdatePath) {
+        $madeFolder = Split-Path -Parent $UpdatePath
+        if ((Split-Path -Leaf $madeFolder) -like 'effects-update-*') {
+            Remove-Item -LiteralPath $madeFolder -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
     if ($BuildLock) {
         $BuildLock.Dispose()
     }
@@ -256,7 +272,8 @@ if (-not $File -and -not $EffectsOnly) {
     }
 }
 # The bytes to be sent, judged as the garland will judge them, so a refusal costs no restart.
-$checkedPath = Join-Path ([System.IO.Path]::GetTempPath()) "csigarland-$([guid]::NewGuid().ToString('N')).ota"
+$checkedPath = Join-Path $RepoRoot "temp\csigarland-$([guid]::NewGuid().ToString('N')).ota"
+[System.IO.Directory]::CreateDirectory((Split-Path -Parent $checkedPath)) | Out-Null
 try {
     [System.IO.File]::WriteAllBytes($checkedPath, $UpdateBytes)
     if (-not (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $checkedPath)) {
@@ -281,12 +298,27 @@ function Get-Field {
     return $null
 }
 
+# The garland says how long the pairing code lasts. Only a number from 1 to 600 is used; anything else waits a minute.
+function Get-WaitSeconds {
+    param($Value)
+    $text = "$Value"
+    if ($text -notmatch '^\d+(\.\d+)?$') {
+        return 60
+    }
+    $number = [double]::Parse($text, [cultureinfo]::InvariantCulture)
+    $whole = [math]::Floor($number)
+    if ($whole -lt 1 -or $whole -gt 600) {
+        return 60
+    }
+    return $whole
+}
+
 # Asks the owner at the panel, and returns the token the garland gives this script.
 function Request-PortalToken {
     $json = @{ ContentType = 'application/json'; Method = 'Post' } + $TlsCheck
     $asked = Invoke-RestMethod @json -Uri "$BaseUri/api/auth/request" -Body (@{ label = 'ota-update.ps1' } | ConvertTo-Json)
     Write-Host "If the garland shows the code $($asked.code), press POWER and SPEED together there."
-    $deadline = [DateTime]::UtcNow.AddSeconds($asked.seconds)
+    $deadline = [DateTime]::UtcNow.AddSeconds((Get-WaitSeconds $asked.seconds))
     while ([DateTime]::UtcNow -lt $deadline) {
         Start-Sleep -Seconds 2
         $headers = $null
@@ -412,7 +444,7 @@ $unproved = $null
 $proved = $false
 $imageBefore = Get-Field $before 'image'
 $packBefore = Get-Field $before 'pack_digest'
-$deadline = [DateTime]::UtcNow.AddSeconds(180)
+$deadline = [DateTime]::UtcNow.AddMinutes(12)
 while ([DateTime]::UtcNow -lt $deadline) {
     Start-Sleep -Milliseconds 500
     $plainState = $null
@@ -495,7 +527,7 @@ while ([DateTime]::UtcNow -lt $deadline) {
     }
     if ($said -eq '') {
         $said = 'trial'
-        Write-Host "Running $($after.version), which confirms itself after its first minute..."
+        Write-Host "Running $($after.version), which confirms itself once it has answered a paired request, within 10 minutes..."
     }
 }
 if ($httpsFailed -and -not $Insecure) {
@@ -505,6 +537,6 @@ if ($unproved) {
     throw "Not confirmed: the garland answers with version $unproved but cannot say which firmware or effects it runs. It may have gone back to the previous firmware. What it logged is in $logPath"
 }
 if ($sentUnknown -and -not $wentDown) {
-    throw "Not installed, as far as can be seen: the update got no answer ($sentUnknown), and in 180 s the garland did not restart. Check its Info page before sending it again."
+    throw "Not installed, as far as can be seen: the update got no answer ($sentUnknown), and in 12 minutes the garland did not restart. Check its Info page before sending it again."
 }
-throw "The garland did not confirm the update within 180 s. If it restarted more than once it went back to the previous firmware. What it logged is in $logPath"
+throw "The garland did not confirm the update within 12 minutes. If it restarted more than once it went back to the previous firmware. What it logged is in $logPath"

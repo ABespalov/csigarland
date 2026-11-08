@@ -37,5 +37,5 @@ The 1.0.0 utility against the owner's garland: pairing, the pages, updates and t
 
 - **Ubuntu:** released in 1.2.0; still to see against a garland.
 - **macOS:** the Intel build seen running.
-- **Next release:** the power settings on the Device page and in a backup, the Scheduler24 screensaver offered with the clock module, and the preview and Tune on the garland's own LED count, tested on the host; to see against the garland.
+- **Next release, 1.4.0:** the power settings on the Device page and in a backup, the Scheduler24 screensaver offered with the clock module, and the preview and Tune on the garland's own LED count, tested on the host; to see against the garland. Coming with them: the warning on the Device page when the garland's saved power settings were not valid, and the Info page shown after an update, the utility's requests while it waits being what confirms the new firmware.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

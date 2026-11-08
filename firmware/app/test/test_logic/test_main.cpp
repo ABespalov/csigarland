@@ -733,6 +733,8 @@ int main() {
     run_api_tests();
     RUN_TEST(test_saver_starts_after_its_delay_and_a_press_ends_it);
     RUN_TEST(test_saver_none_never_starts);
+    RUN_TEST(test_a_sprite_that_grows_stays_on_the_panel);
+    RUN_TEST(test_scheduler_words_start_in_the_centre);
     RUN_TEST(test_saver_stays_off_the_countdown);
     RUN_TEST(test_starfield_stays_on_the_panel);
     RUN_TEST(test_flying_clock_bounces_inside_the_panel);

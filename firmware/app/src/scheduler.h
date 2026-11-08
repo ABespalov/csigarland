@@ -82,9 +82,9 @@ inline Remembered remembered_from(const Snapshot& now, uint16_t effect) {
 // top of it, before anything is saved. Its time is not given a new one meanwhile.
 bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved, bool remembered_unread);
 
-// The uptime clock in ms that the scheduler reads the moment of a choice by. On the state before the
-// buttons start, so that no choice of theirs goes without its moment.
-uint32_t choice_clock_ms();
+// The uptime clock in ms that the scheduler reads the moment of a choice by, in 64 bits, which never wrap. On the
+// state before the buttons start, so that no choice of theirs goes without its moment.
+uint64_t choice_clock_ms();
 
 // The remembered effect, levels and power on the state, as at a start. What this firmware no longer
 // accepts keeps its default, such as an effect gone from a newer catalog. In one change, and only if the owner

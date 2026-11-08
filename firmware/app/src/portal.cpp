@@ -283,7 +283,33 @@ esp_err_t redirect_to_https(httpd_req_t* req) {
     httpd_resp_set_status(req, "307 Temporary Redirect");
     httpd_resp_set_hdr(req, "Location", s_location);
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    // The browser paired on plain HTTP still holds csigh. One Set-Cookie is all a response here sets.
+    auth_clear_plain_cookie(req);
     return portal_end_of_request(req, httpd_resp_send(req, nullptr, 0));
+}
+
+// Off the setup network, the plain server and every open route answer only the garland's own names.
+// A paired route on HTTPS keeps its own checks: its certificate already names the garland.
+bool refused_for_its_host(httpd_req_t* req, bool open_route, esp_err_t& sent) {
+    if (auth_on_setup_network(req)) {
+        return false;
+    }
+    const bool plain = s_plain_server != nullptr && req->handle == s_plain_server;
+    if (!plain && !open_route) {
+        return false;
+    }
+    if (auth_request_host_is_garland(req)) {
+        return false;
+    }
+    portal_mark_body_unread(req);
+    sent = portal_end_of_request(req, portal_send_status(req, "421 Misdirected Request", "this host is not the garland"));
+    return true;
+}
+
+void clear_plain_cookie_when_sent(httpd_req_t* req) {
+    if (portal_request_is_secure(req) && auth_request_carries_plain_cookie(req)) {
+        auth_clear_plain_cookie(req);
+    }
 }
 
 esp_err_t redirect_within_network(httpd_req_t* req) {
@@ -312,9 +338,13 @@ esp_err_t run_portal_file(httpd_req_t* req) {
     if (refused_for_its_body(req, refused)) {
         return refused;
     }
+    if (refused_for_its_host(req, false, refused)) {
+        return refused;
+    }
     if (must_use_https(req)) {
         return redirect_to_https(req);
     }
+    clear_plain_cookie_when_sent(req);
     if (auth_on_setup_network(req) && auth_setup_host_is_foreign(req)) {
         return redirect_within_network(req);
     }
@@ -326,6 +356,10 @@ esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
     if (refused_for_its_body(req, refused)) {
         return refused;
     }
+    if (refused_for_its_host(req, route.open, refused)) {
+        return refused;
+    }
+    clear_plain_cookie_when_sent(req);
     // Unread until a reader took all of it: a handler that answers early, or reads none, as a scan does, has
     // the connection closed, rather than the server read the rest for as long as it comes.
     portal_mark_body_unread(req);
@@ -356,6 +390,11 @@ esp_err_t run_one_route(httpd_req_t* req, const Route& route) {
     req->user_ctx = s_state;
     const esp_err_t result = route.handler(req);
     xSemaphoreGive(s_handler_lock);
+    // A paired client reached a route of its own and was answered: the path the next update takes works, which is
+    // what confirms a new firmware on trial. Never a refusal, nor an open route: see ota_answer_proves_update_path.
+    if (ota_on_trial() && ota_answer_proves_update_path(route.open, allowed, result == ESP_OK)) {
+        ota_note_paired_answer();
+    }
     return portal_end_of_request(req, result);
 }
 
@@ -366,6 +405,10 @@ esp_err_t run_route(httpd_req_t* req) {
 
 esp_err_t run_public_route(httpd_req_t* req) {
     const Handling handling(req);
+    esp_err_t refused = ESP_OK;
+    if (refused_for_its_host(req, false, refused)) {
+        return refused;
+    }
     const size_t length = api_path_length(req->uri);
     bool known_path = false;
     for (const Route& route : kPublicRoutes) {
@@ -392,9 +435,14 @@ esp_err_t handle_not_found(httpd_req_t* req, httpd_err_code_t) {
     const Handling handling(req);
     // Nothing here reads a body, which the server then never reads either.
     portal_mark_body_unread(req);
+    esp_err_t refused = ESP_OK;
+    if (refused_for_its_host(req, false, refused)) {
+        return refused;
+    }
     if (must_use_https(req)) {
         return redirect_to_https(req);
     }
+    clear_plain_cookie_when_sent(req);
     return portal_end_of_request(req, redirect_within_network(req));
 }
 

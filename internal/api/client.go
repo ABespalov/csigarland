@@ -174,7 +174,7 @@ func readRoot(ctx context.Context, client *http.Client, base string) (Root, erro
 	if response.StatusCode != http.StatusOK {
 		return Root{}, fmt.Errorf("the garland answered %d for its root", response.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxRootBytes))
+	data, err := readUpTo(response.Body, maxRootBytes)
 	if err != nil {
 		return Root{}, fmt.Errorf("read the root: %w", err)
 	}
@@ -306,12 +306,24 @@ func safeToSendTwice(method, route string) bool {
 	return false
 }
 
+// readUpTo reads at most limit bytes. One more is a body cut short, refused rather than taken for the whole.
+func readUpTo(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("the answer is over %d bytes", limit)
+	}
+	return data, nil
+}
+
 func readError(response *http.Response) error {
 	failure := &Error{Status: response.StatusCode}
 	if seconds, err := strconv.Atoi(response.Header.Get("Retry-After")); err == nil {
 		failure.RetryAfter = time.Duration(seconds) * time.Second
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxAnswerBytes))
+	data, err := readUpTo(response.Body, maxAnswerBytes)
 	if err != nil {
 		return failure
 	}
@@ -332,7 +344,7 @@ func readError(response *http.Response) error {
 
 func decode(response *http.Response, into any) error {
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxAnswerBytes))
+	data, err := readUpTo(response.Body, maxAnswerBytes)
 	if err != nil {
 		return fmt.Errorf("read the answer: %w", err)
 	}

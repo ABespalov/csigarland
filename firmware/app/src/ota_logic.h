@@ -102,6 +102,30 @@ constexpr uint32_t ota_trial_seconds_left(uint32_t start_ms, uint32_t now_ms, ui
     return spent >= length ? 0 : static_cast<uint32_t>((length - spent + 999) / 1000);
 }
 
+// What a trial comes to, spent_ms into it. A new image is confirmed only once it has answered a paired request,
+// see ota_answer_proves_update_path, which shows that the garland can be reached as its next update has to be: never before trial_seconds,
+// and then as soon as one has come, up to longest_seconds in all. With none by then it goes back, as an
+// update nobody looks at may have left the garland where nothing reaches it.
+enum class TrialStep : uint8_t { Wait, Confirm, GoBack };
+
+// Whether an answer shows the path the next update takes: a route that wants a paired client, reached through
+// the host check, the redirect and the pairing, or the setup network's password, and handled. An open route, a
+// refusal of any kind, 401, 404, 421 or 503 for the pairings unread, and a handler that failed to answer show
+// nothing of it: a new image that broke pairing or routing answers those too.
+constexpr bool ota_answer_proves_update_path(bool open_route, bool allowed, bool handled) {
+    return !open_route && allowed && handled;
+}
+
+constexpr TrialStep ota_trial_step(uint32_t spent_ms, bool answered, uint32_t trial_seconds, uint32_t longest_seconds) {
+    if (spent_ms < uint64_t{trial_seconds} * 1000) {
+        return TrialStep::Wait;
+    }
+    if (answered) {
+        return TrialStep::Confirm;
+    }
+    return spent_ms >= uint64_t{longest_seconds} * 1000 ? TrialStep::GoBack : TrialStep::Wait;
+}
+
 // Confirming answers OK for whichever record it finds, and with this image's record lost in a failed
 // write, that is the other image's. So it counts only if the flash then says so of this one.
 constexpr bool ota_confirm_held(OtaRecord record, bool boots_this_image) {

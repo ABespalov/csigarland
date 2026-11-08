@@ -75,8 +75,9 @@ esp_err_t settings_save_schedule(const ScheduleEntry* entries, size_t count);
 // Leaves what out holds in place for whatever was not saved, is not valid, or could not be read.
 StoredRead settings_read_display(DisplaySettings& out);
 esp_err_t settings_save_display(const DisplaySettings& settings);
-// The same for the LEDs' power budget, whose defaults a garland saved by 1.1.1 or before reads.
-StoredRead settings_read_power(PowerSettings& out);
+// The same for the LEDs' power budget, whose defaults a garland saved by 1.1.1 or before reads. A record there that
+// holds no valid settings gives the most cautious ones in their place, and invalid says so: see power_from_record.
+StoredRead settings_read_power(PowerSettings& out, bool& invalid);
 esp_err_t settings_save_power(const PowerSettings& settings);
 
 // The last effect, brightness and speed. False when none were saved. The fields are as

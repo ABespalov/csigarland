@@ -23,8 +23,10 @@ $env:CSIGARLAND_THROWAWAY_SIGNING = '1'
 ```
 
 ```bash
-pio run -d firmware/app -e esp32c6
+pio run -d firmware/app -e esp32c6 --disable-auto-clean
 ```
+
+The flag keeps the compiled objects through a change of `platformio.ini` or of the list of sources, as [Versions](docs/guides/build-and-flash.md#7-versions) explains.
 
 Close that terminal or remove the variable before you make a build for a real board.
 

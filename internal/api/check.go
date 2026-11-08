@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -130,7 +129,7 @@ func (c *Client) CheckRoutes(ctx context.Context) []RouteCheck {
 // The version an answer names, if it names one.
 func readStrictly(response *http.Response, into func() any, required []string, items map[string][]string) (problem, unknown, version string) {
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxAnswerBytes))
+	data, err := readUpTo(response.Body, maxAnswerBytes)
 	if err != nil {
 		return fmt.Sprintf("read the answer: %v", err), "", ""
 	}

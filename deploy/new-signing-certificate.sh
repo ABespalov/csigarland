@@ -8,7 +8,7 @@
 #
 # The bash twin of deploy/new-signing-certificate.ps1, for Linux and macOS. A first run makes both. It
 # asks for a passphrase that protects the root key, and nothing recovers either: without the root key and
-# passphrase, boards can only be updated over USB. Everything goes to cert/ at the repository root, which
+# passphrase, a sealed garland cannot take another update. Everything goes to cert/ at the repository root, which
 # git ignores but for its README. Keep the root key and the passphrase apart, off this machine. The
 # signing certificate, with its name and email, is inside every update file, so it is public as soon as
 # a file is published.
@@ -21,8 +21,9 @@
 #   --renew-signing               Keep the root and issue a new signing key and certificate. Firmware
 #                                 already on a board accepts it without an update, as it trusts the root.
 #   --force                       Replace existing certificates with a new root and signing certificate.
-#                                 A board whose firmware trusts the old root takes the next firmware over
-#                                 USB only.
+#                                 Firmware trusts one root, and nothing here builds one that trusts two,
+#                                 so a sealed garland on the old root takes no update signed under the new
+#                                 one: keep the root, and use --renew-signing. The script asks for REPLACE.
 #
 # Examples:
 #   bash deploy/new-signing-certificate.sh
@@ -69,6 +70,11 @@ if [ "$renew" -eq 1 ]; then
 elif [ "$force" -eq 0 ] && { [ -f "$root_key" ] || [ -f "$signing_key" ]; }; then
     csg_die 'Certificates exist already, and a new root would lock out every board that trusts this one. --renew-signing replaces the signing key only, --force replaces everything.'
 fi
+if [ "$force" -eq 1 ] && { [ -f "$root_key" ] || [ -f "$signing_key" ]; }; then
+    printf '%s\n' 'Type REPLACE to replace the root. Firmware trusts one root, and nothing here builds one that trusts two, so a sealed garland on the old root takes no update signed under the new one.' >&2
+    read -r typed
+    [ "$typed" = REPLACE ] || csg_die 'The root was not replaced.'
+fi
 [ -t 0 ] || csg_die 'The passphrase is asked at a terminal, and this one has none.'
 
 python="$(csg_signing_python)"
@@ -112,5 +118,5 @@ done
 
 csg_say "Done. Keep $root_key and its passphrase apart, off this machine."
 if [ "$renew" -eq 0 ]; then
-    csg_say 'Firmware built now trusts this root; a board on older firmware takes it over USB once.'
+    csg_say 'Firmware built now trusts this root alone. A sealed garland on the old root takes no update signed under it.'
 fi

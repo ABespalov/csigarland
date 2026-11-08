@@ -3,7 +3,7 @@
 | Guide | For | Covers |
 |---|---|---|
 | [Building the Hardware](hardware.md) | Whoever builds one | The schematic, a full bill of materials, wiring, and checks before and after power |
-| [Building a Fork and the First Flash](build-and-flash.md) | Whoever builds the firmware | Tools, signing certificates, the first flash and its one irreversible step, every script |
+| [Building a Fork and the First Flash](build-and-flash.md) | Whoever builds the firmware | Tools, signing certificates, the first flash and its one irreversible step, every script, updates from the build machine |
 | [User Guide](user-guide.md) | Whoever uses a finished garland | Buttons, the screen, getting into the portal, every portal page, updates, troubleshooting |
 | [Effects Guide](effects.md) | Whoever changes effects | The catalog and its list of effects, the file format, every algorithm, tuning and adding effects |
 | [Building a Release Again](rebuild.md) | Whoever checks a release | Building the firmware and the utility again from a clean fork, and comparing them to the byte |

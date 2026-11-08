@@ -55,12 +55,53 @@ func TestEffectsAloneAreNotConfirmedByAnotherFirmwaresTrial(t *testing.T) {
 	}
 	// New effects, with the firmware as it was: those are this file's.
 	taken := updateWatch{update: file, bootBefore: "before", packBefore: "old-pack", imageBefore: "old", started: start, unknown: true}
-	if said := taken.look(start.Add(9*time.Second), api.Firmware{Boot: "after", Image: "old", PackDigest: "pack"}, nil); !said.finished || said.failed {
+	if said := taken.look(start.Add(9*time.Second), api.Firmware{Boot: "after", Image: "old", PackDigest: "pack"}, nil); !said.finished || said.failed || !said.confirmed {
 		t.Fatalf("%+v", said)
 	}
 	// New effects, and another firmware with them: someone else's update may have brought both.
 	other := updateWatch{update: file, bootBefore: "before", packBefore: "old-pack", imageBefore: "old", started: start, unknown: true}
 	if said := other.look(start.Add(9*time.Second), api.Firmware{Boot: "after", Image: "other", PackDigest: "pack"}, nil); !said.finished || !said.failed {
 		t.Fatalf("%+v", said)
+	}
+}
+
+func TestAConfirmedFirmwareUpdateOpensInfo(t *testing.T) {
+	start := time.Now()
+	watch := updateWatch{update: api.UpdateFile{HasFirmware: true, Image: "new"}, bootBefore: "before", started: start}
+	confirmed := watch.look(start.Add(70*time.Second), api.Firmware{Boot: "after", Image: "new"}, nil)
+	if !confirmed.finished || confirmed.failed || !confirmed.confirmed {
+		t.Fatalf("the installed firmware was not confirmed: %+v", confirmed)
+	}
+	if !goesToInfoAfterUpdate(PageFirmware, confirmed, true) {
+		t.Fatal("a confirmed firmware update stayed on Firmware")
+	}
+	if goesToInfoAfterUpdate(PageInfo, confirmed, true) || goesToInfoAfterUpdate(PageFirmware, confirmed, false) {
+		t.Fatal("Info opened for an update that was not this firmware's")
+	}
+}
+
+func TestACancelledUninstalledUploadStaysOnFirmware(t *testing.T) {
+	start := time.Now()
+	watch := updateWatch{update: api.UpdateFile{HasFirmware: true, Image: "new"}, bootBefore: "before", started: start, unknown: true, cancelled: true}
+	same := api.Firmware{Boot: "before", Image: "old"}
+	watch.look(start.Add(time.Second), same, nil)
+	said := watch.look(start.Add(time.Second+updateSettle), same, nil)
+	if !said.finished || said.failed || said.confirmed || !strings.Contains(said.words, "Not installed") {
+		t.Fatalf("cancellation was not kept separate from confirmation: %+v", said)
+	}
+	if goesToInfoAfterUpdate(PageFirmware, said, true) {
+		t.Fatal("a cancelled upload that was not installed opened Info")
+	}
+}
+
+func TestAFailedUpdateStaysOnFirmware(t *testing.T) {
+	start := time.Now()
+	watch := updateWatch{update: api.UpdateFile{HasFirmware: true, Image: "new"}, bootBefore: "before", started: start}
+	said := watch.look(start.Add(70*time.Second), api.Firmware{Boot: "after", Image: "old"}, nil)
+	if !said.finished || !said.failed || said.confirmed {
+		t.Fatalf("a rollback was confirmed: %+v", said)
+	}
+	if goesToInfoAfterUpdate(PageFirmware, said, true) {
+		t.Fatal("a failed firmware update opened Info")
 	}
 }

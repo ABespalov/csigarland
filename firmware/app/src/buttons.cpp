@@ -14,8 +14,13 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 #include "iot_button.h"
 #include "portal_auth.h"
+
+#include <cstdint>
 
 namespace garland {
 namespace {
@@ -70,8 +75,24 @@ bool pair_is_down() {
            gpio_get_level(static_cast<gpio_num_t>(CSIGARLAND_BUTTON_SPEED_GPIO)) == 0;
 }
 
-void on_button_event(void*, void* user_data) {
-    const auto* arg = static_cast<const CallbackArg*>(user_data);
+// The button component calls these from the esp_timer task, which also wakes the Lighting task's dither.
+// A click takes the playlist's lock, and approving a browser takes the pairing lock, so the timer task
+// only queues the note: a task of its own runs it, and a press the queue cannot take is missed.
+enum class ButtonNoteKind : uint8_t { Event, Hold };
+
+struct ButtonNote {
+    ButtonNoteKind kind;
+    const CallbackArg* arg;
+};
+
+constexpr UBaseType_t kButtonNotes = 8;
+constexpr uint32_t kButtonTaskStack = 4096;
+// Above the scheduler, the network and the making of the portal's keys, which take seconds of the one core at a
+// time: a press is short work, and the owner waits on it. Below the Lighting task and the screen.
+constexpr UBaseType_t kButtonTaskPriority = tskIDLE_PRIORITY + 3;
+QueueHandle_t s_notes = nullptr;
+
+void serve_button_event(const CallbackArg* arg) {
     if (arg->is_down) {
         s_pair_held = pair_is_down();
         if (s_pair_held) {
@@ -96,10 +117,42 @@ void on_button_event(void*, void* user_data) {
     arg->action(*arg->state);
 }
 
-void on_long_hold(void*, void*) {
+void serve_long_hold() {
     if (s_pair_held && !s_forgot && pair_is_down() && esp_timer_get_time() - s_pair_since_us >= kForgetHoldUs) {
         s_forgot = true;
         auth_forget_all_soon();
+    }
+}
+
+void note_button(ButtonNote note) {
+    if (s_notes != nullptr && xQueueSend(s_notes, &note, 0) == pdTRUE) {
+        return;
+    }
+    // A hold repeats for as long as the button is down: one missed says nothing, and the next comes at once.
+    if (note.kind == ButtonNoteKind::Event) {
+        ESP_LOGW(TAG, "a button press was missed");
+    }
+}
+
+void on_button_event(void*, void* user_data) {
+    note_button(ButtonNote{ButtonNoteKind::Event, static_cast<const CallbackArg*>(user_data)});
+}
+
+void on_long_hold(void*, void*) {
+    note_button(ButtonNote{ButtonNoteKind::Hold, nullptr});
+}
+
+void button_task(void*) {
+    ButtonNote note;
+    for (;;) {
+        if (xQueueReceive(s_notes, &note, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (note.kind == ButtonNoteKind::Hold) {
+            serve_long_hold();
+        } else if (note.arg != nullptr) {
+            serve_button_event(note.arg);
+        }
     }
 }
 
@@ -137,6 +190,12 @@ esp_err_t add_button(const Binding& binding, CallbackArg& down_arg, CallbackArg&
 }  // namespace
 
 bool start_buttons(State& state) {
+    s_notes = xQueueCreate(kButtonNotes, sizeof(ButtonNote));
+    if (s_notes == nullptr ||
+        xTaskCreate(button_task, "buttons", kButtonTaskStack, nullptr, kButtonTaskPriority, nullptr) != pdPASS) {
+        ESP_LOGE(TAG, "no task for the buttons");
+        return false;
+    }
     bool all_started = true;
     for (size_t i = 0; i < kBindingCount; ++i) {
         s_down_args[i] = CallbackArg{&state, kBindings[i].down, true, false};

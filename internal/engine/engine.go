@@ -26,6 +26,7 @@ import "C"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -92,13 +93,35 @@ const (
 // Color is one LED's colour.
 type Color struct{ R, G, B uint8 }
 
-// The firmware's engine has one set of buffers, as a garland plays one effect.
+// The firmware's engine has one set of buffers for the preview, as a garland plays one effect, and the
+// power settings it works their current out by.
 var engineLock sync.Mutex
+
+// cJSON notes where a parse failed in a global of its own, so no two files are parsed at once. Held only
+// for a parse, never while waiting on another lock.
+var parseLock sync.Mutex
+
+// A run apart from the preview: its state in the bridge is its own, so it never waits on a preview's frame
+// nor makes one wait, and its lock keeps it to one caller at a time.
+type run struct {
+	index C.int
+	lock  sync.Mutex
+}
+
+var (
+	samplesRun  = &run{index: C.CSG_RUN_SAMPLES}
+	currentsRun = &run{index: C.CSG_RUN_CURRENTS}
+)
+
+// load takes a file into the run and starts it from its beginning. Its lock is the caller's.
+func (r *run) load(file []byte) error {
+	return parse(file, func(text, message *C.char, size C.int) C.int {
+		return C.csg_run_load(r.index, text, message, size)
+	})
+}
 
 // Check says what is wrong with an effect's file, or nil if the firmware would take it.
 func Check(file []byte) error {
-	engineLock.Lock()
-	defer engineLock.Unlock()
 	// Not load: the engine's effect belongs to whichever preview is active.
 	return parse(file, func(text, message *C.char, size C.int) C.int { return C.csg_check(text, message, size) })
 }
@@ -115,7 +138,10 @@ func parse(file []byte, step func(text, message *C.char, size C.int) C.int) erro
 	text := C.CString(string(file))
 	defer C.free_text(text)
 	message := make([]byte, errorBytes)
-	if step(text, (*C.char)(unsafe.Pointer(&message[0])), C.int(len(message))) == 0 {
+	parseLock.Lock()
+	taken := step(text, (*C.char)(unsafe.Pointer(&message[0])), C.int(len(message)))
+	parseLock.Unlock()
+	if taken == 0 {
 		end := 0
 		for end < len(message) && message[end] != 0 {
 			end++
@@ -146,23 +172,21 @@ func names(count int, name func(C.int) *C.char) []string {
 
 // Run draws a file from its start at each of the moments given, in order, on leds LEDs at full
 // brightness, and returns the frames one after another. The same file draws the same, what is random
-// in it too. It is apart from every preview: the active one starts again at its next frame.
+// in it too. It is apart from every preview, which plays on as it was.
 func Run(file []byte, times []uint32, leds int) ([]Color, error) {
 	count := min(leds, MaxLeds)
 	if count <= 0 {
 		return nil, errors.New("no LEDs to draw")
 	}
-	engineLock.Lock()
-	defer engineLock.Unlock()
-	active = nil
-	if err := load(file); err != nil {
+	samplesRun.lock.Lock()
+	defer samplesRun.lock.Unlock()
+	if err := samplesRun.load(file); err != nil {
 		return nil, err
 	}
-	C.csg_run_start()
 	raw := make([]byte, count*bytesPerLed)
 	out := make([]Color, 0, len(times)*count)
 	for _, at := range times {
-		C.csg_run_render(C.uint32_t(at), (*C.uint8_t)(unsafe.Pointer(&raw[0])), C.int(count))
+		C.csg_run_render(samplesRun.index, C.uint32_t(at), (*C.uint8_t)(unsafe.Pointer(&raw[0])), C.int(count))
 		for i := range count {
 			out = append(out, Color{raw[i*bytesPerLed], raw[i*bytesPerLed+1], raw[i*bytesPerLed+2]})
 		}
@@ -220,23 +244,28 @@ func (p *Preview) Frame(timeMs uint32, brightness int, out []Color) int {
 // more than LimitMilliamps() is a frame the garland sends dimmer.
 func (p *Preview) Milliamps() int { return p.milliamps }
 
-// Currents is what an effect draws at each of times, by the firmware's own model, on a chain of leds
-// at a brightness in percent, before the limit. A run of its own, as Run's.
-func Currents(file []byte, times []uint32, brightness, leds int) ([]int, error) {
+// Currents is what an effect draws at each of times, by the firmware's own model with power, on a chain
+// of leds at a brightness in percent, before the limit. A run of its own, apart from the previews and from
+// Run, so it may go on away from the window while a preview draws. Cancelled by ctx, between two frames.
+func Currents(ctx context.Context, file []byte, times []uint32, brightness, leds int, power Power) ([]int, error) {
 	count := min(leds, MaxLeds)
 	if count <= 0 {
 		return nil, errors.New("no LEDs to draw")
 	}
-	engineLock.Lock()
-	defer engineLock.Unlock()
-	active = nil
-	if err := load(file); err != nil {
+	currentsRun.lock.Lock()
+	defer currentsRun.lock.Unlock()
+	if C.csg_run_power(currentsRun.index, C.int(power.SupplyMilliamps), C.int(power.WhiteMilliamps), C.int(power.IdleMilliamps), C.int(power.MarginPercent)) == 0 {
+		return nil, fmt.Errorf("power settings out of range: %+v", power)
+	}
+	if err := currentsRun.load(file); err != nil {
 		return nil, err
 	}
-	C.csg_run_start()
 	out := make([]int, len(times))
 	for i, at := range times {
-		out[i] = int(C.csg_run_current(C.uint32_t(at), C.int(brightness), C.int(count)))
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		out[i] = int(C.csg_run_current(currentsRun.index, C.uint32_t(at), C.int(brightness), C.int(count)))
 	}
 	return out, nil
 }

@@ -2,6 +2,42 @@
 
 From a clean fork of this repository to your own signed firmware on a board. After this the board updates over Wi-Fi, and the [User Guide](user-guide.md) takes over. Commands are for Windows with PowerShell 7.2 or later, run from the repository root. On Linux and macOS each script has a bash twin of the same name, as [On Linux and macOS](#on-linux-and-macos) says, and what to install is in [Installing on Linux](#installing-on-linux) and [Installing on macOS](#installing-on-macos).
 
+## Quick Start
+
+The five commands from a fork to a board that updates over Wi-Fi, once the tools of [section 1](#1-what-you-need) are installed. Each step links to its details. **Read [section 5](#5-first-flash) before step 4:** the first start of the firmware burns a key into the chip's eFuse, which cannot be undone.
+
+1. Clone your fork, as in [section 2](#2-fork-and-clone), and run the rest from its folder, `csigarland`:
+
+   ```bash
+   git clone https://github.com/YOUR-NAME/csigarland.git
+   ```
+
+2. Make your signing certificates, as in [section 4](#4-make-your-signing-certificates):
+
+   ```bash
+   pwsh -File deploy\new-signing-certificate.ps1
+   ```
+
+3. Plug the board in by USB and find its port, as in [section 5](#5-first-flash):
+
+   ```bash
+   pwsh -File deploy\flash-device.ps1 -ListCandidates
+   ```
+
+4. Build, flash and stay on its log, with your port in place of `COM5`:
+
+   ```bash
+   pwsh -File deploy\flash-device.ps1 -Port COM5
+   ```
+
+5. Join your home network through the portal, as [Connecting](user-guide.md#2-connecting) says, and send a first update over Wi-Fi while USB is still within reach, as in [section 10](#10-updates-from-the-build-machine):
+
+   ```bash
+   pwsh -File deploy\ota-update.ps1 -Address csigarland.local
+   ```
+
+On Linux and macOS each is `bash deploy/<name>.sh`, its options in lower case with dashes, as [On Linux and macOS](#on-linux-and-macos) says. A test build first, with no keys and no board, is in [section 3](#3-check-that-it-builds).
+
 ## 1. What You Need
 
 | Tool | Version | Why |
@@ -131,7 +167,7 @@ $env:CSIGARLAND_THROWAWAY_SIGNING = '1'
 ```
 
 ```bash
-pio run -d firmware/app -e esp32c6
+pio run -d firmware/app -e esp32c6 --disable-auto-clean
 ```
 
 ```bash
@@ -175,7 +211,7 @@ It asks for a passphrase of at least 12 characters for the root key and writes t
 | Option | Does |
 |---|---|
 | `-RenewSigning` | New signing key under the same root. Boards accept it without an update |
-| `-Force` | New root as well. Boards trusting the old one then need a flash over USB |
+| `-Force` | New root as well, after the word REPLACE. Firmware trusts one root, so a board trusting the old one takes no update signed under the new one: an open board is flashed again, a sealed one cannot be moved to it |
 
 **A board flashed by someone else's build trusts their root,** the upstream project's included. It takes your updates only after one flash of your build over USB.
 
@@ -246,8 +282,8 @@ The screen says `Making the HTTPS key` for that moment, then shows the setup net
 | `deploy\flash-device.ps1 -NoMonitor` | Stops after flashing |
 | `deploy\monitor-device.ps1` | Attaches to the log, without flashing |
 | `deploy\ota-update.ps1 -Address <host>` | Builds and installs over Wi-Fi, then watches the garland restart and confirm the new firmware. An update that gets no answer at all, as when the connection drops while the garland restarts, may still have been installed, so it watches all the same and says what it finds. See [Updates](user-guide.md#10-updates) |
-| `deploy\stage-assets.ps1` | A build it makes and then cannot stage, for any check or a failed copy, gives its number back, and leaves nothing staged under it. Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices, whose digests the manifest records, as the next staging writes them again. It copies the build's files to a set of their own under `temp\` and checks that set, so a build meanwhile cannot mix two builds' files, and fetches the Go modules first, whose licences the notices hold. Add `-NewBuild` to spend a new build number, and `-BuildProfile Dev` to stage a Dev build in place of a Release one |
-| `deploy\new-third-party-notices.ps1` | Writes `THIRD_PARTY_NOTICES.md` from what the last firmware build linked and the versions it and the Go program use, and fails on a library it cannot place. Run it after a build that changed a dependency or a setting that links more. `-Check` writes nothing and fails if the file differs, which CI and `stage-assets.ps1` do `-UtilityOnly` checks the utility's part alone, with no firmware build, as `deploy\build-utility.ps1` does for its manifest |
+| `deploy\stage-assets.ps1` | Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices, whose digests the manifest records, as the next staging writes them again. It copies the build's files to a set of their own under `temp\` and checks that set, so a build meanwhile cannot mix two builds' files, and fetches the Go modules first, whose licences the notices hold. Add `-NewBuild` to spend a new build number, and `-BuildProfile Dev` to stage a Dev build in place of a Release one. A build it makes and then cannot stage, for any check or a failed copy, gives its number back, and leaves nothing staged under it |
+| `deploy\new-third-party-notices.ps1` | Writes `THIRD_PARTY_NOTICES.md` from what the last firmware build linked and the versions it and the Go program use, and fails on a library it cannot place. Run it after a build that changed a dependency or a setting that links more. `-Check` writes nothing and fails if the file differs, which CI and `stage-assets.ps1` do. `-UtilityOnly` checks the utility's part alone, with no firmware build, as `deploy\build-utility.ps1` does for its manifest |
 | `deploy\new-signing-certificate.ps1` | Section 4 |
 | `deploy\test-utility.ps1` | The checks of the Go code. Use it rather than plain `go test`, which could keep an effect engine compiled before the firmware last changed |
 | `deploy\build-utility.ps1`, `deploy\run.ps1` | Build [the utility](utility.md) into `assets/utility`; the second also starts it, and starts nothing if the build failed. `-NoRun` only builds, `-Force` spends a build number though nothing changed, and `-BuildProfile Dev` keeps the debug information |
@@ -353,3 +389,30 @@ A Dev build is not held to this: its debug information names the folders it was 
 | Firmware will not start | Hold BOOT, tap RESET, release BOOT, and flash over USB. Settings survive unless the partition table changes where they are |
 
 How the firmware itself works is in [Architecture](../architecture.md).
+
+## 10. Updates From the Build Machine
+
+What an update does on the garland, its trial and its way back, is in [Updates](user-guide.md#10-updates) in the User Guide. From the build machine:
+
+```bash
+pwsh -File deploy\ota-update.ps1 -Address csigarland.local
+```
+
+| Add | Sends |
+|---|---|
+| Nothing | A new build: firmware and effects |
+| `-NoBuild` | The last build, with no new build number. With both a Release and a Dev build on the computer, add `-BuildProfile Release` or `-BuildProfile Dev` to say which. A build whose firmware is not of that profile and of this checkout's version, such as one left from 1.0.0, is refused: send it with `-File` if it is meant |
+| `-FirmwareOnly` | Firmware. The effects on the garland stay |
+| `-EffectsOnly` | Only the effects, with no build |
+| `-File <path>` | That file as it is |
+| `-WhatIf` | Nothing: only says what the file holds |
+| `-Insecure` | The same, with no check of who answers, and plain HTTP if HTTPS does not answer |
+
+* **Pairing.** The first time, the script pairs like a browser, so be at the garland to press POWER and SPEED. It keeps its token in `deploy/portal-token.local.txt`, for the same 100 days.
+* **Who answers.** The script checks the garland's certificate against this computer's trusted roots, so [install its root](user-guide.md#5-stopping-the-certificate-warning) first and use its name. Otherwise it stops before sending anything. `-Insecure` is for reaching it by address or when its HTTPS has failed, and is the way out if the check ever stands between you and an update. Anyone on the network between could then read the token and fake the confirmation, though the garland still refuses a file not signed under its root.
+* **Confirmation.** The script reports success only when the garland has restarted, runs exactly what was sent, told by the image's hash and the effects' digest rather than the version, and has confirmed it, and says so if it went back. Its requests while it waits are what a firmware of 1.4.0 or later needs to confirm itself, so let it run to its end. It waits up to 12 minutes.
+* **On a closed unit, with no USB to read a log,** the script prints the log of the firmware on trial as it starts, and saves it in `temp/trial-log.<time>.txt`. A firmware that cannot start HTTPS stays up on plain HTTP so that the next update can reach it. The script falls back to that with a warning, and the token then travels unencrypted, so do it from your home network.
+
+### Checking the Root Against the Log
+
+Before installing the garland's root in browsers, compare its SHA-256 on the Network page with the `root SHA-256` line of the [board's log](#what-a-good-first-start-looks-like). The log over USB is the check that nobody stood between you and the garland, as the page comes over the same connection as the file. On a closed unit there is no such check: `temp/trial-log.<time>.txt` holds the same line, but it comes over the same network too, so it shows only that the page and the log agree.

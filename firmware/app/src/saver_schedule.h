@@ -88,10 +88,11 @@ inline void saver_span_text(int64_t seconds, char* out, size_t size) {
 // off after the scheduled step that made it, which the screen sees at its next poll.
 constexpr int64_t kSaverFollowsMs = 5000;
 
-// Whether the owner chose anything within kSaverFollowsMs after the step, by the uptime clock of choices, which
-// is 32 bits and wraps: a turn on or off then is the owner's, and no part of the step.
-inline bool saver_owner_chose_after(int64_t step_ms, bool chose, uint32_t choice_ms) {
-    return chose && static_cast<uint32_t>(choice_ms - static_cast<uint32_t>(step_ms)) < kSaverFollowsMs;
+// Whether the owner chose anything within kSaverFollowsMs after the step, by the uptime clock of choices: a turn on
+// or off then is the owner's, and no part of the step.
+inline bool saver_owner_chose_after(int64_t step_ms, bool chose, uint64_t choice_ms) {
+    const int64_t after = static_cast<int64_t>(choice_ms) - step_ms;
+    return chose && after >= 0 && after < kSaverFollowsMs;
 }
 
 // A turn on or off that came of the scheduled step: within kSaverFollowsMs after it, and not before, with no

@@ -125,6 +125,8 @@ void saver_view_take_text(const char* text) {
     if (std::strcmp(text, s_step_shown) == 0) {
         return;
     }
+    // The first words of a showing, after a layout forgotten: centred for this size, not for the one before.
+    const bool first = s_step_shown[0] == '\0';
     std::snprintf(s_step_shown, sizeof(s_step_shown), "%s", text);
     // Laid out as the label will lay it out, wrapped at the widest it may be: the first font whose words then
     // stand no taller than they may, or the smallest.
@@ -141,7 +143,12 @@ void saver_view_take_text(const char* text) {
     lv_obj_set_size(s_saver.step_text, size.x, size.y);
     lv_label_set_text_static(s_saver.step_text, s_step_shown);
     s_engine.set_sprite_size(static_cast<uint16_t>(size.x), static_cast<uint16_t>(size.y));
+    if (first) {
+        s_engine.recenter();
+    }
     lv_obj_set_size(s_saver.step_box, size.x, size.y);
+    // Where the new size leaves it, kept within the screen, not where it stood with the old.
+    lv_obj_set_pos(s_saver.step_box, s_engine.x(), s_engine.y());
 }
 
 void saver_view_forget_layout() {
@@ -184,7 +191,8 @@ void saver_view_draw(const ScreensaverView& view, uint32_t now_ms) {
             }
             break;
         case SaverKind::Scheduler24:
-            lv_obj_set_pos(s_saver.step_box, view.x, view.y);
+            // Where the engine has it now: its words may have taken a new size since the view was polled.
+            lv_obj_set_pos(s_saver.step_box, s_engine.x(), s_engine.y());
             break;
         default:
             break;

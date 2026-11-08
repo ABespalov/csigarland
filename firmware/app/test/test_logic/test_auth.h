@@ -598,7 +598,53 @@ static void test_a_setting_not_read_is_told_from_none_saved() {
     TEST_ASSERT_TRUE(stored_read_with(StoredRead::Unreadable, StoredRead::Missing) == StoredRead::Unreadable);
 }
 
+static void test_a_plain_cookie_counts_only_until_https_runs() {
+    TEST_ASSERT_TRUE(auth_plain_cookie_counts(false, false));
+    TEST_ASSERT_TRUE(auth_plain_cookie_counts(false, true));
+    TEST_ASSERT_FALSE(auth_plain_cookie_counts(true, false));
+    TEST_ASSERT_TRUE(auth_plain_cookie_counts(true, true));
+}
+
+static void test_a_foreign_host_is_not_the_garland() {
+    TEST_ASSERT_TRUE(auth_host_is_garland("csigarland.local", "192.168.4.1", "csigarland", "", ""));
+    TEST_ASSERT_TRUE(auth_host_is_garland("192.168.4.1:80", "192.168.4.1", "csigarland", "", ""));
+    TEST_ASSERT_TRUE(auth_host_is_garland("10.0.0.8", "192.168.4.1", "csigarland", "", "10.0.0.8"));
+    TEST_ASSERT_TRUE(auth_host_is_garland("garland.example.com", "192.168.4.1", "csigarland", "garland.example.com", "10.0.0.8"));
+    TEST_ASSERT_FALSE(auth_host_is_garland("evil.example.com", "192.168.4.1", "csigarland", "garland.example.com", "10.0.0.8"));
+    TEST_ASSERT_FALSE(auth_host_is_garland("evil.example.com", "192.168.4.1", "csigarland", "", ""));
+}
+
+static void test_a_domain_recovered_by_tls_also_counts_for_http() {
+    AuthDomain domain;
+    const auto allowed = [&domain](const char* host) {
+        return auth_host_is_garland(host, "192.168.4.1", "csigarland", domain.name, "10.0.0.8");
+    };
+    domain.take(StoredRead::Unreadable, "");  // The early auth read failed.
+    TEST_ASSERT_FALSE(allowed("garland.example.com"));
+    TEST_ASSERT_TRUE(allowed("csigarland.local"));
+    TEST_ASSERT_TRUE(allowed("10.0.0.8"));
+
+    // The TLS domain retry recovered, whether or not its separate identity read did.
+    domain.take(StoredRead::Loaded, "garland.example.com");
+    TEST_ASSERT_TRUE(allowed("garland.example.com:80"));
+    TEST_ASSERT_TRUE(allowed("GARLAND.EXAMPLE.COM:443"));
+    TEST_ASSERT_FALSE(allowed("evil.example.com"));
+    domain.take(StoredRead::Unreadable, "");
+    TEST_ASSERT_TRUE(allowed("garland.example.com"));
+
+    domain.take(StoredRead::Missing, "");
+    TEST_ASSERT_FALSE(allowed("garland.example.com"));
+    TEST_ASSERT_TRUE(allowed("csigarland.local:80"));
+    TEST_ASSERT_TRUE(allowed("10.0.0.8"));
+    domain.take(StoredRead::Loaded, "garland.example.com");
+    domain.take(StoredRead::Loaded, "");
+    TEST_ASSERT_FALSE(allowed("garland.example.com"));
+    TEST_ASSERT_TRUE(allowed("csigarland.local"));
+    TEST_ASSERT_FALSE(allowed("evil.example.com"));
+}
+
 static void run_auth_tests() {
+    RUN_TEST(test_a_domain_recovered_by_tls_also_counts_for_http);
     RUN_TEST(test_what_a_browser_sends_is_held_to_the_rules);
     RUN_TEST(test_certificate_dates_and_names);
     RUN_TEST(test_name_constraints_are_exact_der);
@@ -636,4 +682,6 @@ static void run_auth_tests() {
     RUN_TEST(test_the_access_screen_comes_after_an_update_only);
     RUN_TEST(test_a_paired_list_not_read_is_told_from_one_not_there);
     RUN_TEST(test_a_setting_not_read_is_told_from_none_saved);
+    RUN_TEST(test_a_plain_cookie_counts_only_until_https_runs);
+    RUN_TEST(test_a_foreign_host_is_not_the_garland);
 }

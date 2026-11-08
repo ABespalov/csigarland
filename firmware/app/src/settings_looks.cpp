@@ -8,10 +8,14 @@
  */
 
 #include "settings.h"
+
+#include "esp_log.h"
 #include "settings_nvs.h"
 
 namespace garland {
 namespace {
+
+const char* const TAG = "settings";
 
 const char* const kLedCountKey = "led_count";
 // A new key, so the catalog's new default favourites replace what earlier firmware saved.
@@ -128,12 +132,20 @@ esp_err_t settings_save_display(const DisplaySettings& settings) {
     });
 }
 
-StoredRead settings_read_power(PowerSettings& out) {
+StoredRead settings_read_power(PowerSettings& out, bool& invalid) {
     uint32_t word = 0;
     const StoredRead read = Reading().read([&](nvs_handle_t handle) { return nvs_get_u32(handle, kPowerKey, &word); });
-    // A record that holds no valid settings is taken for none, whole: never part of it.
-    if (read == StoredRead::Loaded && power_word_is_valid(word)) {
-        out = unpack_power(word);
+    invalid = false;
+    if (read != StoredRead::Loaded) {
+        return read;
+    }
+    // A record that holds no valid settings is never taken in part, nor for none, whose defaults may allow more than
+    // the owner saved: the most cautious stand in, until their saving the settings again writes it whole.
+    const PowerRecord record = power_from_record(word);
+    out = record.settings;
+    invalid = record.invalid;
+    if (invalid) {
+        ESP_LOGW(TAG, "the power settings saved are not valid: the most cautious stand until they are saved again");
     }
     return read;
 }

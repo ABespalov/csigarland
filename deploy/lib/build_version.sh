@@ -26,8 +26,14 @@ csg_build_number() {
 
 # Writes a counter whole or not at all, as Set-csiGarlandBuildNumber: the number into a file in the scratch
 # folder, on the same disk, which then takes the counter's place. Fails, the counter as it was, if either fails.
+# Only over the number before it: a Windows host and a container on one checkout do not see each other's
+# lock, so a number another build took meanwhile ends the script here, not taken twice.
 csg_set_build_number() {
-    local counter="$1" number="$2" next="$3/build-counter.next"
+    local counter="$1" number="$2" next="$3/build-counter.next" now
+    now="$(csg_build_number "$counter")" || return 1
+    if [ "$now" -ne $((number - 1)) ]; then
+        csg_die "The build counter $counter holds $now, not $((number - 1)): another build took a number meanwhile, so $number is not written."
+    fi
     if printf '%s\n' "$number" >"$next" && mv -f "$next" "$counter"; then
         return 0
     fi
@@ -92,20 +98,20 @@ csg_set_engine_sources() {
 
 # A copy of what git would keep of the firmware and the utility, under the destination, for a build that
 # leaves this tree as it is: a repository of its own, so its digests are worked out as they are here.
-# Prints the copy's firmware/app.
+# Prints the copy's firmware/app. Called in a command substitution, where set -e does not reach: each step
+# that fails ends it itself.
 csg_copy_sources() {
     local repo="$1" dest="$2" path top
-    mkdir -p "$dest"
+    mkdir -p "$dest" || csg_die "Could not make $dest."
     git -C "$repo" ls-files -z --cached --others --exclude-standard -- firmware/app cmd internal deploy go.mod go.sum LICENSE THIRD_PARTY_NOTICES.md |
         while IFS= read -r -d '' path; do
             if [ -f "$repo/$path" ]; then
-                mkdir -p "$dest/$(dirname "$path")"
-                cp "$repo/$path" "$dest/$path"
+                mkdir -p "$dest/$(dirname "$path")" && cp "$repo/$path" "$dest/$path" || exit 1
             fi
-        done
+        done || csg_die "Could not copy the sources of $repo into $dest."
     [ -f "$dest/go.mod" ] || csg_die "git ls-files listed no sources in $repo."
     for path in .gitattributes .gitignore; do
-        if [ -f "$repo/$path" ]; then cp "$repo/$path" "$dest/$path"; fi
+        if [ -f "$repo/$path" ]; then cp "$repo/$path" "$dest/$path" || csg_die "Could not copy $path into $dest."; fi
     done
     # Had init failed, git would look further up for a repository, this one's among them, and add the copy
     # to that: so the copy has to be the root of its own before anything is added.
@@ -115,7 +121,8 @@ csg_copy_sources() {
         csg_die "The copy in $dest is not a repository of its own (git says $top): nothing was added."
     git -C "$dest" add --all || csg_die "git could not take the copy in $dest."
     if [ -d "$repo/firmware/app/managed_components" ]; then
-        cp -R "$repo/firmware/app/managed_components" "$dest/firmware/app/managed_components"
+        cp -R "$repo/firmware/app/managed_components" "$dest/firmware/app/managed_components" ||
+            csg_die "Could not copy the managed components into $dest."
     fi
     printf '%s\n' "$dest/firmware/app"
 }

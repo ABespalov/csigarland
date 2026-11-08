@@ -44,6 +44,17 @@ const char* effect_store_read(const char* id);
 // A built-in effect goes back to its own definition, any other leaves the catalog.
 const char* effect_store_delete(const char* id);
 
+// Holds the store's lock while it lives: no upload is read, saved or deleted meanwhile, so a place the catalog
+// gives for an id stays that effect's until what is done with it is done. Nothing else of the store may be called
+// while one is held, but effect_store_all_read; from no task but the scheduler's and the start's.
+class EffectStoreHold {
+public:
+    EffectStoreHold();
+    ~EffectStoreHold();
+    EffectStoreHold(const EffectStoreHold&) = delete;
+    EffectStoreHold& operator=(const EffectStoreHold&) = delete;
+};
+
 struct EffectStoreStatus {
     bool available = false;
     size_t entries_used = 0;

@@ -32,15 +32,46 @@ garland::EffectSpec s_effect;
 // A fixed seed: what is random in an effect need not be the same on the garland.
 constexpr uint32_t kSeed = 0x47415244;
 garland::EffectRenderer s_renderer(kSeed);
-// A run's own, made again for each, so that what is random comes out the same from the same file:
-// a reset leaves the renderer's random numbers where they were.
-std::optional<garland::EffectRenderer> s_runner;
 constexpr int kMaxLeds = CSG_MAX_LEDS;
 static_assert(kMaxLeds == CSIGARLAND_MAX_LEDS, "the firmware's longest chain");
 garland::Rgb s_frame[kMaxLeds];
 garland::RgbQ8 s_lit[kMaxLeds];
-// The garland's power settings, which the current of every frame here is worked out by.
+// The garland's power settings, which the current of every preview frame here is worked out by.
 garland::PowerSettings s_power;
+
+// A run's whole state, so that one goes on while the preview, or the other run, draws.
+struct Run {
+    garland::EffectSpec effect{};
+    // Made again for each run, so that what is random comes out the same from the same file: a reset
+    // leaves the renderer's random numbers where they were.
+    std::optional<garland::EffectRenderer> renderer;
+    garland::Rgb frame[kMaxLeds]{};
+    garland::RgbQ8 lit[kMaxLeds]{};
+    garland::PowerSettings power;
+};
+Run s_runs[CSG_RUNS];
+
+Run* run_of(int run) {
+    return run >= 0 && run < CSG_RUNS ? &s_runs[run] : nullptr;
+}
+
+int clamp_count(int count) {
+    return count < 0 ? 0 : (count > kMaxLeds ? kMaxLeds : count);
+}
+
+uint8_t clamp_percent(int percent) {
+    return static_cast<uint8_t>(percent < 0 ? 0 : (percent > 100 ? 100 : percent));
+}
+
+bool power_is_valid(int supply_ma, int white_ma, int idle_ma, int margin_percent) {
+    return garland::supply_ma_is_valid(supply_ma) && garland::led_white_ma_is_valid(white_ma) &&
+           garland::led_idle_ma_is_valid(idle_ma) && garland::margin_percent_is_valid(margin_percent);
+}
+
+garland::PowerSettings power_of(int supply_ma, int white_ma, int idle_ma, int margin_percent) {
+    return garland::PowerSettings{static_cast<uint16_t>(supply_ma), static_cast<uint8_t>(white_ma),
+                                  static_cast<uint8_t>(idle_ma), static_cast<uint8_t>(margin_percent)};
+}
 
 // The garland's curve turns a percent into a share of light, for an eye; a screen's own gamma does the
 // same to a pixel's value. So a channel's colour is scaled by that share taken back through the curve,
@@ -99,24 +130,43 @@ extern "C" void csg_reset() {
     s_renderer.reset();
 }
 
-extern "C" void csg_run_start() {
-    s_runner.emplace(kSeed);
+extern "C" int csg_run_load(int run, const char* json, char* error, int error_bytes) {
+    Run* const r = run_of(run);
+    if (r == nullptr) {
+        std::snprintf(error, static_cast<size_t>(error_bytes), "%s", "no such run");
+        return 0;
+    }
+    garland::EffectSpec parsed{};
+    if (!parse(json, parsed, error, error_bytes)) {
+        return 0;
+    }
+    r->effect = parsed;
+    r->renderer.emplace(kSeed);
+    return 1;
 }
 
-// The loaded effect as the run's renderer draws it, before any brightness.
-extern "C" void csg_run_render(uint32_t time_ms, uint8_t* rgb, int count) {
-    if (!s_runner) {
-        csg_run_start();
+// The run's effect as its renderer draws it, before any brightness.
+extern "C" void csg_run_render(int run, uint32_t time_ms, uint8_t* rgb, int count) {
+    Run* const r = run_of(run);
+    if (r == nullptr || !r->renderer) {
+        return;
     }
-    if (count > kMaxLeds) {
-        count = kMaxLeds;
-    }
-    s_runner->render(s_effect, time_ms, std::span<garland::Rgb>(s_frame, static_cast<size_t>(count)));
+    count = clamp_count(count);
+    r->renderer->render(r->effect, time_ms, std::span<garland::Rgb>(r->frame, static_cast<size_t>(count)));
     for (int i = 0; i < count; ++i) {
-        rgb[i * 3] = s_frame[i].r;
-        rgb[i * 3 + 1] = s_frame[i].g;
-        rgb[i * 3 + 2] = s_frame[i].b;
+        rgb[i * 3] = r->frame[i].r;
+        rgb[i * 3 + 1] = r->frame[i].g;
+        rgb[i * 3 + 2] = r->frame[i].b;
     }
+}
+
+extern "C" int csg_run_power(int run, int supply_ma, int white_ma, int idle_ma, int margin_percent) {
+    Run* const r = run_of(run);
+    if (r == nullptr || !power_is_valid(supply_ma, white_ma, idle_ma, margin_percent)) {
+        return 0;
+    }
+    r->power = power_of(supply_ma, white_ma, idle_ma, margin_percent);
+    return 1;
 }
 
 extern "C" uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t* rgb, int count) {
@@ -126,8 +176,7 @@ extern "C" uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t
     const auto leds = static_cast<size_t>(count);
     s_renderer.render(s_effect, time_ms, std::span<garland::Rgb>(s_frame, leds));
     // The brightness as the Lighting task applies it, with its curve. Not its current limit or dither.
-    const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
-    const uint32_t gain = garland::brightness_gain(percent);
+    const uint32_t gain = garland::brightness_gain(clamp_percent(brightness_percent));
     garland::apply_brightness(std::span<const garland::Rgb>(s_frame, leds), gain, std::span<garland::RgbQ8>(s_lit, leds));
     const float share = static_cast<float>(gain) / static_cast<float>(garland::kFullBrightnessGain);
     const float screen_gain = std::pow(share, 1.0F / garland::kBrightnessGamma);
@@ -140,24 +189,21 @@ extern "C" uint32_t csg_render(uint32_t time_ms, int brightness_percent, uint8_t
 }
 
 // The firmware's own model of what a frame of the run draws at a brightness, before its limit holds it back.
-extern "C" uint32_t csg_run_current(uint32_t time_ms, int brightness_percent, int count) {
-    if (!s_runner) {
+extern "C" uint32_t csg_run_current(int run, uint32_t time_ms, int brightness_percent, int count) {
+    Run* const r = run_of(run);
+    if (r == nullptr || !r->renderer) {
         return 0;
     }
-    if (count > kMaxLeds) {
-        count = kMaxLeds;
-    }
-    const auto leds = static_cast<size_t>(count);
-    s_runner->render(s_effect, time_ms, std::span<garland::Rgb>(s_frame, leds));
-    const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
-    garland::apply_brightness(std::span<const garland::Rgb>(s_frame, leds), garland::brightness_gain(percent), std::span<garland::RgbQ8>(s_lit, leds));
-    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(s_lit, leds), garland::current_model(s_power));
+    const auto leds = static_cast<size_t>(clamp_count(count));
+    r->renderer->render(r->effect, time_ms, std::span<garland::Rgb>(r->frame, leds));
+    garland::apply_brightness(std::span<const garland::Rgb>(r->frame, leds), garland::brightness_gain(clamp_percent(brightness_percent)),
+                              std::span<garland::RgbQ8>(r->lit, leds));
+    return garland::estimate_current_ma(std::span<const garland::RgbQ8>(r->lit, leds), garland::current_model(r->power));
 }
 
 // The firmware's gain for a brightness, of kFullBrightnessGain: what a current at 100% is scaled by.
 extern "C" uint32_t csg_brightness_gain(int brightness_percent) {
-    const auto percent = static_cast<uint8_t>(brightness_percent < 0 ? 0 : (brightness_percent > 100 ? 100 : brightness_percent));
-    return garland::brightness_gain(percent);
+    return garland::brightness_gain(clamp_percent(brightness_percent));
 }
 
 // What a chain of count LEDs draws all dark: the part of the current no brightness scales.
@@ -178,12 +224,10 @@ extern "C" void csg_default_power(int* supply_ma, int* white_ma, int* idle_ma, i
 }
 
 extern "C" int csg_set_power(int supply_ma, int white_ma, int idle_ma, int margin_percent) {
-    if (!garland::supply_ma_is_valid(supply_ma) || !garland::led_white_ma_is_valid(white_ma) ||
-        !garland::led_idle_ma_is_valid(idle_ma) || !garland::margin_percent_is_valid(margin_percent)) {
+    if (!power_is_valid(supply_ma, white_ma, idle_ma, margin_percent)) {
         return 0;
     }
-    s_power = garland::PowerSettings{static_cast<uint16_t>(supply_ma), static_cast<uint8_t>(white_ma),
-                                     static_cast<uint8_t>(idle_ma), static_cast<uint8_t>(margin_percent)};
+    s_power = power_of(supply_ma, white_ma, idle_ma, margin_percent);
     return 1;
 }
 

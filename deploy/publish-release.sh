@@ -39,7 +39,7 @@ set -euo pipefail
 release='' only='' platform=windows-amd64 platform_given=0 firmware_version='' utility_version=''
 build_new=0 site_only=0 site_from_release=0 what_if=0
 version_arg() {
-    case "$2" in *[!0-9.]* | '') csg_die "$1 is a version such as 1.0.0.27, not $2." ;; esac
+    printf '%s' "$2" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || csg_die "$1 is a version such as 1.0.0.27, not $2."
 }
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -61,7 +61,8 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 printf '%s' "$release" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || csg_die "--release is a base such as 1.0.0, not '$release'."
-csg_require gh 'gh, the GitHub CLI, is not on PATH.'
+# A preview asks nothing of GitHub.
+if [ "$site_only" -eq 0 ]; then csg_require gh 'gh, the GitHub CLI, is not on PATH.'; fi
 repo="$CSG_REPO_ROOT"
 repository='ABespalov/csigarland'
 tag="v$release"
@@ -197,7 +198,9 @@ has() { csg_tool json-get "$1" "$2" >/dev/null 2>&1; }
 if [ "$with_firmware" -eq 1 ]; then
     [ "$(fw version)" = "$firmware_version" ] || csg_die "The staged firmware is $(fw version), not $firmware_version."
     [ "$(csg_tool sha256 "$ota")" = "$(fw ota_sha256)" ] || csg_die "$ota_name is not the file its manifest describes."
-    [ "$(cat "$ota.sha256")" = "$(fw ota_sha256)  $ota_name" ] || csg_die "$ota_name.sha256 does not say $ota_name's SHA-256, $(fw ota_sha256): stage it again."
+    # Byte for byte, its line's end too, as $(cat) would drop it: compared by digest.
+    said_sha="$(printf '%s  %s\n' "$(fw ota_sha256)" "$ota_name" | csg_tool sha256-text)"
+    [ "$(csg_tool sha256 "$ota.sha256")" = "$said_sha" ] || csg_die "$ota_name.sha256 does not say $ota_name's SHA-256, $(fw ota_sha256): stage it again."
     for field in notices_sha256 license_sha256 notices_checked; do
         has "$ota.manifest.json" "$field" || csg_die "$firmware_version records no $field, as a staging before it did: stage it again."
     done
@@ -250,16 +253,22 @@ fi
 
 # What the site gets: worked out by csg_release.py from the lists before this run and this run's builds.
 today="$(date +%Y-%m-%d)"
+# Each value taken alone first: a command substitution inside another's arguments fails unseen.
 write_site() {
-    local out="$1" days="${2:-}" state="$scratch/site-state.json" firmware_json=null utility_json=null
+    local out="$1" days="${2:-}" state="$scratch/site-state.json" firmware_json=null utility_json=null sha bytes root
     if [ -z "$days" ]; then days='{}'; fi
     if [ "$with_firmware" -eq 1 ]; then
-        firmware_json="$(csg_tool json-build --str version "$firmware_version" --str file "$ota_name" --str sha256 "$(fw ota_sha256)" \
-            --raw bytes "$(csg_tool file-size "$ota")" --raw effects "$effects" --str root_sha256 "$(csg_tool sha256 "$firmware_dir/csigarland-ota-root.crt")")"
+        sha="$(fw ota_sha256)"
+        bytes="$(csg_tool file-size "$ota")"
+        root="$(csg_tool sha256 "$firmware_dir/csigarland-ota-root.crt")"
+        firmware_json="$(csg_tool json-build --str version "$firmware_version" --str file "$ota_name" --str sha256 "$sha" \
+            --raw bytes "$bytes" --raw effects "$effects" --str root_sha256 "$root")"
     fi
     if [ "$with_utility" -eq 1 ]; then
-        utility_json="$(csg_tool json-build --str version "$utility_version" --str file "$utility_name" --str sha256 "$(ut sha256)" \
-            --raw bytes "$(csg_tool file-size "$utility")" --str platform_name "$platform_name")"
+        sha="$(ut sha256)"
+        bytes="$(csg_tool file-size "$utility")"
+        utility_json="$(csg_tool json-build --str version "$utility_version" --str file "$utility_name" --str sha256 "$sha" \
+            --raw bytes "$bytes" --str platform_name "$platform_name")"
     fi
     local before=null catalog=null
     if [ -f "$repo/site/downloads/manifest.json" ]; then before="$(cat "$repo/site/downloads/manifest.json")"; fi
@@ -344,8 +353,9 @@ release_holds() {
     [ "$there" = "$(csg_tool sha256 "$file")" ] ||
         csg_die "The release $tag holds another $name already, SHA-256 $there against $(csg_tool sha256 "$file") here: a released file is never replaced, and the site is left as it is."
 }
-# The notes, with the table of the files the release holds and this run's.
-notes="$scratch/release-notes-$release.md"
+# The notes, with the table of the files the release holds and this run's: kept under temp/ to read after,
+# where the copies and the downloads in scratch go when the script ends.
+notes="$CSG_TEMP/release-notes-$release-$run_id.md"
 write_notes() {
     local held="$1" rows='' name described sha signed_said='' placed_ota=0 placed_utility=0
     local names=()
@@ -366,8 +376,16 @@ write_notes() {
         fi
         rows="$rows| \`$name\` | $described | \`$sha\` |"$'\n'
     done
-    if [ "$with_firmware" -eq 1 ] && [ "$placed_ota" -eq 0 ]; then rows="$rows| \`$ota_name\` | $(csg_python "$CSG_LIB_DIR/csg_release.py" describe "$ota_name") | \`$(fw ota_sha256)\` |"$'\n'; fi
-    if [ "$with_utility" -eq 1 ] && [ "$placed_utility" -eq 0 ]; then rows="$rows| \`$utility_name\` | $(csg_python "$CSG_LIB_DIR/csg_release.py" describe "$utility_name") | \`$(ut sha256)\` |"$'\n'; fi
+    if [ "$with_firmware" -eq 1 ] && [ "$placed_ota" -eq 0 ]; then
+        described="$(csg_python "$CSG_LIB_DIR/csg_release.py" describe "$ota_name")"
+        sha="$(fw ota_sha256)"
+        rows="$rows| \`$ota_name\` | $described | \`$sha\` |"$'\n'
+    fi
+    if [ "$with_utility" -eq 1 ] && [ "$placed_utility" -eq 0 ]; then
+        described="$(csg_python "$CSG_LIB_DIR/csg_release.py" describe "$utility_name")"
+        sha="$(ut sha256)"
+        rows="$rows| \`$utility_name\` | $described | \`$sha\` |"$'\n'
+    fi
     case "$rows" in *'.ota` |'*) signed_said='The update file is signed under the root in `csigarland-ota-root.crt`. ' ;; esac
     printf '%s\n\nThe full list: [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md).\n\n## Files\n\ncsiGarland %s, built from commit %s.\n\n| File | What | SHA-256 |\n|---|---|---|\n%s\n%sEach file builds again to the byte from this tag'"'"'s sources: see [Building a Release Again](https://github.com/%s/blob/%s/docs/guides/rebuild.md).' \
         "$tag_notes" "$repository" "$tag" "$release" "$tag_commit" "${rows%$'\n'}" "$signed_said" "$repository" "$tag" >"$notes"
@@ -402,7 +420,8 @@ if [ "$site_from_release" -eq 1 ]; then
     if [ "$what_if" -eq 1 ]; then
         csg_say "What if: write the site's downloads for $what of the release $tag made already."
     else
-        write_site "$repo/site/downloads" "$(files_days)"
+        days="$(files_days)" || exit 1
+        write_site "$repo/site/downloads" "$days"
     fi
     exit 0
 fi
@@ -442,4 +461,5 @@ else
         csg_die 'gh release create failed.'
     csg_say "Released https://github.com/$repository/releases/tag/$tag"
 fi
-write_site "$repo/site/downloads" "$(files_days)"
+days="$(files_days)" || exit 1
+write_site "$repo/site/downloads" "$days"

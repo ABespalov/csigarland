@@ -42,7 +42,9 @@ void portal_watch_route_ends(httpd_req_t* req);
 // The server whose sessions are watched in their handshake too, before its open_fn: ESP-IDF does that
 // handshake first, in the server's one task, and a client sending it a byte now and then holds that task.
 // Such a session is found in the server's own list of clients, and shut down past kHandshakeDeadlineUs.
-constexpr int64_t kHandshakeDeadlineUs = 15 * 1000 * 1000;
+// Five seconds: a handshake is a few records, and fifteen let a client drip one byte at a time while the
+// server's one task did nothing else. No phone on a slow link was found to need the longer one.
+constexpr int64_t kHandshakeDeadlineUs = 5 * 1000 * 1000;
 void portal_watch_handshakes(httpd_handle_t server);
 
 // The session goes to another task for good, as a stream does: no deadline of the portal's applies to it.

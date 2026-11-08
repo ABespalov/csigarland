@@ -29,6 +29,7 @@
 #include "mbedtls/pem.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/x509_crt.h"
+#include "portal_auth.h"
 #include "psa/crypto.h"
 #include "scheduler.h"
 #include "settings.h"
@@ -431,6 +432,8 @@ const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
         vTaskDelay(pdMS_TO_TICKS(kReadRetryMs));
         domain = settings_load_tls_domain(s_domain, sizeof(s_domain));
     }
+    // A recovered domain belongs to HTTP's Host check too, even if the keys remain unreadable.
+    auth_take_domain(domain, s_domain);
     if (!tls_may_make_identity(read, domain)) {
         // What is saved stays as it is, and the portal goes on over HTTP until a start reads it.
         ESP_LOGE(TAG, "the saved keys or domain could not be read: no HTTPS this start, and they are kept");

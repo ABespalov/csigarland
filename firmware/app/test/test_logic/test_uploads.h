@@ -274,6 +274,19 @@ static void test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack(
     TEST_ASSERT_FALSE(json_depth_is_safe("{\"name\":\"\\\"\",\"a\":[[[[[[[[["));
     TEST_ASSERT_TRUE(json_depth_is_safe("]]]]]]]]]]"));
     TEST_ASSERT_NULL(json_parse_shallow("[[[[[[[[[1]]]]]]]]]"));
+    TEST_ASSERT_TRUE(json_values_are_bounded("{\"brightness\":25}"));
+    TEST_ASSERT_TRUE(json_values_are_bounded("\"[[[{{\""));
+    TEST_ASSERT_TRUE(json_values_are_bounded("[1,2,true,null,\"a\"]"));
+    std::string many = "[";
+    for (int i = 0; i < kMaxJsonValues; ++i) {
+        if (i != 0) {
+            many += ',';
+        }
+        many += '1';
+    }
+    many += ']';
+    TEST_ASSERT_FALSE(json_values_are_bounded(many.c_str()));
+    TEST_ASSERT_NULL(json_parse_shallow(many.c_str()));
 
     // A body is one value and whitespace: no garbage after it, no second one, no NUL in it.
     cJSON* body = json_parse_body("{\"brightness\":25} \r\n", 20);

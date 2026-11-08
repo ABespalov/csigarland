@@ -23,7 +23,7 @@ flowchart LR
 
 ### Milestone 3: Firmware
 Implemented:
-- [x] RMT output, MOSFET sequencing, blanking at every boot, 1400 mA limiter.
+- [x] RMT output, MOSFET sequencing, blanking at every boot, a current limiter: 1400 mA up to 1.1.1, and from 1.4.0 the limit the power settings give, 1400 mA by default.
 - [x] Effect format, grouped catalog, favourites and 154 effects, with room for 256, in an effects pack of their own (format 2) beside the firmware.
 - [x] Effects uploaded and previewed from files, up to 32.
 - [x] HTTPS with each garland's own certificates, and browsers paired at the buttons.
@@ -72,9 +72,12 @@ Not implemented: see **Planned** below.
 * **Push updates:** the garland sends its state as it changes, to the portal and the utility.
 * **1.0.0**, released 2026-11-03 (firmware 1.0.0.102, utility 1.0.0.27): everything ticked in Milestone 3, the portal, the public API and the Windows utility, built again to the byte from its sources.
 
-## In the Next Release
+## In the Next Release, 1.4.0
 
-* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
+The firmware and the utility both, as 1.4.0: 1.2.0 was a release of the utility alone.
+
+* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, 500-4400 mA, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, at most (4400 - 250) * 95 % = 3942 mA, under the 4.3 A of the MOSFET module, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Saved settings that are not valid give the most cautious ones, a 500 mA supply, 100 mA white, 5 mA dark and a 20 % margin, a 200 mA limit, with a warning on the Device page until they are saved again. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
+* **A trial confirmed by an answer:** a new firmware confirms itself only once it has answered a request over the network, as the portal, the utility and `ota-update` send while they wait, within 10 minutes, and otherwise goes back to the firmware before; after an update, the portal and the utility show their Info page. Not yet on the garland.
 * **The Scheduler24 screensaver,** for a garland with the clock module: what comes next and how soon, the schedule's next step within a day or the playlist's next effect, or what happened last and how long ago. Tested on the host, its pictures drawn by the firmware's own drawing code; not yet on the garland.
 * **The preview and Tune on the garland's own LED count,** and the current charted for it, the part past the limit in red. Tested on the host and in pictures of the window; not yet against the garland.
 * **What reviews of this release found,** in the reading of saved settings and uploaded effects after a start that could not read them, and in backups and restores: the [changelog](../../CHANGELOG.md) has each.
@@ -99,5 +102,5 @@ Neither confirmed nor refuted by the running prototype:
 
 ## Validation Still to Do
 
-Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark. Of 1.1.1, on the garland: settings, the remembered choice, the playlist, paired browsers or an uploaded effect that cannot be read at a start, each read again later, the 503s meanwhile, and a press during a slow start. Of 1.3.0: the utility for macOS on Intel.
+Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark. Of 1.1.1, on the garland: settings, the remembered choice, the playlist, paired browsers or an uploaded effect that cannot be read at a start, each read again later, the 503s meanwhile, and a press during a slow start. Of 1.3.0: the utility for macOS on Intel. Of 1.4.0, on the garland: the limit from power settings other than the defaults, the cautious settings and their warning after a saved record that is not valid, the Scheduler24 screensaver, a trial confirmed by the portal's or the utility's request, and a return to the previous firmware after 10 minutes with nothing asking.
 

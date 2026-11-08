@@ -164,6 +164,19 @@ static void test_a_trial_says_how_long_it_has_left() {
     TEST_ASSERT_EQUAL_UINT32(0, ota_trial_seconds_left(1000, 61000, 60));
     TEST_ASSERT_EQUAL_UINT32(0, ota_trial_seconds_left(1000, 500000, 60));
     TEST_ASSERT_EQUAL_UINT32(50, ota_trial_seconds_left(0xFFFFF000u, 0x00001800u, 60));
+    // Confirmed only after the minute, and only once a request was answered; otherwise back at 10 minutes.
+    TEST_ASSERT_TRUE(ota_trial_step(59999, true, 60, 600) == TrialStep::Wait);
+    TEST_ASSERT_TRUE(ota_trial_step(60000, true, 60, 600) == TrialStep::Confirm);
+    TEST_ASSERT_TRUE(ota_trial_step(60000, false, 60, 600) == TrialStep::Wait);
+    TEST_ASSERT_TRUE(ota_trial_step(599999, false, 60, 600) == TrialStep::Wait);
+    TEST_ASSERT_TRUE(ota_trial_step(600000, false, 60, 600) == TrialStep::GoBack);
+    TEST_ASSERT_TRUE(ota_trial_step(600000, true, 60, 600) == TrialStep::Confirm);
+    // Only a paired route reached and handled shows the path the next update takes: never an open route, a
+    // refusal (401, 404, 421, 503) or a handler that failed to answer.
+    TEST_ASSERT_TRUE(ota_answer_proves_update_path(false, true, true));
+    TEST_ASSERT_FALSE(ota_answer_proves_update_path(true, true, true));
+    TEST_ASSERT_FALSE(ota_answer_proves_update_path(false, false, true));
+    TEST_ASSERT_FALSE(ota_answer_proves_update_path(false, true, false));
 }
 
 static void test_a_refused_update_says_whose_problem_it_is() {

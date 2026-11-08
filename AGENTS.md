@@ -135,6 +135,7 @@ refresh `THIRD_PARTY_NOTICES.md` with `deploy/new-third-party-notices.ps1`.
 | `docs/architecture.md` | How the firmware works, the portal API, the accepted risks |
 | `docs/guides/user-guide.md` | Using a garland |
 | `docs/guides/build-and-flash.md` | Building, signing and installing, for a fork too |
+| `docs/guides/rebuild.md` | Building a release again, to the byte, and comparing it with the release |
 | `docs/guides/effects.md` | Every effect and algorithm, enforced by the source rules |
 | `docs/guides/hardware.md`, `docs/hardware/` | Building the hardware, its specification |
 | `docs/stubs/ROADMAP.md` | What is planned, and what is left to see working on the board |

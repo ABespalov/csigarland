@@ -6,7 +6,7 @@
 
 <!-- Host tests, a stubbed page and a build are not the garland. Tick only what this change has been through. -->
 
-- [ ] `pio run -d firmware/app -e esp32c6`, first, as the host tests use what it brings in
+- [ ] `pio run -d firmware/app -e esp32c6 --disable-auto-clean`, first, as the host tests use what it brings in
 - [ ] `pio test -d firmware/app -e native`
 - [ ] `pwsh -File deploy\tests\source-rules.tests.ps1`
 - [ ] `pwsh -File deploy\tests\sensitive-data.tests.ps1`

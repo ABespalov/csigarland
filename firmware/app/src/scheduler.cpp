@@ -39,6 +39,7 @@
 #include "rtc_logic.h"
 #include "saver_schedule.h"
 #include "scheduler_clock.h"
+#include "scheduler_restart.h"
 #include "settings.h"
 
 namespace garland {
@@ -71,16 +72,6 @@ std::atomic<int64_t> s_steps_wait_from{-1};
 // before it, as of a playlist resumed while the schedule cannot be read, is dated before the first of them,
 // and neither the replay nor the next start passes them by. The scheduler's task alone reads and sets it.
 bool s_replay_pending = true;
-// A restart asked for, and what came of saving the settings ahead of it, see scheduler_save_before_restart.
-enum class RestartSave : uint8_t { None, Asked, Held, Failed };
-std::atomic<RestartSave> s_restart_save{RestartSave::None};
-// What was saved, as the scheduler last answered Held: a restart holds it to what is chosen at that moment.
-std::atomic<uint64_t> s_restart_held{0};
-// And the moment of the owner's last choice it was saved with: a choice since, the same value again among
-// them, is newer than what was saved.
-std::atomic<uint32_t> s_restart_held_choice{0};
-State* s_restart_state = nullptr;
-constexpr uint32_t kRestartSaveStepMs = 50;
 // What was remembered is there and could not be read at the start: nothing is saved over it until it is.
 std::atomic<bool> s_remembered_unread{false};
 constexpr uint32_t kRememberedRetryMs = 5000;
@@ -267,21 +258,6 @@ void apply(State& state, const ResolvedAction& resolved) {
              resolved.brightness_percent, resolved.speed_x4, resolved.effect, resolved.playlist ? 1 : 0);
 }
 
-uint64_t pack_remembered(const Remembered& r) {
-    return uint64_t{r.effect} | uint64_t{r.brightness_percent} << 16 | uint64_t{r.speed_x4} << 24 | uint64_t{r.playing} << 32 |
-           uint64_t{r.playlist} << 33;
-}
-
-// Whether what is chosen now is what the scheduler last said it saved: an Off of the countdown after that
-// answer is not in it. The effect as the scheduler remembers it, which a preview or the playlist moving on
-// leaves as it was.
-bool restart_held_matches_now() {
-    const Snapshot now = s_restart_state->snapshot();
-    const uint64_t held = s_restart_held.load();
-    const uint16_t effect = !catalog_is_preview(now.effect) && !now.playlist ? now.effect : static_cast<uint16_t>(held & 0xFFFF);
-    return pack_remembered(remembered_from(now, effect)) == held && s_restart_state->owner_choice_ms() == s_restart_held_choice.load();
-}
-
 // A garland with no clock module may run for years on a certificate made from the build's date,
 // as NTP only ever answers after the portal has started, and one made under a clock module that
 // ran ahead starts in the future. Once real time shows either, that time is kept and a restart
@@ -316,7 +292,7 @@ int64_t epoch_of_last_choice(const State& state) {
         gettimeofday(&now, nullptr);
         return static_cast<int64_t>(now.tv_sec) * 1000 + now.tv_usec / 1000;
     };
-    return latest_wall_ms_of_uptime(state.owner_choice_ms(), uptime_ms, wall_ms) / 1000;
+    return latest_wall_ms_of_uptime(state.owner_choice_ms(), choice_clock_ms, wall_ms) / 1000;
 }
 
 // The first time known since the start, taken the first time it is asked for with the clock set, by a
@@ -363,6 +339,12 @@ void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& rea
         s_resumes_seen = resumes;
         timer.saved_playlist_resumed();
     }
+    // A choice of what plays, by the owner or a step, that came since the pending effect was last looked at: the
+    // look may hold it already, so the id saved is the one it holds, and the timer is told the same. The owner's mark
+    // is set before what plays changes, and a step's in this task, so read after the look they cover every choice in it.
+    if (pending_effect_chosen_over(s_pending_effect.held(), state.owner_chose_play(), state.scheduled_play())) {
+        s_pending_effect.drop();
+    }
     // An effect the playlist moved on to is none of the owner's choosing: what is remembered, and when it
     // was chosen, stay as they were when the playlist began, so that a scheduled step since still counts.
     if (!catalog_is_preview(now.effect) && !now.playlist) {
@@ -372,7 +354,7 @@ void remember_settings(const State& state, MemorySaveTimer& timer, uint16_t& rea
     const auto now_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
     // During an update nothing is saved, as it has the flash; once it is installed, or a restart is asked
     // for, what is chosen is saved at once, as the countdown's Off that came during the update.
-    const bool restarting = now.update_percent == kUpdateRestarting || s_restart_save.load() != RestartSave::None;
+    const bool restarting = now.update_percent == kUpdateRestarting || restart_save_asked();
     if ((now.update_percent != kNoUpdate && !restarting) || !(restarting ? !timer.holds(current) : timer.should_save(current, now_ms))) {
         return;
     }
@@ -441,37 +423,44 @@ bool read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_e
         // a time given now to a choice that has one would move it past the steps it missed.
         s_choice_epoch = remembered.choice_epoch;
         const Snapshot before = state.snapshot();
-        untouched = untouched && remembered_apply(state, remembered);
+        uint16_t saved_effect = real_effect;
+        {
+            // No upload read, saved or deleted from the first lookup to the last: the effect put on, the one the timer
+            // is told flash holds and the one held for the saves are one entry, never one deleted in between and another
+            // uploaded in its place. Held for that alone, not across the playlist's reading below, which may wait on flash.
+            const EffectStoreHold hold;
+            untouched = untouched && remembered_apply(state, remembered);
+            // Whether all uploads are read, taken before the lookup: published after what was read is in the catalog,
+            // so all read then means the lookup sees every effect, and a lookup older than a read that came between
+            // could not take an effect read meanwhile for one gone.
+            const bool all_read = effect_store_all_read();
+            const int index = catalog_find(remembered.effect_id);
+            saved_effect = index >= 0 ? static_cast<uint16_t>(index) : real_effect;
+            real_effect = untouched ? saved_effect : real_effect;
+            // A choice of the power, brightness or speed alone, made before this reading, chose nothing of what plays:
+            // the effect remembered is still the owner's, put on now, or held until the upload it is is read, the
+            // power and levels left as they were chosen. Before the playlist's resume below, which plays over it.
+            if (!untouched) {
+                switch (late_remembered_effect(state.owner_chose_play() || state.scheduled_play(), index, remembered.effect_id[0] != '\0',
+                                               all_read)) {
+                    case LateEffect::Take:
+                        state.restore_effect_unless_chosen(real_effect, saved_effect);
+                        real_effect = saved_effect;
+                        break;
+                    case LateEffect::Hold:
+                        s_pending_effect.hold(remembered.effect_id);
+                        break;
+                    case LateEffect::Leave:
+                        break;
+                }
+            }
+        }
         // Whatever the owner chose since: only a choice of what plays keeps the playlist from coming back, as
         // the resume itself says; one of the power, brightness or speed alone leaves it to.
         const bool plays_on = playlist_restore_playing(state);
         // What flash holds, not what the state holds, whether or not it was put on: a choice made meanwhile,
         // as a turn off, has to stay a change to save, at once if it is one of those. The owner's choice is
         // newer, and stays a choice to save.
-        // Whether all uploads are read, taken before the lookup: published after what was read is in the catalog,
-        // so all read then means the lookup sees every effect, and a lookup older than a read that came between
-        // could not take an effect read meanwhile for one gone.
-        const bool all_read = effect_store_all_read();
-        const int index = catalog_find(remembered.effect_id);
-        const uint16_t saved_effect = index >= 0 ? static_cast<uint16_t>(index) : real_effect;
-        real_effect = untouched ? saved_effect : real_effect;
-        // A choice of the power, brightness or speed alone, made before this reading, chose nothing of what plays:
-        // the effect remembered is still the owner's, put on now, or held until the upload it is is read, the
-        // power and levels left as they were chosen.
-        if (!untouched) {
-            switch (late_remembered_effect(state.owner_chose_play() || state.scheduled_play(), index, remembered.effect_id[0] != '\0',
-                                           all_read)) {
-                case LateEffect::Take:
-                    state.restore_effect_unless_chosen(real_effect, saved_effect);
-                    real_effect = saved_effect;
-                    break;
-                case LateEffect::Hold:
-                    s_pending_effect.hold(remembered.effect_id);
-                    break;
-                case LateEffect::Leave:
-                    break;
-            }
-        }
         timer.saved(Remembered{
             saved_effect,
             remembered_brightness_is_valid(remembered.brightness_percent) ? remembered.brightness_percent : before.brightness_percent,
@@ -496,6 +485,9 @@ void resolve_pending_effect(State& state, MemorySaveTimer& timer, uint16_t& real
     if (!s_pending_effect.held()) {
         return;
     }
+    // No upload read, saved or deleted from the lookup to the effect put on: a place found stays that effect's,
+    // never one freed meanwhile that the next upload would take.
+    const EffectStoreHold hold;
     // Before the lookup, for the reason read_remembered_late gives: a stale not-all-read waits a pass, never drops.
     const bool all_read = effect_store_all_read();
     const int found = catalog_find(s_pending_effect.id());
@@ -636,7 +628,7 @@ void scheduler_task(void* arg) {
             load_schedule();
         }
         // Before the mark is taken: a choice after this is not in what this pass saves.
-        const uint32_t choice_seen = state.owner_choice_ms();
+        const uint64_t choice_seen = state.owner_choice_ms();
         if (state.take_owner_choice()) {
             choice_minute = minute_of_last_choice(state);
             memory_timer.note_choice();
@@ -646,16 +638,9 @@ void scheduler_task(void* arg) {
         // Before a replay not begun too, as before a step waiting for the playlist: dated before its steps.
         remember_settings(state, memory_timer, real_effect);
         // A restart waits for this, a little: see scheduler_saved_before_restart.
-        if (s_restart_save.load() != RestartSave::None) {
+        if (restart_save_asked()) {
             const Remembered held = remembered_from(state.snapshot(), real_effect);
-            if (memory_timer.holds(held)) {
-                // The value first: a restart that sees Held reads the value it is of, or a newer one.
-                s_restart_held.store(pack_remembered(held));
-                s_restart_held_choice.store(choice_seen);
-                s_restart_save.store(RestartSave::Held);
-            } else {
-                s_restart_save.store(RestartSave::Failed);
-            }
+            restart_save_answer(memory_timer.holds(held), held, choice_seen);
         }
         if (time_take_ntp_arrival()) {
             if (rtc_present()) {
@@ -766,8 +751,8 @@ bool remembered_apply(State& state, const StoredSettings& remembered) {
     return restored;
 }
 
-uint32_t choice_clock_ms() {
-    return uptime_ms();
+uint64_t choice_clock_ms() {
+    return static_cast<uint64_t>(esp_timer_get_time() / 1000);
 }
 
 bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved, bool remembered_unread) {
@@ -778,7 +763,7 @@ bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved
     s_schedule_revision = esp_random();
     load_schedule();
     s_choice_epoch = choice_epoch;
-    s_restart_state = &state;
+    restart_save_bind(state);
     return xTaskCreate(scheduler_task, "scheduler", kStackBytes, &state, kPriority, nullptr) == pdPASS;
 }
 
@@ -909,32 +894,16 @@ esp_err_t schedule_replace(const ScheduleEntry* entries, size_t count) {
     return ESP_OK;
 }
 
-void scheduler_save_before_restart() {
-    RestartSave none = RestartSave::None;
-    s_restart_save.compare_exchange_strong(none, RestartSave::Asked);
+void scheduler_wake_to_save() {
     wake_to_save();
 }
 
-bool scheduler_saved_before_restart(uint32_t wait_ms) {
-    if (s_task == nullptr) {
-        // No scheduler, so nothing is remembered at all, and nothing is lost by the restart.
-        return true;
-    }
-    // Its own task would wait for itself, which saved what it had a moment ago.
-    if (xTaskGetCurrentTaskHandle() == s_task) {
-        return false;
-    }
-    for (uint32_t waited = 0;; waited += kRestartSaveStepMs) {
-        // Held of an earlier pass says nothing of a change since, so it counts only if it is what is chosen.
-        if (s_restart_save.load() == RestartSave::Held && restart_held_matches_now()) {
-            return true;
-        }
-        if (waited >= wait_ms) {
-            return false;
-        }
-        wake_to_save();
-        vTaskDelay(pdMS_TO_TICKS(kRestartSaveStepMs));
-    }
+bool scheduler_task_started() {
+    return s_task != nullptr;
+}
+
+bool scheduler_task_is_current() {
+    return xTaskGetCurrentTaskHandle() == s_task;
 }
 
 int64_t schedule_steps_done_until() {

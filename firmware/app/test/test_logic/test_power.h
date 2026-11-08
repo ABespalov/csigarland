@@ -26,12 +26,12 @@ static void test_power_limit_follows_the_settings() {
     // The margin is a share of what the supply gives beyond the board: 95 % of 1750 mA.
     power.margin_percent = 5;
     TEST_ASSERT_EQUAL_UINT32(1662, power_limit_ma(power));
-    power.supply_ma = 5000;
+    power.supply_ma = 4400;
     power.margin_percent = 10;
-    TEST_ASSERT_EQUAL_UINT32(4275, power_limit_ma(power));
+    TEST_ASSERT_EQUAL_UINT32(3735, power_limit_ma(power));
     // As measured on the owner's garland: 36 mA lit, under 1 mA idle.
     power.white_ma = 36;
-    TEST_ASSERT_EQUAL_UINT32(115, undimmed_leds(power));
+    TEST_ASSERT_EQUAL_UINT32(100, undimmed_leds(power));
     // The smallest supply with the largest margin still leaves the LEDs some current.
     const PowerSettings small{500, 40, 1, 20};
     TEST_ASSERT_EQUAL_UINT32(200, power_limit_ma(small));
@@ -41,8 +41,9 @@ static void test_power_limit_follows_the_settings() {
 static void test_power_ranges() {
     TEST_ASSERT_FALSE(supply_ma_is_valid(499));
     TEST_ASSERT_TRUE(supply_ma_is_valid(500));
-    TEST_ASSERT_TRUE(supply_ma_is_valid(20000));
-    TEST_ASSERT_FALSE(supply_ma_is_valid(20001));
+    TEST_ASSERT_TRUE(supply_ma_is_valid(4400));
+    TEST_ASSERT_FALSE(supply_ma_is_valid(4401));
+    TEST_ASSERT_FALSE(supply_ma_is_valid(20000));
     TEST_ASSERT_FALSE(led_white_ma_is_valid(4));
     TEST_ASSERT_TRUE(led_white_ma_is_valid(100));
     TEST_ASSERT_FALSE(led_white_ma_is_valid(101));
@@ -101,6 +102,20 @@ static void test_the_rail_stays_off_when_idle_draw_alone_is_over_the_limit() {
     TEST_ASSERT_TRUE(rail_may_be_on(true, PowerSettings{500, 40, 0, 20}, CSIGARLAND_MAX_LEDS));
 }
 
+static void test_an_invalid_power_record_stands_in_with_the_most_cautious() {
+    const PowerSettings saved{2200, 40, 1, 20};
+    const PowerRecord good = power_from_record(pack_power(saved));
+    TEST_ASSERT_FALSE(good.invalid);
+    TEST_ASSERT_TRUE(good.settings == saved);
+    const PowerRecord bad = power_from_record(0);
+    TEST_ASSERT_TRUE(bad.invalid);
+    TEST_ASSERT_TRUE(bad.settings == kCautiousPower);
+    TEST_ASSERT_EQUAL_UINT32(200, power_limit_ma(bad.settings));
+    const PowerSettings widest{static_cast<uint16_t>(kSupplyMaxMa), kLedWhiteMinMa, 0, kMarginMinPercent};
+    TEST_ASSERT_EQUAL_UINT32(3942, power_limit_ma(widest));
+    TEST_ASSERT_TRUE(power_limit_ma(widest) < kSwitchRatingMa);
+}
+
 static void test_a_power_record_is_taken_whole_or_not_at_all() {
     const PowerSettings saved{2200, 40, 1, 20};
     TEST_ASSERT_TRUE(power_word_is_valid(pack_power(saved)));
@@ -120,5 +135,6 @@ static void run_power_tests() {
     RUN_TEST(test_state_holds_the_power_budget);
     RUN_TEST(test_the_rail_waits_for_settings_known);
     RUN_TEST(test_the_rail_stays_off_when_idle_draw_alone_is_over_the_limit);
+    RUN_TEST(test_an_invalid_power_record_stands_in_with_the_most_cautious);
     RUN_TEST(test_a_power_record_is_taken_whole_or_not_at_all);
 }

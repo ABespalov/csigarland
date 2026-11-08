@@ -16,220 +16,10 @@
 #include <cstdio>
 #include <mutex>
 
+#include "garland_values.h"
 #include "power_model.h"
 
 namespace garland {
-
-enum class ProbeStatus : uint8_t { NotChecked, Absent, Present };
-
-// The next step up. A level set by the schedule can lie between the steps.
-constexpr uint8_t next_brightness(uint8_t percent) {
-    return percent < 10 ? 10 : percent < 25 ? 25 : percent < 50 ? 50 : percent < 75 ? 75 : percent < 100 ? 100 : 10;
-}
-
-// Speed is held in quarters so every step stays an integer: 0.25x is 1 and 3x is 12.
-inline constexpr uint8_t kSpeedSteps[] = {1, 2, 3, 4, 6, 8, 12};
-constexpr uint8_t kNormalSpeed = 4;
-constexpr uint8_t next_speed(uint8_t speed_x4) {
-    for (const uint8_t step : kSpeedSteps) {
-        if (step > speed_x4) {
-            return step;
-        }
-    }
-    return kSpeedSteps[0];
-}
-
-constexpr bool speed_x4_is_valid(uint8_t speed_x4) {
-    for (const uint8_t step : kSpeedSteps) {
-        if (step == speed_x4) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// As a multiple, in JSON. Quarters are exact in binary, so comparing them as doubles is safe. 0
-// for anything else.
-constexpr uint8_t speed_x4_from_value(double speed) {
-    for (const uint8_t step : kSpeedSteps) {
-        if (speed == step / 4.0) {
-            return step;
-        }
-    }
-    return 0;
-}
-
-// The portal's slider goes further and finer than the button's steps and the schedule's list:
-// 0.25x to 5x by quarters. The button goes on from there to the next of its steps.
-constexpr uint8_t kManualSpeedMax = 20;
-
-constexpr bool manual_speed_x4_is_valid(uint8_t speed_x4) {
-    return speed_x4 >= 1 && speed_x4 <= kManualSpeedMax;
-}
-
-// As speed_x4_from_value, for the slider.
-constexpr uint8_t manual_speed_x4_from_value(double speed) {
-    for (uint8_t quarters = 1; quarters <= kManualSpeedMax; ++quarters) {
-        if (speed == quarters / 4.0) {
-            return quarters;
-        }
-    }
-    return 0;
-}
-
-// What a person or the schedule may ask for. Fully off is the power's job.
-constexpr bool brightness_percent_is_valid(int percent) {
-    return percent >= 1 && percent <= 100;
-}
-
-constexpr size_t kSpeedTextBytes = 8;
-
-// "0.25", "1", "1.5": a JSON number and, with an x behind it, what the screen shows.
-inline void speed_to_text(uint8_t speed_x4, char (&text)[kSpeedTextBytes]) {
-    constexpr const char* kParts[] = {"", ".25", ".5", ".75"};
-    snprintf(text, sizeof(text), "%u%s", static_cast<unsigned>(speed_x4 / 4 % 100), kParts[speed_x4 % 4]);
-}
-
-enum class ButtonId : uint8_t { Power, Effect, Speed };
-
-constexpr uint32_t kOffCountdownMs = 5000;
-constexpr uint8_t kOffCountdownSeconds = kOffCountdownMs / 1000;
-static_assert(kOffCountdownSeconds <= 7, "the seconds left share a word with what plays, in three bits");
-
-// Scheduler24 tells of the schedule's next step, and is offered only with the clock module, which keeps the
-// time through a power cut; saved, and the module gone since, it runs as the Flying Clock. New after 1.1.1:
-// a firmware before it reads it as no valid kind, and takes the default.
-enum class SaverKind : uint8_t { None, Starfield, FlyingClock, BreathingDot, BlackScreen, Scheduler24 };
-
-constexpr uint16_t kSaverDelayMinSeconds = 10;
-constexpr uint16_t kSaverDelayMaxSeconds = 600;
-constexpr uint16_t kSaverDelayDefaultSeconds = 60;
-
-constexpr bool saver_delay_is_valid(int seconds) {
-    return seconds >= kSaverDelayMinSeconds && seconds <= kSaverDelayMaxSeconds;
-}
-
-constexpr bool saver_kind_is_valid(int kind) {
-    return kind >= static_cast<int>(SaverKind::None) && kind <= static_cast<int>(SaverKind::Scheduler24);
-}
-
-// Screen backlight, in percent. A lower limit keeps a setting from leaving the screen
-// looking dead; Black Screen is the way to turn it off.
-constexpr uint8_t kBacklightMinPercent = 5;
-constexpr uint8_t kScreenBrightnessDefault = 100;
-constexpr uint8_t kSaverBrightnessDefault = 30;
-
-constexpr bool backlight_percent_is_valid(int percent) {
-    return percent >= kBacklightMinPercent && percent <= 100;
-}
-
-// Squared, as the eye sees steps at the dim end far more strongly. Only 0 is dark.
-constexpr uint32_t backlight_duty(uint8_t percent, uint32_t full_duty) {
-    if (percent == 0) {
-        return 0;
-    }
-    const uint32_t capped = percent > 100 ? 100 : percent;
-    const uint32_t duty = capped * capped * full_duty / 10000;
-    return duty > 0 ? duty : 1;
-}
-
-struct DisplaySettings {
-    SaverKind saver = SaverKind::Starfield;
-    uint16_t saver_delay_seconds = kSaverDelayDefaultSeconds;
-    uint8_t screen_percent = kScreenBrightnessDefault;
-    uint8_t saver_percent = kSaverBrightnessDefault;
-};
-
-// One bit per catalog position, with room for the 512 effects the partition table allows.
-class EffectMask {
-public:
-    static constexpr size_t kWords = 9;
-    static constexpr size_t kBits = kWords * 64;
-
-    constexpr EffectMask(uint64_t first_word = 0) : words_{first_word} {}
-
-    static constexpr EffectMask all(size_t count) {
-        EffectMask mask;
-        for (size_t i = 0; i < count && i < kBits; ++i) {
-            mask.set(i, true);
-        }
-        return mask;
-    }
-
-    constexpr bool test(size_t bit) const { return (words_[bit / 64] & (uint64_t{1} << (bit % 64))) != 0; }
-
-    constexpr void set(size_t bit, bool on) {
-        const uint64_t single = uint64_t{1} << (bit % 64);
-        words_[bit / 64] = on ? words_[bit / 64] | single : words_[bit / 64] & ~single;
-    }
-
-    constexpr bool any() const {
-        for (const uint64_t word : words_) {
-            if (word != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    constexpr uint64_t word(size_t index) const { return words_[index]; }
-    constexpr void set_word(size_t index, uint64_t value) { words_[index] = value; }
-
-    constexpr bool operator==(const EffectMask&) const = default;
-
-private:
-    std::array<uint64_t, kWords> words_;
-};
-
-// The next favourite after active, wrapping around. active itself need not be a
-// favourite, since the portal can activate any effect. With no favourites, stays.
-constexpr uint16_t next_favorite(uint16_t active, const EffectMask& favorites, uint16_t count) {
-    for (uint16_t step = 1; step <= count; ++step) {
-        const uint16_t candidate = static_cast<uint16_t>((active + step) % count);
-        if (favorites.test(candidate)) {
-            return candidate;
-        }
-    }
-    return active;
-}
-
-// The LED count setting: 0 follows the probe, anything else is the owner's number.
-constexpr uint16_t kLedCountAuto = 0;
-
-constexpr bool led_setting_is_valid(int setting, int max_leds) {
-    return setting >= kLedCountAuto && setting <= max_leds;
-}
-
-// A number the owner typed wins. The probe's estimate comes next; with neither,
-// the configured length keeps the garland lit.
-constexpr uint16_t effective_led_count(uint16_t setting, ProbeStatus probe, uint16_t estimate,
-                                       uint16_t fallback) {
-    if (setting != kLedCountAuto) {
-        return setting;
-    }
-    return (probe == ProbeStatus::Present && estimate > 0) ? estimate : fallback;
-}
-
-// A firmware update's progress in one byte: 0-100 is the percent received, then these.
-constexpr uint8_t kUpdateApplying = 101;
-constexpr uint8_t kUpdateRestarting = 102;
-constexpr uint8_t kNoUpdate = 255;
-
-constexpr uint8_t update_shown_percent(uint8_t progress) {
-    return progress > 100 ? 100 : progress;
-}
-
-constexpr int update_bar_pixels(uint8_t progress, int full_width) {
-    return full_width * update_shown_percent(progress) / 100;
-}
-
-// A browser's access code on the screen, shifted so that zero stays "nothing".
-constexpr uint16_t kPairDisplayNone = 0;
-constexpr uint16_t kPairDisplayForgotten = 0xFFFF;
-constexpr uint16_t kPairDisplayForgetFailed = 0xFFFE;
-constexpr uint16_t pair_display_for_code(uint16_t code) {
-    return static_cast<uint16_t>(code + 1);
-}
 
 // One consistent-enough copy of the state for the display and the log.
 struct Snapshot {
@@ -562,7 +352,7 @@ public:
     // Not from the schedule, and not from what a start restores.
     void note_owner_choice() {
         owner_chose_.store(true);
-        uint32_t (*const clock)() = choice_clock_.load();
+        uint64_t (*const clock)() = choice_clock_.load();
         owner_choice_ms_.store(clock != nullptr ? clock() : 0);
         change_play([](Play& play) { play.chosen_since_look = true; });
     }
@@ -578,7 +368,7 @@ public:
         });
         return was_chosen;
     }
-    uint32_t owner_choice_ms() const { return owner_choice_ms_.load(); }
+    uint64_t owner_choice_ms() const { return owner_choice_ms_.load(); }
     // Whether the owner has chosen anything since the start.
     bool owner_chose() const { return owner_chose_.load(); }
 
@@ -595,8 +385,9 @@ public:
     bool scheduled_play() const { return scheduled_play_.load(); }
 
     // Milliseconds of a clock that needs no lock, as the lighting task and buttons get here, which
-    // rules out the time of day. Whoever reads the moment of a choice sets this.
-    void set_choice_clock(uint32_t (*clock)()) { choice_clock_.store(clock); }
+    // rules out the time of day. Whoever reads the moment of a choice sets this. 64 bits, as a choice may stand
+    // for longer than 32 bits of milliseconds, 49.7 days, count.
+    void set_choice_clock(uint64_t (*clock)()) { choice_clock_.store(clock); }
 
     // Every press starts here. A press that cancels the countdown or wakes the
     // screen does only that: its click or long press that follows is ignored.
@@ -727,16 +518,20 @@ public:
 
     // The LEDs' power budget, valid settings only. One word, which the Lighting task reads each frame, with
     // whether they are the owner's, read or saved, or still the defaults a start begins with: one known bit
-    // above the settings, which a reading or a save sets with them.
-    void set_power(const PowerSettings& settings) { power_.store(pack_power(settings) | kPowerKnownBit); }
+    // above the settings, which a reading or a save sets with them. stands_in: the most cautious settings, in
+    // place of a saved record that holds none valid, until the owner saves theirs; known all the same.
+    void set_power(const PowerSettings& settings, bool stands_in = false) {
+        power_.store(pack_power(settings) | kPowerKnownBit | (stands_in ? kPowerStandsInBit : 0U));
+    }
     PowerSettings power() const { return unpack_power(power_.load()); }
     struct PowerNow {
         PowerSettings settings;
         bool known;
+        bool stands_in;
     };
     PowerNow power_now() const {
         const uint32_t word = power_.load();
-        return PowerNow{unpack_power(word), (word & kPowerKnownBit) != 0};
+        return PowerNow{unpack_power(word), (word & kPowerKnownBit) != 0, (word & kPowerStandsInBit) != 0};
     }
 
     // Told by the display, so button_down knows the press is only a wake-up.
@@ -938,18 +733,21 @@ private:
     std::atomic<uint32_t> off_deadline_ms_{0};
     std::atomic<uint8_t> consumed_buttons_{0};
     std::atomic<uint32_t> activity_{0};
-    std::atomic<uint32_t> owner_choice_ms_{0};
+    // Two words, which a 64-bit atomic on this single core reads and writes with interrupts masked while it moves
+    // them, ESP-IDF's way: no lock, nothing for the Lighting task, which notes a choice too, to wait on.
+    std::atomic<uint64_t> owner_choice_ms_{0};
     // Set once the owner has chosen anything since the start: the moment above may be 0 with no clock.
     std::atomic<bool> owner_chose_{false};
     std::atomic<bool> owner_play_{false};
     // Set once a scheduled step has chosen what plays, an effect or the playlist, since the start.
     std::atomic<bool> scheduled_play_{false};
-    std::atomic<uint32_t (*)()> choice_clock_{nullptr};
+    std::atomic<uint64_t (*)()> choice_clock_{nullptr};
     std::atomic<SaverKind> saver_kind_{SaverKind::Starfield};
     std::atomic<uint16_t> saver_delay_seconds_{kSaverDelayDefaultSeconds};
     std::atomic<uint8_t> screen_percent_{kScreenBrightnessDefault};
     std::atomic<uint8_t> saver_percent_{kSaverBrightnessDefault};
     static constexpr uint32_t kPowerKnownBit = 1U << 31;
+    static constexpr uint32_t kPowerStandsInBit = 1U << 30;
     // The defaults, not known: a start takes the owner's settings, or that there are none, before the rail.
     std::atomic<uint32_t> power_{pack_power(PowerSettings{})};
     std::atomic<bool> saver_active_{false};

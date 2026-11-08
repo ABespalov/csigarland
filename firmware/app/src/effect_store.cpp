@@ -19,6 +19,7 @@
 
 #include "effect_store_keys.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
@@ -44,6 +45,13 @@ char s_blob[kBlobBytes];
 std::mutex s_store_lock;
 char s_read_blob[kBlobBytes];
 constexpr int kStartReadAttempts = 3;
+// A failure that lasts is read again every few seconds: the first reading again says why, and then one in this
+// many, about every five minutes, so as not to fill the log, the trial's among it. Under s_store_lock.
+// The first failed reading is said, and then again once this long has passed: a count of calls would
+// speak sooner while the portal polls, and the scheduler retries every few seconds either way.
+constexpr int64_t kQuietForUs = 300LL * 1000 * 1000;
+int64_t s_last_loud_us = 0;
+bool s_quiet = false;
 constexpr uint32_t kStartReadPauseMs = 50;
 bool s_available = false;
 StorePartition s_partition = StorePartition::Unready;
@@ -62,7 +70,9 @@ bool load_entry(nvs_handle_t handle, const char* key) {
     size_t bytes = sizeof(s_read_blob);
     const esp_err_t err = nvs_get_blob(handle, key, blob, &bytes);
     if (err != ESP_OK || bytes <= kIdBytes) {
-        ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
+        if (!s_quiet) {
+            ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
+        }
         s_entries_read += err == ESP_OK ? 1 : 0;
         return err == ESP_OK;
     }
@@ -97,7 +107,9 @@ bool load_all() {
         return true;  // Nothing saved yet: the namespace does not exist.
     }
     if (opened != ESP_OK) {
-        ESP_LOGW(TAG, "opening the uploaded effects failed: %s", esp_err_to_name(opened));
+        if (!s_quiet) {
+            ESP_LOGW(TAG, "opening the uploaded effects failed: %s", esp_err_to_name(opened));
+        }
         return false;
     }
     nvs_iterator_t entry = nullptr;
@@ -118,7 +130,9 @@ bool load_all() {
     nvs_close(handle);
     // The end of the list, as of an empty one, is NOT_FOUND; any other answer stopped it short.
     if (err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "listing the uploaded effects failed: %s", esp_err_to_name(err));
+        if (!s_quiet) {
+            ESP_LOGW(TAG, "listing the uploaded effects failed: %s", esp_err_to_name(err));
+        }
         return false;
     }
     return true;
@@ -149,7 +163,9 @@ StorePartition ready_partition() {
         }
     }
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "partition failed, tried again later: %s", esp_err_to_name(err));
+        if (!s_quiet) {
+            ESP_LOGE(TAG, "partition failed, tried again later: %s", esp_err_to_name(err));
+        }
         return StorePartition::Unready;
     }
     s_available = true;
@@ -191,6 +207,16 @@ bool read_unread_locked() {
     if (!s_unread.any()) {
         return false;
     }
+    // Quiet but for the first and one after kQuietForUs, until this reading ends, however it ends.
+    const int64_t now = esp_timer_get_time();
+    const bool say = s_last_loud_us == 0 || now - s_last_loud_us >= kQuietForUs;
+    s_quiet = !say;
+    if (say) {
+        s_last_loud_us = now;
+    }
+    struct Loud {
+        ~Loud() { s_quiet = false; }
+    } const loud;
     if (!s_available) {
         // Readied again, its list still unread; once readied, read whole below.
         if (!store_partition_retried(s_partition)) {
@@ -360,6 +386,14 @@ const char* effect_store_delete(const char* id) {
     catalog_remove(static_cast<size_t>(position));
     ESP_LOGI(TAG, "effect %s deleted", id);
     return nullptr;
+}
+
+EffectStoreHold::EffectStoreHold() {
+    s_store_lock.lock();
+}
+
+EffectStoreHold::~EffectStoreHold() {
+    s_store_lock.unlock();
 }
 
 EffectStoreStatus effect_store_status() {
