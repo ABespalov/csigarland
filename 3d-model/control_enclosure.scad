@@ -187,7 +187,7 @@ pixel_glyphs = [
 ];
 
 /* [View] */
-view_mode = "all";  // [all, assembled, base, lid, inlay_white, inlay_blue, test_xt60, test_jst, test_lcd]
+view_mode = "all";  // [all, assembled, exploded, parts, base, lid, inlay_white, inlay_blue, test_xt60, test_jst, test_lcd]
 
 // =============================================================================
 // HELPERS
@@ -569,6 +569,27 @@ module components_mockup() {
         }
 }
 
+// M3 x 6 button-head screws, below the base pads they go through, in base coordinates.
+module screws_mockup(drop = 0) {
+    for (p = boss_positions())
+        color("#B8BCC2") translate([p[0], p[1], -drop]) {
+            cylinder(d = 5.4, h = 2.0);
+            cylinder(d = 3.0, h = 6.0);
+        }
+}
+
+// Brass M3 heat-set inserts below the lid post tips they melt into, in lid coordinates.
+module inserts_mockup(drop = 0) {
+    for (p = boss_positions())
+        color("#C9A227") translate([p[0], p[1], post_bottom_z - base_H - drop - insert_len])
+            cylinder(d = 4.6, h = insert_len);
+}
+
+// The lid as it prints, panel face down and posts up, standing on Z = 0 at X = x0.
+module lid_flipped(x0) {
+    translate([x0 + box_L, 0, lid_t]) rotate([0, 180, 0]) enclosure_lid();
+}
+
 // =============================================================================
 // RENDER DISPATCHER
 // =============================================================================
@@ -598,6 +619,25 @@ if (view_mode == "base") {
         enclosure_lid();
         span(esp_cx - 18.0, esp_cx + 18.0, esp_cy - 19.0, esp_cy + 19.0, -lip_h - 1, lid_t + 1);
     }
+} else if (view_mode == "exploded") {
+    // The lid lifted face up with its four posts and their inserts, the screws below the base
+    color("#2B2D42") enclosure_base();
+    components_mockup();
+    screws_mockup(drop = 14.0);
+    translate([0, 0, base_H + 40.0]) {
+        color("#2B2D42") enclosure_lid();
+        // A hair above the panel, so the flush inlays do not flicker against their recesses in a render
+        translate([0, 0, 0.02]) {
+            color("#FFFFFF") panel_inlay("white");
+            color("#5BC0EB") panel_inlay("blue");
+        }
+        inserts_mockup(drop = 4.0);
+    }
+} else if (view_mode == "parts") {
+    // Base and lid side by side as they print: the posts stand on the lid, the base has only their pads
+    color("#2B2D42") enclosure_base();
+    components_mockup();
+    color("#2B2D42") lid_flipped(box_L + 16.0);
 } else if (view_mode == "assembled") {
     color("#2B2D42") enclosure_base();
     components_mockup();

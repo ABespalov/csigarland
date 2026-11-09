@@ -3,13 +3,14 @@
 # Licensed under the terms specified by the MIT License
 # Part of the csiGarland project https://github.com/ABespalov/csigarland
 #
-# Purpose: Renders the figurines from their OpenSCAD models into docs/images/diffusers.
+# Purpose: Renders the figurines and the enclosure from their OpenSCAD models into docs/images.
 # Contributors: None
 #
 # The bash twin of deploy/new-model-renders.ps1, for Linux and macOS, by deploy/model_renders.py. Each
 # figurine on its mount, in the colour its model gives its filament, and the eight hanging from the cable
-# in the order of the firmware's layout. Run it after a change to a model, a colour or the layout, then
-# deploy/site-assets.sh and deploy/site-pages.sh for the site. It needs OpenSCAD.
+# in the order of the firmware's layout, into docs/images/diffusers; the control unit's enclosure, exploded
+# and as its parts print, into docs/images/hardware. Run it after a change to a model, a colour or the
+# layout, then deploy/site-assets.sh and deploy/site-pages.sh for the site. It needs OpenSCAD.
 #
 # Options
 #
@@ -43,4 +44,4 @@ fi
 # ESP-IDF's Python, as the PowerShell script takes, else this one: the renders need nothing installed.
 python="$(csg_esp_python)"
 python="${python:-$CSG_PYTHON}"
-"$python" "$CSG_DEPLOY_DIR/model_renders.py" "$openscad" "$CSG_REPO_ROOT" || csg_die 'Rendering the figurines failed.'
+"$python" "$CSG_DEPLOY_DIR/model_renders.py" "$openscad" "$CSG_REPO_ROOT" || csg_die 'Rendering the models failed.'

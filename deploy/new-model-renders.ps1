@@ -2,12 +2,13 @@
 # Licensed under the terms specified by the MIT License
 # Part of the csiGarland project https://github.com/ABespalov/csigarland
 #
-# Purpose: Renders the figurines from their OpenSCAD models into docs/images/diffusers.
+# Purpose: Renders the figurines and the enclosure from their OpenSCAD models into docs/images.
 # Contributors: None
 #
 # Each figurine on its mount, in the colour its model gives its filament, and the eight hanging from
-# the cable in the order of the firmware's layout, read from firmware/app/src/effect_parser.cpp.
-# Run it after a change to a model, a colour or the layout, then deploy\site-assets.ps1 and
+# the cable in the order of the firmware's layout, read from firmware/app/src/effect_parser.cpp, into
+# docs/images/diffusers; the control unit's enclosure, exploded and as its parts print, into
+# docs/images/hardware. Run it after a change to a model, a colour or the layout, then deploy\site-assets.ps1 and
 # deploy\site-pages.ps1 for the site. It needs OpenSCAD.
 #
 # Parameters
@@ -44,5 +45,5 @@ if (-not $python) {
 }
 & $python (Join-Path $PSScriptRoot 'model_renders.py') $OpenScad $RepoRoot
 if ($LASTEXITCODE -ne 0) {
-    throw "Rendering the figurines failed with exit code $LASTEXITCODE."
+    throw "Rendering the models failed with exit code $LASTEXITCODE."
 }

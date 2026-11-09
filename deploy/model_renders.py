@@ -3,7 +3,8 @@
 # Part of the csiGarland project https://github.com/ABespalov/csigarland
 #
 # Purpose: Renders the figurines from their OpenSCAD models: each one on its mount, and the eight on the
-#          cable in the order of the firmware's layout, for docs/images/diffusers.
+#          cable in the order of the firmware's layout, for docs/images/diffusers; and the control unit's
+#          enclosure, exploded and as its parts print, for docs/images/hardware.
 # Contributors: None
 
 """Usage: model_renders.py <openscad.exe> <repository root>"""
@@ -33,6 +34,14 @@ CAPS = {
 CAMERAS = {"tree": ["--camera=0,0,-26,75,0,25,180"]}
 BACKGROUND = (248, 248, 248)  # The Tomorrow colour scheme's.
 PITCH = 52  # mm between figurines on the cable in the picture.
+# The enclosure's preview views of control_enclosure.scad, by the picture each makes, and its camera:
+# the lid lifted face up over the base, its posts and their inserts above the base pads and the screws
+# below them; and the base beside the lid as it prints, posts up.
+ENCLOSURE = {
+    "enclosure_exploded_preview.png": ("exploded", "0,0,0,60,0,25,500", "1400,1000"),
+    "enclosure_base_internal.png": ("base", "0,0,0,50,0,30,500", "1400,1000"),
+    "enclosure_parts.png": ("parts", "0,0,0,50,0,20,500", "1600,900"),
+}
 
 
 def layout(root: Path) -> list[str]:
@@ -161,6 +170,13 @@ rotate([0, 180, 0]) translate([0, 0, 1.20 + 2.00 / 2]) wire_harness_dummy(len = 
     render(openscad, scad, raw, "1660,900", ["--autocenter", "--viewall"])
     crop(raw, target / "garland_octet_hanging.png")
     print("garland_octet_hanging.png: " + ", ".join(order))
+
+    enclosure = models / "control_enclosure.scad"
+    for picture, (mode, camera, size) in ENCLOSURE.items():
+        raw = scratch / f"{mode}-raw.png"
+        render(openscad, enclosure, raw, size, [f"--camera={camera}", "--autocenter", "--viewall", "-D", f'view_mode="{mode}"'])
+        crop(raw, root / "docs" / "images" / "hardware" / picture)
+        print(picture)
 
 
 if __name__ == "__main__":
