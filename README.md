@@ -29,7 +29,7 @@ Each figurine is a hollow shell of translucent PETG with one addressable LED ins
 * **A web portal over HTTPS,** served by the garland itself: play and pick favourites, set brightness and speed, keep a schedule of up to 32 actions, join your Wi-Fi.
 * **No passwords.** A browser asks for access, the browser and the screen show the same code, and you press two buttons on the garland.
 * **Safe updates over Wi-Fi.** Released firmware is ready to download and install from the portal or the utility, signed under the project's root; a fork signs its own under its own. A new firmware proves itself on its first start, and the board goes back to the previous one if it does not.
-* **Careful with power.** Software holds the LEDs to a current limit, 1400 mA in the released firmware. From 1.4.0 the limit is worked out from the power supply you set, at most about 3.9 A, and stays 1400 mA with the 2000 mA supply by default. In standby a MOSFET cuts their power rail.
+* **Careful with power.** Software holds the LEDs to a current limit worked out from the power supply you set, at most about 3.9 A, and 1400 mA with the 2000 mA supply by default; up to firmware 1.1.1 it is a fixed 1400 mA. In standby a MOSFET cuts their power rail.
 
 ## See It
 

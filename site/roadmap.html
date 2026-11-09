@@ -42,12 +42,13 @@
     <section class="section">
       <p class="eyebrow" data-i18n="roadmap.eyebrow">Roadmap</p>
       <h1 data-i18n="roadmap.title">From the first release to the tree</h1>
-      <p class="lead"><span data-i18n="roadmap.lead.a">The firmware 1.1.1 and the utility 1.3.0, for Windows, Linux and macOS, are released. Both are seen working on the owner's garland, the utility on Windows and on macOS. What is left is the hardware: printing the figurines, building the full garland, and measuring it. The </span><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer" data-i18n="roadmap.lead.link">roadmap in the repository</a><span data-i18n="roadmap.lead.b"> is the one kept up to date.</span></p>
+      <p class="lead"><span data-i18n="roadmap.lead.a">The firmware and the utility 1.4.0 are released, the utility for Windows and Linux, with macOS to follow. The releases before them are seen working on the owner's garland, the utility on Windows and on macOS; 1.4.0 is still to be seen there. What is left is the hardware: printing the figurines, building the full garland, and measuring it. The </span><a href="https://github.com/ABespalov/csigarland/blob/main/docs/stubs/ROADMAP.md" rel="noopener noreferrer" data-i18n="roadmap.lead.link">roadmap in the repository</a><span data-i18n="roadmap.lead.b"> is the one kept up to date.</span></p>
     </section>
 
     <section class="section">
       <h2 data-i18n="roadmap.released.title">Released</h2>
       <div class="grid">
+        <div class="card"><h3>1.4.0 <span class="kind" data-i18n="roadmap.kind.both">Firmware and utility</span></h3><p data-i18n="roadmap.released.140">Released 9 November 2026. Firmware and utility 1.4.0, the utility for Windows and Linux: a current limit worked out from your power supply, the Scheduler24 screensaver, an update kept only once it has answered, Tune on your garland's own chain, and a start that waits for what it could not read. A garland updated from 1.1.1 keeps all it saved.</p></div>
         <div class="card"><h3>1.3.0 <span class="kind" data-i18n="roadmap.kind.utility">Utility</span></h3><p data-i18n="roadmap.released.130">Released 6 November 2026. The utility alone, 1.3.0.44 for Windows, 1.3.0.45 for Linux, and the first for macOS, 1.3.0.42 for Apple silicon and 1.3.0.43 for Intel: an app with its icon, the token in the keychain, the system's own panels for files. It works with the firmware 1.1.0 and 1.1.1 alike.</p></div>
         <div class="card"><h3>1.1.1 <span class="kind" data-i18n="roadmap.kind.firmware">Firmware</span></h3><p data-i18n="roadmap.released.111">Released 6 November 2026. The firmware alone, 1.1.1.114: the figurines' new order along the cable and their new colours, and settings a start cannot read read again later, never saved over. A garland updated from 1.1.0 keeps all it saved.</p></div>
         <div class="card"><h3>1.2.0 <span class="kind" data-i18n="roadmap.kind.utility">Utility</span></h3><p data-i18n="roadmap.released.120">Released 5 November 2026. The utility alone, 1.2.0.38 for Windows and 1.2.0.39 for Linux, the first for Linux: the token in the Secret Service of GNOME Keyring or KWallet, the desktop's own dialog for files, and one window at a time. The firmware stays 1.1.0.113. The Linux file builds again to the byte on Ubuntu 24.04, or in Docker on Windows.</p></div>
@@ -68,24 +69,20 @@
     </section>
 
     <section class="section">
-      <h2 data-i18n="roadmap.next.title">What 1.3.0 and 1.1.1 brought</h2>
-      <p data-i18n="roadmap.next.lead">Tested, and seen working on the owner's garland: the firmware 1.1.1, and the utility on Windows and on macOS with Apple silicon. The file for Intel Macs has not been run yet.</p>
+      <h2 data-i18n="roadmap.next.title">What 1.4.0 brought</h2>
+      <p data-i18n="roadmap.next.lead">Tested on the host, and the portal's pages in a browser against a stand-in for the garland; not yet seen on the owner's garland.</p>
       <div class="grid">
-        <div class="card"><h3 data-i18n="roadmap.n1.title">The utility on macOS</h3><p data-i18n="roadmap.n1.body">An app for Apple silicon and Intel, with its icon in the Dock: the pairing token in the login keychain, files chosen in the system's own panels, and one window at a time. How to open it the first time is under its downloads.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.n2.title">The figurines' new order</h3><p data-i18n="roadmap.n2.body">Tree, star, snowman, pinecone, lantern, bell, icicle and gingerbread along the cable, so that neither colours nor shapes bunch together, and the effects that light a figurine by name in its new filament's colour.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.n3.title">Settings never saved over</h3><p data-i18n="roadmap.n3.body">What a start cannot read, from the paired browsers to the favourites and the screen, is read again later rather than taken for none, and the portal and the utility are told to ask again meanwhile.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.n4.title">A press during a slow start</h3><p data-i18n="roadmap.n4.body">A button pressed while the garland is still starting outranks the schedule's steps missed before it, and a turn on or off made then is saved at once.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.n5.title">A cookie for its own scheme</h3><p data-i18n="roadmap.n5.body">A paired browser's cookie counts only from a page of the same scheme as the server it reaches, so whoever intercepts plain HTTP cannot use the one HTTPS gave.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n1.title">A current limit for your supply</h3><p data-i18n="roadmap.n1.body">The Device page takes your power supply, 500 to 4400 mA, what one LED draws at full white and dark, and a margin of 5 to 20 % of what the supply gives beyond the board, and works out the limit, at most about 3.9 A, and how many LEDs show full white undimmed. One LED measured 36 mA where the firmware counted 55, so the full garland on white is no longer dimmed for nothing. The defaults keep the 1400 mA limit.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n2.title">Scheduler24</h3><p data-i18n="roadmap.n2.body">A screensaver for a garland with the clock module that says what comes next and how soon, the next scheduled action within a day or the playlist's next effect, or what happened last and how long ago.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n3.title">Tune on your chain</h3><p data-i18n="roadmap.n3.body">The preview and Tune in the utility draw as many LEDs as your garland has, and chart their current, the part past the limit in red.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n4.title">An update that has to answer</h3><p data-i18n="roadmap.n4.body">A new firmware keeps itself only once it has answered a paired browser or program, as the portal and the utility ask while they wait, within 10 minutes, and goes back to the one before otherwise. A refusal does not count. Then the portal and the utility show the Info page.</p></div>
+        <div class="card"><h3 data-i18n="roadmap.n5.title">Its own names only</h3><p data-i18n="roadmap.n5.body">Plain HTTP and what asks for no pairing answer only to the garland's .local name, its address and your domain, so a page whose name DNS turns to the garland gets nothing from it.</p></div>
       </div>
     </section>
 
     <section class="section">
       <h2 data-i18n="roadmap.planned.title">Planned</h2>
       <div class="grid">
-        <div class="card"><h3 data-i18n="roadmap.p2.title">A current limit for your supply</h3><p data-i18n="roadmap.p2.body">Done, for 1.4.0: the Device page takes your power supply, 500 to 4400 mA, what one LED draws at full white and dark, and a margin of 5 to 20 % of what the supply gives beyond the board, and works out the limit, at most about 3.9 A, and how many LEDs show full white undimmed. One LED measured 36 mA where the firmware counted 55, so the full garland on white is no longer dimmed for nothing. The defaults keep the 1400 mA limit.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.p3.title">Scheduler24</h3><p data-i18n="roadmap.p3.body">Done, for 1.4.0: a screensaver for a garland with the clock module that says what comes next and how soon, the next scheduled action within a day or the playlist's next effect, or what happened last and how long ago.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.p4.title">Tune on your chain</h3><p data-i18n="roadmap.p4.body">Done, for the utility 1.4.0: the preview and Tune draw as many LEDs as your garland has, and chart their current, the part past the limit in red.</p></div>
-        <div class="card"><h3 data-i18n="roadmap.p5.title">An update that has to answer</h3><p data-i18n="roadmap.p5.body">Coming in 1.4.0: a new firmware keeps itself only once it has answered the portal or the utility, which ask while they wait, within 10 minutes, and goes back to the one before otherwise. Then the portal and the utility show the Info page.</p></div>
         <div class="card"><h3 data-i18n="roadmap.p1.title">More platforms</h3><p data-i18n="roadmap.p1.body">The utility on Android and iOS, on the same Go code and the same public API.</p></div>
       </div>
     </section>

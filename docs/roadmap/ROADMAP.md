@@ -58,6 +58,12 @@ Not implemented: see **Planned** below.
 
 ## Released
 
+* **1.4.0**, released 2026-11-09 (the firmware and the utility, for Windows and Linux; macOS to follow): the firmware and the utility both, tested on the host and the portal's pages in a browser against the stubbed portal, and not yet seen on the garland. A garland updated from 1.1.1 keeps all it saved. The [changelog](../../CHANGELOG.md) has each:
+* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, 500-4400 mA, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, at most (4400 - 250) * 95 % = 3942 mA, under the 4.3 A of the MOSFET module, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Saved settings that are not valid give the most cautious ones, a 500 mA supply, 100 mA white, 5 mA dark and a 20 % margin, a 200 mA limit, with a warning on the Device page until they are saved again. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
+* **A trial confirmed by an answer:** a new firmware confirms itself only once it has answered a paired browser or program, a refusal not counting, as the portal, the utility and `ota-update` send while they wait, within 10 minutes, and otherwise goes back to the firmware before; after an update, the portal and the utility show their Info page. Not yet on the garland.
+* **The Scheduler24 screensaver,** for a garland with the clock module: what comes next and how soon, the schedule's next step within a day or the playlist's next effect, or what happened last and how long ago. Tested on the host, its pictures drawn by the firmware's own drawing code; not yet on the garland.
+* **The preview and Tune on the garland's own LED count,** and the current charted for it, the part past the limit in red. Tested on the host and in pictures of the window; not yet against the garland.
+* **What reviews of this release found,** in the reading of saved settings and uploaded effects after a start that could not read them, and in backups and restores: the [changelog](../../CHANGELOG.md) has each.
 * **1.3.0**, released 2026-11-06 (utility 1.3.0.42 for macOS on Apple silicon, 1.3.0.43 for macOS on Intel, 1.3.0.44 for Windows, 1.3.0.45 for Linux; the firmware is 1.1.1): the utility alone, the first for macOS, seen against the owner's garland on Apple silicon; the Intel file has not been run. The [changelog](../../CHANGELOG.md) has each.
 * **1.1.1**, released 2026-11-06 (firmware 1.1.1.114): the firmware alone, with the figurines' new order and colours, and what it does when its settings cannot be read at a start, each part read again and nothing saved over it. Tested on the host and the Device page in a browser against the stubbed portal, and seen working on the owner's garland; those reads failing have not been brought about on it. A garland updated from 1.1.0 keeps all it saved. The [changelog](../../CHANGELOG.md) has each.
 * **1.2.0**, released 2026-11-05 (utility 1.2.0.38 for Windows, 1.2.0.39 for Linux; the firmware stays 1.1.0.113): the utility alone, the first for Linux, tested on the host on Windows and on Ubuntu, the Linux file built in a Docker container of Ubuntu 24.04 on Windows. Not yet seen against the garland on Linux. The [changelog](../../CHANGELOG.md) has each.
@@ -72,15 +78,9 @@ Not implemented: see **Planned** below.
 * **Push updates:** the garland sends its state as it changes, to the portal and the utility.
 * **1.0.0**, released 2026-11-03 (firmware 1.0.0.102, utility 1.0.0.27): everything ticked in Milestone 3, the portal, the public API and the Windows utility, built again to the byte from its sources.
 
-## In the Next Release, 1.4.0
+## In the Next Release
 
-The firmware and the utility both, as 1.4.0: 1.2.0 was a release of the utility alone.
-
-* **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, 500-4400 mA, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, at most (4400 - 250) * 95 % = 3942 mA, under the 4.3 A of the MOSFET module, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Saved settings that are not valid give the most cautious ones, a 500 mA supply, 100 mA white, 5 mA dark and a 20 % margin, a 200 mA limit, with a warning on the Device page until they are saved again. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
-* **A trial confirmed by an answer:** a new firmware confirms itself only once it has answered a request over the network, as the portal, the utility and `ota-update` send while they wait, within 10 minutes, and otherwise goes back to the firmware before; after an update, the portal and the utility show their Info page. Not yet on the garland.
-* **The Scheduler24 screensaver,** for a garland with the clock module: what comes next and how soon, the schedule's next step within a day or the playlist's next effect, or what happened last and how long ago. Tested on the host, its pictures drawn by the firmware's own drawing code; not yet on the garland.
-* **The preview and Tune on the garland's own LED count,** and the current charted for it, the part past the limit in red. Tested on the host and in pictures of the window; not yet against the garland.
-* **What reviews of this release found,** in the reading of saved settings and uploaded effects after a start that could not read them, and in backups and restores: the [changelog](../../CHANGELOG.md) has each.
+Nothing yet beyond 1.4.0.
 
 
 ## Planned
