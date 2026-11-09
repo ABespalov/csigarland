@@ -212,6 +212,21 @@ void merge_entry(ResolvedAction& action, const ScheduleEntry& entry);
 ResolvedAction resolve_minutes(const ScheduleEntry* entries, size_t count, int64_t first_minute, int64_t last_minute,
                                LocalMinuteFn to_local);
 
+// Whether what a minute's steps leave playing is an effect the catalog lacks, which merge_entry passes by: the
+// last of them, in list order, that names an effect or starts the playlist names one catalog_find does not find.
+bool minute_plays_unknown_effect(const ScheduleEntry* entries, size_t count, int64_t minute, LocalMinuteFn to_local);
+
+// Whether a minute's steps, action as resolve_minutes gives it, wait rather than be done now and count as done: a
+// start of the playlist while its list cannot be played yet, as one not read, or read with every effect it
+// names an upload not read yet; or an effect that may be such an upload. Done now, either would come to nothing
+// and never come again once read. One whose minute ends off is done now: what it comes to is known without them.
+constexpr bool minute_waits(const ResolvedAction& action, bool list_waits, bool plays_unknown, bool uploads_may_hold) {
+    if (action.power == PowerStep::Off) {
+        return false;
+    }
+    return (action.playlist && list_waits) || (plays_unknown && uploads_may_hold);
+}
+
 // Adds what a later minute comes to onto what the minutes before came to: what it names takes the place
 // of what they did, a rise only as its own minute asked it.
 void combine_minutes(ResolvedAction& action, const ResolvedAction& later);
@@ -244,6 +259,13 @@ constexpr bool next_action_still_holds(int64_t found_at, int64_t action_minute, 
 
 constexpr bool action_is_soon(int64_t action_minute, int64_t now_minute) {
     return action_minute > now_minute && action_minute - now_minute <= kActionSoonMinutes;
+}
+
+// Whether the time of day is the owner's: the clock set, and the zone saved read, or found to be none. Until
+// then the clock goes by UTC, and the schedule, written in local time, is neither done nor told by it: its next
+// action, its day, the screen's mark of one soon and the time of day on the screen would be hours off.
+constexpr bool local_time_is_known(bool clock_synced, bool zone_read) {
+    return clock_synced && zone_read;
 }
 
 // "on", "off", "rise", or "" for none, as the JSON spells it.

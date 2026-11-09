@@ -325,7 +325,8 @@ struct JsonDeleter {
 bool parse_effect(const char* json, const char* id, EffectSpec& out, const char*& error) {
     const std::unique_ptr<cJSON, JsonDeleter> root(json_parse_shallow(json));
     if (root == nullptr) {
-        error = "not valid JSON";
+        // Said apart, as the text is JSON: see json_has_escaped_nul.
+        error = json_has_escaped_nul(json) ? "a key or text holds \\u0000, which is refused: take it out" : "not valid JSON";
         return false;
     }
     const cJSON* format = cJSON_GetObjectItemCaseSensitive(root.get(), "format");

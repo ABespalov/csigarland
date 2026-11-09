@@ -28,8 +28,10 @@
 #                         What to build: Release, the default, or Dev.
 #   --ca-file <path>      Trust HTTPS signed under this root, as the garland's own from its portal's Info page.
 #   --insecure            For recovery: do not check who answers, and fall back to plain HTTP if HTTPS does
-#                         not answer. Whoever stands between can then read the token and fake the
-#                         confirmation. An update's signature still guards what gets installed.
+#                         not answer, before the update or after it, when the new firmware's HTTPS has
+#                         failed: its paired route is then asked over plain HTTP with the token, as a
+#                         firmware on trial needs. Whoever stands between can then read the token and fake
+#                         the confirmation. An update's signature still guards what gets installed.
 #   --what-if             Show what the file holds and stop.
 #
 # Examples:
@@ -191,19 +193,26 @@ request() {
     http_status="$(curl -sS --max-time "$timeout" ${tls[@]+"${tls[@]}"} -H "@$auth_header" -o "$out" -w '%{http_code}' "$@")"
 }
 
-# The garland says how long the pairing code lasts. Only a whole number from 1 to 600 is used.
+# The garland says how long the pairing code lasts. Only a number from 1 to 600 is used, as Get-WaitSeconds
+# takes it: digits, and a fraction after one point, cut to the whole seconds; anything else waits a minute.
 wait_seconds() {
-    case $1 in
-        ''|*[!0-9.]*) printf '%s\n' 60; return ;;
-    esac
-    case $1 in
-        *.*.*) printf '%s\n' 60; return ;;
-    esac
+    local whole fraction
     whole=${1%%.*}
+    fraction=${1#"$whole"}
+    fraction=${fraction#.}
     case $whole in
         ''|*[!0-9]*) printf '%s\n' 60; return ;;
     esac
-    if [ "$whole" -lt 1 ] || [ "$whole" -gt 600 ]; then
+    case $1 in
+        *.) printf '%s\n' 60; return ;;
+    esac
+    case $fraction in
+        *[!0-9]*) printf '%s\n' 60; return ;;
+    esac
+    # Leading zeros dropped, which bash would take for octal, and a number too long to be 600 or less left out
+    # before it can overflow.
+    while [ "${#whole}" -gt 1 ] && [ "${whole#0}" != "$whole" ]; do whole=${whole#0}; done
+    if [ "${#whole}" -gt 3 ] || [ "$whole" -lt 1 ] || [ "$whole" -gt 600 ]; then
         printf '%s\n' 60
         return
     fi
@@ -329,16 +338,20 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     if request 3 "$work/after.json" "$uri" 2>/dev/null && [ "$http_status" = 200 ]; then
         after="$(cat "$work/after.json")"
     elif [ "$https_failed" -eq 1 ] && [[ "$plain_state" =~ $plain_pattern ]]; then
-        # A firmware whose HTTPS failed still says so here, though anyone could.
-        if [ "$insecure" -eq 1 ]; then
-            trial=false
-            if [ "${BASH_REMATCH[2]}" = 1 ]; then trial=true; fi
-            after="$(csg_tool json-build --str version "${BASH_REMATCH[1]}" --bool on_trial "$trial" --str boot "${BASH_REMATCH[3]}" \
-                --str image "${BASH_REMATCH[4]}" --str pack_digest "${BASH_REMATCH[5]}" --str effects '?')"
+        # A firmware whose HTTPS failed says so in its open log, though anyone could. With --insecure its own paired
+        # route is asked over plain HTTP, with the token, by address: an answer of the firmware that runs, held to
+        # the boot, image and effects below as any, and the paired request a firmware on trial confirms itself by,
+        # which the open log is not. Without --insecure the token never goes over plain HTTP.
+        if [ "$insecure" -eq 1 ] && request 3 "$work/after.json" "http://$host_address/api/ota" 2>/dev/null && [ "$http_status" = 200 ]; then
+            after="$(cat "$work/after.json")"
         fi
         if [ "$said" != plain ]; then
             said=plain
-            csg_warn 'The new firmware has no working HTTPS and runs on plain HTTP. Its log above says why.'
+            if [ "$insecure" -eq 1 ]; then
+                csg_warn 'The new firmware has no working HTTPS and runs on plain HTTP. Its log above says why. It is asked over plain HTTP, with the token, as --insecure allows.'
+            else
+                csg_warn 'The new firmware has no working HTTPS and runs on plain HTTP. Its log above says why. Nothing is sent to it without --insecure.'
+            fi
         fi
     else
         went_down=1

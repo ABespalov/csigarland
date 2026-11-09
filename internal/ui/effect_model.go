@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // The firmware's limits, as effect_spec.h and effect_parser.cpp have them.
@@ -48,9 +49,32 @@ type EffectModel struct {
 	layers  []layerPlace
 }
 
+// errEscapedNul is a file with \u0000 in a key or a text, which the firmware's parser refuses: cJSON ends the
+// string there, so "bri\u0000x" would be a second "bri" to the garland, and another key to the controls here,
+// whose slider would show and change what nothing plays.
+var errEscapedNul = errors.New(`a key or text holds \u0000, which the garland refuses: take it out`)
+
+// holdsNul is whether a string of the file, a key or a value, holds a NUL once decoded. A file that is not JSON
+// says nothing here, and is refused for that.
+func holdsNul(file []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(file))
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return false
+		}
+		if text, ok := token.(string); ok && strings.ContainsRune(text, 0) {
+			return true
+		}
+	}
+}
+
 // ReadEffect places every field of a file. A file that is not JSON in this shape has no model, and its
-// controls wait until it is.
+// controls wait until it is; so does one the firmware refuses for a NUL in a key or a text, see errEscapedNul.
 func ReadEffect(file []byte) (*EffectModel, error) {
+	if holdsNul(file) {
+		return nil, errEscapedNul
+	}
 	model := &EffectModel{file: file, top: map[string]span{}}
 	decoder := json.NewDecoder(bytes.NewReader(file))
 	if err := expectDelim(decoder, '{'); err != nil {

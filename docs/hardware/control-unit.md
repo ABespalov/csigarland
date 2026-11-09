@@ -170,7 +170,7 @@ Over HTTPS. All but those marked open want a paired browser, and answer 401 othe
 | `POST` | `/api/network/name` | The mDNS name; restarts if it changes, with a new portal certificate | `{"name": "my-garland"}` |
 | `POST` | `/api/network/certificate` | The owner's one domain or fixed IPv4 address, empty for none; restarts with new certificates | `{"domain": "garland.example.com"}` |
 | `GET` | `/csigarland-root.crt` | The root certificate to install. Open | |
-| `GET` | `/trial-log` | Over plain HTTP too: `version=... on_trial=... https=... boot=... image=... pack=...`, then the log. Open, only while on trial or with HTTPS failed; 404 otherwise | |
+| `GET` | `/trial-log` | Over plain HTTP too: `version=... on_trial=... https=... boot=... image=... pack=...`, and while on trial the log after that line. With HTTPS failed and the trial over, that line is the whole answer. Open, only while on trial or with HTTPS failed; 404 otherwise | |
 | `POST` | `/api/auth/request` | Ask for access. Open | `{"label": "Windows Chrome"}` |
 | `POST` | `/api/auth/wait` | Ask how the request stands. Open; sets the cookie once approved | `{"request": "..."}` |
 | `GET`, `POST` | `/api/auth/devices`, `/api/auth/forget` | Paired browsers; forget one | `{"id": 3}` |

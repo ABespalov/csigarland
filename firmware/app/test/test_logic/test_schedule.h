@@ -317,6 +317,58 @@ static void test_scheduler24_says_what_comes_and_when() {
     TEST_ASSERT_FALSE(saver_kind_is_valid(static_cast<int>(SaverKind::Scheduler24) + 1));
 }
 
+// The time of day is known only with the clock set and a saved zone read: by UTC in its place, the next action,
+// the day, the mark of one soon and the screen's clock would be hours off, as the steps themselves would.
+static void test_local_time_waits_for_the_zone() {
+    TEST_ASSERT_TRUE(local_time_is_known(true, true));
+    TEST_ASSERT_FALSE(local_time_is_known(true, false));
+    TEST_ASSERT_FALSE(local_time_is_known(false, true));
+    TEST_ASSERT_FALSE(local_time_is_known(false, false));
+}
+
+// A step that needs what is not read yet waits rather than come to nothing and count as done: a start of the
+// playlist while its list cannot be played, and an effect the catalog lacks while uploads may hold it. A minute
+// that ends off is done, as its end is known without them; an effect the catalog holds never waits.
+static void test_a_step_waits_for_an_upload_not_read_yet() {
+    const ScheduleEntry entries[] = {
+        make_entry(18, 0, PowerStep::None, 0, 0, "my-upload"),
+        make_entry(19, 0, PowerStep::None, 0, 0, "fireplace"),
+        make_entry(20, 0, PowerStep::None, 0, 0, kPlaylistStep),
+        make_entry(21, 0, PowerStep::None, 0, 0, "my-upload"),
+        make_entry(21, 0, PowerStep::Off),
+        make_entry(22, 0, PowerStep::None, 0, 0, "my-upload"),
+        make_entry(22, 0, PowerStep::None, 0, 0, kPlaylistStep),
+        make_entry(23, 0, PowerStep::None, 0, 0, kPlaylistStep),
+        make_entry(23, 0, PowerStep::None, 0, 0, "my-upload"),
+    };
+    const size_t count = sizeof(entries) / sizeof(entries[0]);
+    const auto at = [](int hour) { return static_cast<int64_t>(hour) * 60; };
+    const auto unknown = [&](int hour) { return minute_plays_unknown_effect(entries, count, at(hour), utc_minute); };
+    const auto action = [&](int hour) { return resolve_minutes(entries, count, at(hour), at(hour), utc_minute); };
+    // What each minute leaves playing: the last of its effects and starts of the playlist, in list order.
+    TEST_ASSERT_TRUE(unknown(18));
+    TEST_ASSERT_FALSE(unknown(19));
+    TEST_ASSERT_FALSE(unknown(20));
+    TEST_ASSERT_TRUE(unknown(21));
+    TEST_ASSERT_FALSE(unknown(22));
+    TEST_ASSERT_TRUE(unknown(23));
+    TEST_ASSERT_FALSE(unknown(17));
+    // The effect not found waits while uploads may hold it, and is done, passed by, once they cannot.
+    TEST_ASSERT_TRUE(minute_waits(action(18), false, true, true));
+    TEST_ASSERT_FALSE(minute_waits(action(18), false, true, false));
+    TEST_ASSERT_FALSE(minute_waits(action(19), true, false, true));
+    // A start of the playlist waits while its list cannot be played yet, read or not, and only then.
+    TEST_ASSERT_TRUE(minute_waits(action(20), true, false, false));
+    TEST_ASSERT_FALSE(minute_waits(action(20), false, false, true));
+    // A minute that ends off is done now, whatever it named.
+    TEST_ASSERT_FALSE(minute_waits(action(21), true, true, true));
+    // An unknown effect after a start of the playlist is what the minute plays, once read: it waits too.
+    TEST_ASSERT_TRUE(minute_waits(action(23), false, true, true));
+    // A start of the playlist after the unknown effect is what that minute plays: only its list is waited for.
+    TEST_ASSERT_TRUE(minute_waits(action(22), true, unknown(22), true));
+    TEST_ASSERT_FALSE(minute_waits(action(22), false, unknown(22), true));
+}
+
 // The Lighting task says when the playlist goes on, for Scheduler24, and 0 while it does not.
 static void test_the_state_holds_when_the_playlist_goes_on() {
     State state(32);
@@ -326,6 +378,8 @@ static void test_the_state_holds_when_the_playlist_goes_on() {
 }
 static void run_schedule_tests() {
     RUN_TEST(test_schedule_entry_rules);
+    RUN_TEST(test_local_time_waits_for_the_zone);
+    RUN_TEST(test_a_step_waits_for_an_upload_not_read_yet);
     RUN_TEST(test_the_state_holds_when_the_playlist_goes_on);
     RUN_TEST(test_scheduler24_says_what_comes_and_when);
     RUN_TEST(test_scheduler24_tells_a_step_by_its_name_not_its_power);

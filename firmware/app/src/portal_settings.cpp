@@ -465,6 +465,11 @@ esp_err_t portal_handle_led_power_set(httpd_req_t* req) {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "margin_percent must be 5 to 20");
     }
     auto& state = *static_cast<State*>(req->user_ctx);
+    // As the screen's: settings there that could not be read are not saved over, nothing changed, until they are.
+    // A record read and not valid is read: saving the owner's own is what mends it.
+    if (!looks_power_read(state)) {
+        return send_power_unread(req);
+    }
     const esp_err_t err = looks_save_power(state, power);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "saving the power settings failed: %s", esp_err_to_name(err));

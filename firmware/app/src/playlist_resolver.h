@@ -37,6 +37,10 @@ uint32_t playlist_late_resumes();
 
 bool playlist_is_stale();
 
+// The list was read, and names effects, but the catalog holds none of them while uploaded effects are not all
+// read: one of those may be what it plays. A start of it now would come to nothing, so a step waits for it.
+bool playlist_waits_for_uploads(const State& state);
+
 // At a start, for a list left playing: resumed now if the list was read, else once it is, unless the owner
 // has chosen something by then, which outranks what was left. True when it plays on now.
 bool playlist_resume_when_read(State& state);

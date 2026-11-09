@@ -238,6 +238,22 @@ void combine_minutes(ResolvedAction& action, const ResolvedAction& later) {
     }
 }
 
+bool minute_plays_unknown_effect(const ScheduleEntry* entries, size_t count, int64_t minute, LocalMinuteFn to_local) {
+    const LocalMinute local = to_local(minute);
+    bool unknown = false;
+    for (size_t i = 0; i < count; ++i) {
+        if (!entry_matches(entries[i], local)) {
+            continue;
+        }
+        if (starts_playlist(entries[i])) {
+            unknown = false;
+        } else if (has_effect(entries[i])) {
+            unknown = catalog_find(entries[i].effect) < 0;
+        }
+    }
+    return unknown;
+}
+
 // Each minute is worked out on its own, then the minutes one after another: an effect started in a
 // minute keeps a rise asked for in that minute, never one from a minute before it, which the garland,
 // running all along, would have carried out apart.

@@ -76,6 +76,8 @@ bool s_replay_pending = true;
 std::atomic<bool> s_remembered_unread{false};
 constexpr uint32_t kRememberedRetryMs = 5000;
 constexpr uint32_t kStoreRetryMs = 5000;
+// How long after a start the steps that need an upload not read yet wait for it: see first_minute_held.
+constexpr uint64_t kUploadWaitMs = 10 * 60 * 1000;
 constexpr uint32_t kScheduleRetryMs = 60000;
 SemaphoreHandle_t s_lock = nullptr;
 StaticSemaphore_t s_lock_storage;
@@ -551,19 +553,28 @@ bool load_schedule() {
     return false;
 }
 
-// The first minute from first to last whose step starts the playlist while the list is not read yet, and
-// turns the garland on or leaves it, or -1: the minutes from it on wait for the list. One that turns it
-// off in the same minute is done now, as off, the start of the playlist with it lost: what it comes to is
-// known without the list. None waits while the list is read.
-int64_t first_minute_held_by_playlist(int64_t first, int64_t last) {
-    if (!playlist_is_stale()) {
+// The first minute from first to last whose step waits, or -1: the minutes from it on wait with it. A step
+// waits, see minute_waits, when it starts the playlist while the list is not read yet, or is read with every
+// effect it names an upload not read yet, and when it plays an effect the catalog lacks while uploads are not
+// all read, as one of them may be it: done now, it would come to nothing and count as done, and a start of a
+// list left stopped, or an effect, would never come once read. One that turns the garland off in the same
+// minute is done now, as off: what it comes to is known without them. Uploads are waited for only in the first
+// kUploadWaitMs after a start: a reading that fails for longer, as of flash gone bad, must not hold the schedule
+// up, and the steps are then done as they come out, an effect still lacking passed by, as ever.
+int64_t first_minute_held(const State& state, int64_t first, int64_t last) {
+    const bool uploads_may_hold = !effect_store_all_read() && choice_clock_ms() < kUploadWaitMs;
+    // Before the scheduler's lock, which the playlist's is never taken under.
+    const bool list_waits = playlist_is_stale() || (uploads_may_hold && playlist_waits_for_uploads(state));
+    if (!list_waits && !uploads_may_hold) {
         return -1;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
     int64_t held = -1;
     for (int64_t minute = first; minute <= last && held < 0; ++minute) {
         const ResolvedAction action = resolve_minutes(s_entries.data(), s_entry_count, minute, minute, to_local_minute);
-        if (action.playlist && action.power != PowerStep::Off) {
+        const bool plays_unknown =
+            uploads_may_hold && action.any && minute_plays_unknown_effect(s_entries.data(), s_entry_count, minute, to_local_minute);
+        if (minute_waits(action, list_waits, plays_unknown, uploads_may_hold)) {
             held = minute;
         }
     }
@@ -659,7 +670,9 @@ void scheduler_task(void* arg) {
         }
 
         const Snapshot seen = state.snapshot();
-        state.set_action_soon(action_comes_soon(now, seen.playlist_size > 0, seen.catalog_revision));
+        // By UTC while a saved zone is not read, a step would be told soon hours off: see local_time_is_known.
+        state.set_action_soon(local_time_is_known(true, time_zone_ready()) &&
+                              action_comes_soon(now, seen.playlist_size > 0, seen.catalog_revision));
         // Nothing is done of a schedule not read yet, nor while a saved time zone is not read: its steps are in
         // local time, and UTC meanwhile would do them hours off, a step from before the owner's choice among
         // them. The minutes wait, and once both are read they are done as at a start, the owner's choices
@@ -688,7 +701,7 @@ void scheduler_task(void* arg) {
             if (first >= 0 && chosen >= first) {
                 first = chosen + 1;
             }
-            const int64_t held = first >= 0 && first <= now ? first_minute_held_by_playlist(first, now) : -1;
+            const int64_t held = first >= 0 && first <= now ? first_minute_held(state, first, now) : -1;
             s_steps_wait_from.store(held);
             if (held >= 0) {
                 // Done up to the step that waits for the list, and the rest of the replay from it once it
@@ -704,7 +717,7 @@ void scheduler_task(void* arg) {
             }
         } else if (now > last_minute) {
             const int64_t first = catch_up_first_minute(last_minute, now, choice_minute);
-            const int64_t held = first <= now ? first_minute_held_by_playlist(first, now) : -1;
+            const int64_t held = first <= now ? first_minute_held(state, first, now) : -1;
             s_steps_wait_from.store(held);
             const int64_t until = held >= 0 ? held - 1 : now;
             if (first <= until) {
@@ -769,7 +782,8 @@ bool start_scheduler(State& state, int64_t choice_epoch, const Remembered& saved
 
 
 bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool playlist_ready, uint16_t catalog) {
-    if (!time_is_synced()) {
+    // A saved zone not read yet leaves the time of day unknown, as a clock not set does.
+    if (!local_time_is_known(time_is_synced(), time_zone_ready())) {
         return false;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -805,7 +819,7 @@ bool schedule_next(char* when, size_t when_size, ResolvedAction& action, bool pl
 
 bool schedule_next_step(bool playlist_ready, uint16_t catalog, int64_t& minute, ResolvedAction& action) {
     // Nothing is known of when while the clock, the list or the zone is not: steps are in local time.
-    if (!time_is_synced() || !s_schedule_read.load() || !time_zone_ready()) {
+    if (!local_time_is_known(time_is_synced(), time_zone_ready()) || !s_schedule_read.load()) {
         return false;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -847,7 +861,8 @@ int schedule_timeline_now(TimelineEvent* out, size_t max_events, bool playlist_r
     if (!s_schedule_read.load()) {
         return -2;
     }
-    if (!time_is_synced()) {
+    // A saved zone not read yet leaves the day unknown, as a clock not set does: by UTC it would be hours off.
+    if (!local_time_is_known(time_is_synced(), time_zone_ready())) {
         return -1;
     }
     // A copy, as the walk takes a day of conversions and nothing else should wait for it. Static, off

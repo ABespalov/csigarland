@@ -45,10 +45,9 @@ char s_blob[kBlobBytes];
 std::mutex s_store_lock;
 char s_read_blob[kBlobBytes];
 constexpr int kStartReadAttempts = 3;
-// A failure that lasts is read again every few seconds: the first reading again says why, and then one in this
-// many, about every five minutes, so as not to fill the log, the trial's among it. Under s_store_lock.
-// The first failed reading is said, and then again once this long has passed: a count of calls would
-// speak sooner while the portal polls, and the scheduler retries every few seconds either way.
+// A failure that lasts is read again every few seconds. So as not to fill the log, the trial's among it, the
+// first failed reading says why, and then one once this long has passed: a count of calls would speak sooner
+// while the portal polls, and the scheduler retries every few seconds either way. Under s_store_lock.
 constexpr int64_t kQuietForUs = 300LL * 1000 * 1000;
 int64_t s_last_loud_us = 0;
 bool s_quiet = false;

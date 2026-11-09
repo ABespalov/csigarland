@@ -322,7 +322,8 @@ void time_format_local(char* out, size_t out_size) {
 }
 
 bool time_format_clock(char* out, size_t out_size) {
-    if (!s_synced.load()) {
+    // The screen's time of day: the owner's, not UTC in its place while a saved zone is not read. Uptime meanwhile.
+    if (!local_time_is_known(s_synced.load(), !s_zone_unread.load())) {
         return false;
     }
     const time_t now = std::time(nullptr);

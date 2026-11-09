@@ -31,8 +31,10 @@
 #
 #   -Insecure
 #       For recovery, or reaching the garland by its address: do not check who answers, and fall
-#       back to plain HTTP if HTTPS does not answer. Whoever stands between can then read the
-#       token and fake the confirmation. An update's signature still guards what gets installed.
+#       back to plain HTTP if HTTPS does not answer, before the update or after it, when the new
+#       firmware's HTTPS has failed: its paired route is then asked over plain HTTP with the token, as a
+#       firmware on trial needs. Whoever stands between can then read the token and fake the
+#       confirmation. An update's signature still guards what gets installed.
 #
 # The first time, the garland shows a code and asks for POWER and SPEED, like a browser's first
 # visit, and the token it gives is kept in deploy/portal-token.local.txt for its 100 days. HTTPS
@@ -298,11 +300,13 @@ function Get-Field {
     return $null
 }
 
-# The garland says how long the pairing code lasts. Only a number from 1 to 600 is used; anything else waits a minute.
+# The garland says how long the pairing code lasts. Only a number from 1 to 600 is used, as wait_seconds in the
+# bash version takes it: digits, and a fraction after one point, cut to the whole seconds; anything else waits a
+# minute. ASCII digits only: \d would take the digits of other scripts too.
 function Get-WaitSeconds {
     param($Value)
     $text = "$Value"
-    if ($text -notmatch '^\d+(\.\d+)?$') {
+    if ($text -cnotmatch '^[0-9]+(\.[0-9]+)?$') {
         return 60
     }
     $number = [double]::Parse($text, [cultureinfo]::InvariantCulture)
@@ -474,14 +478,22 @@ while ([DateTime]::UtcNow -lt $deadline) {
         $after = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders -TimeoutSec 3
     } catch {
         $after = $null
-        # A firmware whose HTTPS failed still says so here, though anyone could.
-        if ($httpsFailed -and $plainState -match '^version=(\S+) on_trial=(\d) https=0 boot=(\S*) image=(\S*) pack=(\S*)') {
+        # A firmware whose HTTPS failed says so in its open log, though anyone could. With -Insecure its own paired
+        # route is asked over plain HTTP, with the token, by address: an answer of the firmware that runs, held to
+        # the boot, image and effects below as any, and the paired request a firmware on trial confirms itself by,
+        # which the open log is not. Without -Insecure the token never goes over plain HTTP.
+        if ($httpsFailed -and $plainState -match '^version=\S+ on_trial=\d https=0 ') {
             if ($Insecure) {
-                $after = [pscustomobject]@{ version = $Matches[1]; on_trial = $Matches[2] -eq '1'; boot = $Matches[3]; image = $Matches[4]; pack_digest = $Matches[5]; effects = '?' }
+                try {
+                    $after = Invoke-RestMethod -Uri "http://$hostAddress/api/ota" -Headers $AuthHeaders -TimeoutSec 3 -MaximumRedirection 0
+                } catch {
+                    $after = $null
+                }
             }
             if ($said -ne 'plain') {
                 $said = 'plain'
-                Write-Warning 'The new firmware has no working HTTPS and runs on plain HTTP. Its log above says why.'
+                Write-Warning ('The new firmware has no working HTTPS and runs on plain HTTP. Its log above says why. ' +
+                    $(if ($Insecure) { 'It is asked over plain HTTP, with the token, as -Insecure allows.' } else { 'Nothing is sent to it without -Insecure.' }))
             }
         } else {
             $wentDown = $true

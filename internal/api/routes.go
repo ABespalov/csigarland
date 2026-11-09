@@ -376,7 +376,7 @@ func (c *Client) SetDisplay(ctx context.Context, display Display) (Display, erro
 	return answer, c.post(ctx, "display", body, &answer)
 }
 
-// PowerBudget is the LEDs' power settings, from firmware 1.2.0 on, and what they come to on the chain in
+// PowerBudget is the LEDs' power settings, from firmware 1.4.0 on, and what they come to on the chain in
 // use: the limit, what it draws all at full white, and how many LEDs full white leaves undimmed.
 type PowerBudget struct {
 	SupplyMilliamps int  `json:"supply_ma"`

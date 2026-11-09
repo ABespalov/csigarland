@@ -37,7 +37,7 @@ If the home network goes away, the setup network comes back after 20 s, and the 
 | Your home network | `https://csigarland.local` | HTTPS and a paired browser. Port 80 redirects there |
 | The internet, if you set it up | `https://your-domain` | The same. See [section 6](#6-reaching-it-from-the-internet) |
 
-`.local` names work on most systems. If one does not, `https://` and the address on the screen also reach the garland, but with a certificate warning, as a home network's address can change. To go without the warning, reserve the address on your router and enter it on the Network page, as in [section 6](#6-reaching-it-from-the-internet). The name can be changed on the Network page, which restarts the garland.
+`.local` names work on most systems. If one does not, `https://` and the address on the screen also reach the garland, but with a certificate warning, as a home network's address can change. To go without the warning, reserve the address on your router and enter it on the Network page, as in [section 6](#6-reaching-it-from-the-internet). The name can be changed on the Network page, which restarts the garland. From firmware 1.4.0 a name your router gives the garland, such as `csigarland.lan`, is refused there with 421, as another site's name could stand for the garland that way: use the `.local` name, the address, or your own domain.
 
 ## 4. Pairing a Browser
 

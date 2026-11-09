@@ -12,6 +12,7 @@
 #include <atomic>
 #include <mutex>
 
+#include "effect_store.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -152,6 +153,11 @@ uint32_t playlist_late_resumes() {
 
 bool playlist_is_stale() {
     return s_stale.load();
+}
+
+bool playlist_waits_for_uploads(const State& state) {
+    const std::lock_guard<std::mutex> guard(s_lock);
+    return !s_stale.load() && nothing_to_play_yet(state) && !effect_store_all_read();
 }
 
 void playlist_playing_unknown() {

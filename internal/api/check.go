@@ -51,7 +51,7 @@ var checkedRoutes = []struct {
 	{"playlist", [3]int{1, 1, 0}, []string{"effects", "dwell", "cross_fade", "revision"}, nil, func() any { return &Playlist{} }},
 	{"time", [3]int{1, 0, 0}, []string{"synced", "zone"}, nil, func() any { return &Clock{} }},
 	{"display", [3]int{1, 0, 0}, []string{"saver"}, nil, func() any { return &Display{} }},
-	{"leds/power", [3]int{1, 2, 0}, []string{"supply_ma", "led_white_ma", "led_idle_ma", "margin_percent", "limit_ma"}, nil, func() any { return &PowerBudget{} }},
+	{"leds/power", [3]int{1, 4, 0}, []string{"supply_ma", "led_white_ma", "led_idle_ma", "margin_percent", "limit_ma"}, nil, func() any { return &PowerBudget{} }},
 	{"wifi", [3]int{1, 0, 0}, []string{"configured", "connected", "setup_network", "hostname"}, nil, func() any { return &Wifi{} }},
 	{"wifi/scan", [3]int{1, 0, 0}, []string{"state", "networks"}, map[string][]string{"networks": {"ssid", "rssi"}}, func() any { return &Scan{} }},
 	{"firmware", [3]int{1, 0, 0}, []string{"version"}, nil, func() any { return &Firmware{} }},

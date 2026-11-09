@@ -70,7 +70,7 @@ The portal's Effects page and this API take a file in the format of section 6 wi
 | `POST /api/effects/preview` with the file as body | Plays it without saving, until another effect is chosen |
 | `GET /api/effects/store` | How many are kept, the limits, and free memory |
 
-An id is 1-32 lowercase letters, digits or hyphens, and a file is at most 4096 bytes. Positions in the catalog do not move as effects come and go, so favourites and the active effect stay right. Uploaded effects live apart from the pack, and a new pack leaves them alone; one that replaces a built-in effect keeps replacing it. The portal lists them all in a group of their own, Uploaded, the last one, so a replacement leaves its group until it is restored.
+An id is 1-32 lowercase letters, digits or hyphens, and a file is at most 4096 bytes. A key written twice counts as its first, and a key or text holding `\u0000` is refused, as the firmware's parser would end it there. One saved by 1.1.1 or before with it is refused at a start, and kept in flash until uploaded again without it. Positions in the catalog do not move as effects come and go, so favourites and the active effect stay right. Uploaded effects live apart from the pack, and a new pack leaves them alone; one that replaces a built-in effect keeps replacing it. The portal lists them all in a group of their own, Uploaded, the last one, so a replacement leaves its group until it is restored.
 
 ## 4. Catalog
 

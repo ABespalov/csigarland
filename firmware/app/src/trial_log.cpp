@@ -98,8 +98,10 @@ bool start_keeping() {
 }
 
 // The bytes to send, copied under the log's lock and held in s_send until release_send. False when the
-// copy could not be taken: the caller answers 503.
-bool copy_for_send(uint32_t after, bool first_line_only, uint32_t& total, uint32_t& lost, uint32_t& missed, size_t& bytes) {
+// copy could not be taken: the caller answers 503. missed, when given, takes the lines missed and starts their
+// count again: only the paired reader's, which says them in X-Log-Missed. The open trial log leaves the count
+// to it, or anyone reading that would hide from it the lines it missed.
+bool copy_for_send(uint32_t after, uint32_t& total, uint32_t& lost, uint32_t* missed, size_t& bytes) {
     if (s_send_lock == nullptr || xSemaphoreTake(s_send_lock, pdMS_TO_TICKS(1000)) != pdTRUE) {
         return false;
     }
@@ -110,19 +112,12 @@ bool copy_for_send(uint32_t after, bool first_line_only, uint32_t& total, uint32
     total = s_total;
     const LogWindow window = log_window(after, total, s_used);
     lost = window.lost;
-    missed = s_missed.exchange(0);
-    bytes = s_used - window.skip;
-    if (first_line_only) {
-        bytes = 0;
-        while (bytes < s_used && s_text[bytes] != '\n') {
-            ++bytes;
-        }
-        if (bytes < s_used) {
-            ++bytes;
-        }
+    if (missed != nullptr) {
+        *missed = s_missed.exchange(0);
     }
+    bytes = s_used - window.skip;
     if (bytes > 0) {
-        std::memcpy(s_send, first_line_only ? s_text : s_text + window.skip, bytes);
+        std::memcpy(s_send, s_text + window.skip, bytes);
     }
     xSemaphoreGive(s_lock);
     return true;
@@ -164,7 +159,7 @@ esp_err_t public_log_handle(httpd_req_t* req) {
     uint32_t lost_bytes = 0;
     uint32_t missed_lines = 0;
     size_t bytes = 0;
-    if (!copy_for_send(after, false, total, lost_bytes, missed_lines, bytes)) {
+    if (!copy_for_send(after, total, lost_bytes, &missed_lines, bytes)) {
         return log_busy(req);
     }
     // Here until the reply is out, as long as the headers need them.
@@ -197,14 +192,13 @@ esp_err_t trial_log_handle(httpd_req_t* req, bool https_running) {
     httpd_resp_set_type(req, "text/plain");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     esp_err_t err = httpd_resp_send_chunk(req, head, HTTPD_RESP_USE_STRLEN);
-    if (err == ESP_OK && s_lock != nullptr) {
-        // Outside the trial only the first line: the log a paired client started is not open to everyone.
+    // Outside a trial the status line is the whole answer. The kept log stays for a paired client.
+    if (err == ESP_OK && trial_log_sends_kept_log(on_trial) && s_lock != nullptr) {
         uint32_t total = 0;
         uint32_t lost_bytes = 0;
-        uint32_t missed_lines = 0;
         size_t bytes = 0;
         // The head is sent already, with its status: a reader that cannot have the log now is told so in it.
-        if (!copy_for_send(0, !on_trial, total, lost_bytes, missed_lines, bytes)) {
+        if (!copy_for_send(0, total, lost_bytes, nullptr, bytes)) {
             err = httpd_resp_send_chunk(req, "(the log is being read: try again)\n", HTTPD_RESP_USE_STRLEN);
             return err == ESP_OK ? httpd_resp_send_chunk(req, nullptr, 0) : err;
         }

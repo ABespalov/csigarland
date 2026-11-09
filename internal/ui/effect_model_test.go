@@ -8,6 +8,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -271,5 +272,34 @@ func TestTheControlsAndTheFileFollowEachOther(t *testing.T) {
 	frame()
 	if controls.bri.Value != 40.0/255 || !strings.Contains(a.tune.file.Text(), `"bri": 40`) {
 		t.Fatalf("bri %v in %s", controls.bri.Value, a.tune.file.Text())
+	}
+}
+
+// A key or a text with \u0000 is refused by the firmware's parser, as cJSON would end it there and make
+// "bri\u0000alias" a second "bri": the controls here would read and change the other key. So the editor shows
+// no controls for it, and the garland's own parser, as the preview runs it, says why. A backslash written as
+// text before u0000, and the escape of another character, are no NUL.
+func TestAKeyWithAnEscapedNulHasNoControls(t *testing.T) {
+	for _, file := range []string{
+		`{"format":"csigarland.effect/1","name":"W","layers":[{"fx":"solid","bri\u0000alias":1,"bri":255,"col":["FFFFFF"]}]}`,
+		`{"format":"csigarland.effect/1","name":"W\u0000x","layers":[{"fx":"solid"}]}`,
+	} {
+		if _, err := ReadEffect([]byte(file)); !errors.Is(err, errEscapedNul) {
+			t.Fatalf("%s: %v", file, err)
+		}
+		if err := engine.Check([]byte(file)); err == nil || !strings.Contains(err.Error(), `\u0000`) {
+			t.Fatalf("the firmware's parser took %s: %v", file, err)
+		}
+	}
+	for _, file := range []string{
+		`{"format":"csigarland.effect/1","name":"W","note":"a\\u0000b","layers":[{"fx":"solid"}]}`,
+		`{"format":"csigarland.effect/1","name":"W","note":"\u00e9\u0001","layers":[{"fx":"solid"}]}`,
+	} {
+		if _, err := ReadEffect([]byte(file)); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		if err := engine.Check([]byte(file)); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
 	}
 }

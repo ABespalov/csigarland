@@ -206,7 +206,7 @@ Every option is optional. **What you give goes into every update file, so it is 
 
 It asks for a passphrase of at least 12 characters for the root key and writes to `cert/`, where git ignores all but the [README](../../cert/README.md). It runs under the Python `deploy/SigningPython.psm1` picks, and puts the pinned `cryptography` into PlatformIO's own if none has it, with no build first.
 
-> **Nothing recovers the root key or its passphrase.** Without them, boards take new firmware over USB only. Keep them apart, off the build machine. Builds need only `cert/ota-root-ca.local.crt`, `cert/ota-signing.local.key` and `cert/ota-signing.local.crt`.
+> **Nothing recovers the root key or its passphrase.** Without them, an open board can be flashed with a new chain. A sealed garland that trusts the lost root cannot take another update: firmware trusts one root, and nothing here builds one that trusts two. Keep the key and the passphrase apart, off the build machine. Builds need only `cert/ota-root-ca.local.crt`, `cert/ota-signing.local.key` and `cert/ota-signing.local.crt`.
 
 | Option | Does |
 |---|---|
@@ -385,7 +385,7 @@ A Dev build is not held to this: its debug information names the folders it was 
 | A setting in `sdkconfig.defaults` has no effect | The build remakes `firmware/app/sdkconfig.<environment>` when the defaults change, by their digest in `generated/`. A Release build, `esp32c6-release`, also remakes one that differs from what it made from the defaults, as after an edit by hand: `scripts/sdkconfig_made.py` records it as made in the same build whose configure made it, before anything else can change it, `menuconfig` included, and every later build holds it to that digest, and to what its configure wrote to `config/sdkconfig.json`, so a published image holds only what the sources hold. If it still has none, delete that file and build again |
 | The board takes no OTA from your build | It holds another root. Flash it once over USB |
 | The update says the effects pack does not fit | The board has the earlier partition table, with 32 KB slots, which OTA cannot change. Flash it once over USB, which keeps settings and uploaded effects. Until then `ota-update.ps1 -FirmwareOnly` still installs firmware |
-| Lost the root key | Make a new chain with `-Force`, and flash every board over USB once |
+| Lost the root key | Make a new chain with `-Force` only for a board you can still flash. A sealed garland on the old root cannot take an update signed under the new one |
 | Firmware will not start | Hold BOOT, tap RESET, release BOOT, and flash over USB. Settings survive unless the partition table changes where they are |
 
 How the firmware itself works is in [Architecture](../architecture.md).
@@ -410,7 +410,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 
 * **Pairing.** The first time, the script pairs like a browser, so be at the garland to press POWER and SPEED. It keeps its token in `deploy/portal-token.local.txt`, for the same 100 days.
 * **Who answers.** The script checks the garland's certificate against this computer's trusted roots, so [install its root](user-guide.md#5-stopping-the-certificate-warning) first and use its name. Otherwise it stops before sending anything. `-Insecure` is for reaching it by address or when its HTTPS has failed, and is the way out if the check ever stands between you and an update. Anyone on the network between could then read the token and fake the confirmation, though the garland still refuses a file not signed under its root.
-* **Confirmation.** The script reports success only when the garland has restarted, runs exactly what was sent, told by the image's hash and the effects' digest rather than the version, and has confirmed it, and says so if it went back. Its requests while it waits are what a firmware of 1.4.0 or later needs to confirm itself, so let it run to its end. It waits up to 12 minutes.
+* **Confirmation.** The script reports success only when the garland has restarted, runs exactly what was sent, told by the image's hash and the effects' digest rather than the version, and has confirmed it, and says so if it went back. Its requests while it waits are what a firmware of 1.4.0 or later needs to confirm itself, so let it run to its end. It waits up to 12 minutes. A new firmware whose HTTPS failed is asked over plain HTTP, with the token, only under `-Insecure`: without it the script sends it nothing, the firmware has no paired request from it, and goes back after 10 minutes unless a paired browser on plain HTTP reaches it meanwhile.
 * **On a closed unit, with no USB to read a log,** the script prints the log of the firmware on trial as it starts, and saves it in `temp/trial-log.<time>.txt`. A firmware that cannot start HTTPS stays up on plain HTTP so that the next update can reach it. The script falls back to that with a warning, and the token then travels unencrypted, so do it from your home network.
 
 ### Checking the Root Against the Log

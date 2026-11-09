@@ -34,6 +34,9 @@ const (
 	// MaxBytes bounds a backup: 32 uploads of 8 KB each and everything else, with room.
 	MaxBytes   = 1 << 20
 	maxUploads = 64
+	// The screensaver that needs the clock module, and the one a garland without it runs in its place.
+	scheduler24 = "scheduler24"
+	flyingClock = "flying-clock"
 )
 
 // Upload is an effect the owner added from a file, as the garland keeps it.
@@ -388,7 +391,20 @@ func Restore(ctx context.Context, client *api.Client, backup Backup, step func(s
 		step("Put back the playlist.")
 	}
 	if backup.Display.Saver != "" {
-		if _, err := client.SetDisplay(ctx, backup.Display); err != nil {
+		_, err := client.SetDisplay(ctx, backup.Display)
+		// Scheduler24 needs the clock module, and a garland without it refuses it, 409, as one of 1.1.1 or before
+		// does, which has none, 400: the rest of the screen goes back all the same, with the Flying Clock, which a
+		// garland whose module went runs in its place, and the change is said.
+		var refused *api.Error
+		if err != nil && backup.Display.Saver == scheduler24 && errors.As(err, &refused) &&
+			(refused.Status == http.StatusConflict || refused.Status == http.StatusBadRequest) {
+			instead := backup.Display
+			instead.Saver = flyingClock
+			if _, again := client.SetDisplay(ctx, instead); again == nil {
+				err = errors.New("Scheduler24 needs the clock module, which this garland lacks or its firmware does not know: the Flying Clock is in its place")
+			}
+		}
+		if err != nil {
 			fail("the screen", err)
 		}
 		step("Put back the screen.")

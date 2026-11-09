@@ -17,6 +17,6 @@ That needs a Python with the `cryptography` version `firmware/app/scripts/ota_si
 | `ota-signing.local.key` | The key that signs each update | Here, a build needs it |
 | `ota-signing.local.crt` | The signing certificate. It goes into every update file, so it is public once you publish one | Here, a build needs it |
 
-**Nothing recovers the root key or its passphrase.** Without them, a board trusting this root takes new firmware over USB only. Back them up, separately from each other.
+**Nothing recovers the root key or its passphrase.** Without them, an open board can be flashed with a new chain. A sealed garland that trusts this root cannot take another update: firmware trusts one root, and nothing here builds one that trusts two. Back the key and the passphrase up, separately from each other.
 
 A board has its own keys for the portal's HTTPS, made on the board. They do not come from this folder.

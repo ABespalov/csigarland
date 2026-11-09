@@ -287,6 +287,44 @@ static void test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack(
     many += ']';
     TEST_ASSERT_FALSE(json_values_are_bounded(many.c_str()));
     TEST_ASSERT_NULL(json_parse_shallow(many.c_str()));
+    // What cJSON skips before and between values, a BOM and every byte up to 32, leaves no value uncounted:
+    // a form feed, a vertical tab or a BOM in front of too many values is refused as they are without.
+    for (const char* prefix : {"\f", "\v", "\x01", "\x1F", "\xEF\xBB\xBF", "\xEF\xBB\xBF\f "}) {
+        const std::string prefixed = std::string(prefix) + "{\"entries\":" + many + "}";
+        TEST_ASSERT_FALSE_MESSAGE(json_values_are_bounded(prefixed.c_str()), prefix);
+        TEST_ASSERT_NULL(json_parse_shallow(prefixed.c_str()));
+    }
+    std::string spaced = "[";
+    for (int i = 0; i < kMaxJsonValues; ++i) {
+        spaced += i != 0 ? "\f,\v1" : "1";
+    }
+    spaced += ']';
+    TEST_ASSERT_FALSE(json_values_are_bounded(spaced.c_str()));
+    // Within the bound, the same prefixes and separators parse as cJSON takes them.
+    for (const char* in_bound : {"\f{\"brightness\":25}", "\xEF\xBB\xBF{\"brightness\":25}", "{\x01\"a\"\x1F:\v[1\f,2]}"}) {
+        TEST_ASSERT_TRUE_MESSAGE(json_values_are_bounded(in_bound), in_bound);
+        cJSON* parsed = json_parse_shallow(in_bound);
+        TEST_ASSERT_NOT_NULL_MESSAGE(parsed, in_bound);
+        cJSON_Delete(parsed);
+    }
+    // A string with an escaped NUL is refused, key or value: cJSON would end it there, and "bri\u0000x" be a
+    // second "bri" that a program reading the whole key takes for another. An escaped backslash before u0000 is
+    // a backslash and text, and the escape of any other character is kept.
+    for (const char* nul : {"{\"bri\\u0000alias\":1,\"bri\":255}", "{\"fx\":\"solid\\u0000x\"}", "[\"\\u0000\"]"}) {
+        TEST_ASSERT_TRUE_MESSAGE(json_has_escaped_nul(nul), nul);
+        TEST_ASSERT_NULL(json_parse_shallow(nul));
+    }
+    for (const char* clean : {"{\"name\":\"a\\\\u0000b\"}", "{\"name\":\"\\u0001\\u00e9\"}", "{\"u0000\":1}", "{\"name\":\"\\\"\\u0041\"}"}) {
+        TEST_ASSERT_FALSE_MESSAGE(json_has_escaped_nul(clean), clean);
+        cJSON* parsed = json_parse_shallow(clean);
+        TEST_ASSERT_NOT_NULL_MESSAGE(parsed, clean);
+        cJSON_Delete(parsed);
+    }
+    // What it cannot follow it refuses, rather than leave the rest uncounted: none of it is JSON cJSON takes.
+    for (const char* unknown : {"+1", ".5", "{1:2}", "{\"a\" 1}", "[1 2]", "tru", "[1],[2]", "\x7F[1]", "\xC2\xA0[1]", "]"}) {
+        TEST_ASSERT_FALSE_MESSAGE(json_values_are_bounded(unknown), unknown);
+        TEST_ASSERT_NULL(json_parse_shallow(unknown));
+    }
 
     // A body is one value and whitespace: no garbage after it, no second one, no NUL in it.
     cJSON* body = json_parse_body("{\"brightness\":25} \r\n", 20);

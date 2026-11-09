@@ -49,8 +49,16 @@ inline bool json_depth_is_safe(const char* text) {
     return true;
 }
 
-// How many values text holds, keys apart, and whether that stays under kMaxJsonValues. One this cannot
-// follow is left to cJSON, which refuses it: only a count already over the limit is refused here.
+// What cJSON skips between tokens: every byte from 1 to 32, as its buffer_skip_whitespace does, not only the
+// four JSON names. A byte this did not skip, cJSON did, would leave the rest of the text uncounted.
+constexpr bool json_skips(unsigned char ch) {
+    return ch != 0 && ch <= 32;
+}
+
+// How many values text holds, keys apart, and whether that stays under kMaxJsonValues. It follows what cJSON
+// takes, its whitespace and a leading UTF-8 BOM among it, and fails closed on what it cannot follow: no text
+// it takes for bounded leaves values uncounted that cJSON would make nodes of. What it refuses here cJSON
+// would refuse too, or it is no JSON a client of this garland sends.
 inline bool json_values_are_bounded(const char* text) {
     int depth = 0;
     int values = 0;
@@ -60,6 +68,10 @@ inline bool json_values_are_bounded(const char* text) {
     enum class At : uint8_t { Value, Key, Colon, Done };
     At at = At::Value;
     const auto count = [&]() { return ++values <= kMaxJsonValues; };
+    // cJSON_ParseWithOpts skips one at the very start, before its whitespace.
+    if (std::strncmp(text, "\xEF\xBB\xBF", 3) == 0) {
+        text += 3;
+    }
     for (const char* c = text; *c != '\0'; ++c) {
         if (in_string) {
             if (escape) {
@@ -72,7 +84,7 @@ inline bool json_values_are_bounded(const char* text) {
             continue;
         }
         const unsigned char ch = static_cast<unsigned char>(*c);
-        if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') {
+        if (json_skips(ch)) {
             continue;
         }
         switch (at) {
@@ -87,23 +99,24 @@ inline bool json_values_are_bounded(const char* text) {
                     at = At::Done;
                     break;
                 }
-                return values <= kMaxJsonValues;
+                return false;
             case At::Colon:
                 if (ch == ':') {
                     at = At::Value;
                     break;
                 }
-                return values <= kMaxJsonValues;
+                return false;
             case At::Done:
-                if (ch == ',') {
-                    at = depth > 0 && in_object[depth] ? At::Key : At::Value;
+                // After the one value at the top, cJSON takes nothing more but whitespace.
+                if (ch == ',' && depth > 0) {
+                    at = in_object[depth] ? At::Key : At::Value;
                     break;
                 }
                 if ((ch == '}' || ch == ']') && depth > 0 && (ch == '}') == in_object[depth]) {
                     --depth;
                     break;
                 }
-                return values <= kMaxJsonValues;
+                return false;
             case At::Value:
                 if (ch == ']') {
                     if (depth > 0 && !in_object[depth]) {
@@ -111,7 +124,7 @@ inline bool json_values_are_bounded(const char* text) {
                         at = At::Done;
                         break;
                     }
-                    return values <= kMaxJsonValues;
+                    return false;
                 }
                 if (ch == '{') {
                     if (!count() || ++depth > kMaxJsonDepth) {
@@ -136,6 +149,7 @@ inline bool json_values_are_bounded(const char* text) {
                     at = At::Done;
                     break;
                 }
+                // The characters cJSON's parse_number takes, from the first, which is a minus or a digit.
                 if (ch == '-' || (ch >= '0' && ch <= '9')) {
                     if (!count()) {
                         return false;
@@ -154,22 +168,50 @@ inline bool json_values_are_bounded(const char* text) {
                     const char* const word = ch == 't' ? "true" : ch == 'f' ? "false" : "null";
                     const size_t length = std::strlen(word);
                     if (std::strncmp(c, word, length) != 0) {
-                        return values <= kMaxJsonValues;
+                        return false;
                     }
                     c += length - 1;
                     at = At::Done;
                     break;
                 }
-                return values <= kMaxJsonValues;
+                return false;
         }
     }
+    // A text that ends early, an object or a string left open, is no JSON, and cJSON refuses it; every value of
+    // it is counted all the same.
     return values <= kMaxJsonValues;
+}
+// Whether a string of text, a key or a value, holds the escape of a NUL, \u0000. cJSON writes the NUL into the
+// string it decodes, and the string ends there for everything that reads it, its lookup of a key by strcmp
+// among them: "bri\u0000x" would be a second "bri", and a program that reads the whole key, as the utility's
+// editor does, would show and change the other one. No text of this garland needs one, so it is refused.
+inline bool json_has_escaped_nul(const char* text) {
+    bool in_string = false;
+    for (const char* c = text; *c != '\0'; ++c) {
+        if (!in_string) {
+            in_string = *c == '"';
+        } else if (*c == '"') {
+            in_string = false;
+        } else if (*c == '\\') {
+            if (c[1] == '\0') {
+                return false;
+            }
+            ++c;
+            if (*c == 'u' && std::strncmp(c + 1, "0000", 4) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // As cJSON_Parse, but too deep or too many values counts as not valid, and so does anything after the
-// value but whitespace: cJSON alone would take {"brightness":25}garbage for its first part.
+// value but whitespace: cJSON alone would take {"brightness":25}garbage for its first part. So does a string
+// with an escaped NUL in it, see json_has_escaped_nul.
 inline cJSON* json_parse_shallow(const char* text) {
-    return json_depth_is_safe(text) && json_values_are_bounded(text) ? cJSON_ParseWithOpts(text, nullptr, 1) : nullptr;
+    return json_depth_is_safe(text) && json_values_are_bounded(text) && !json_has_escaped_nul(text)
+               ? cJSON_ParseWithOpts(text, nullptr, 1)
+               : nullptr;
 }
 
 // Whether a body of length bytes is text all the way: one with a NUL in it would be judged, and

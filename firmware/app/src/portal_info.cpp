@@ -25,6 +25,7 @@
 #include "settings.h"
 #include "portal_tls.h"
 #include "scheduler.h"
+#include "scheduler_clock.h"
 
 namespace garland {
 namespace {
@@ -55,7 +56,8 @@ void portal_add_next_action(cJSON* root, const State& state) {
     if (next == nullptr) {
         return;
     }
-    cJSON_AddBoolToObject(next, "clock", time_is_synced());
+    // The time of day known: the clock set and a saved zone read. Without it no next action is told.
+    cJSON_AddBoolToObject(next, "clock", local_time_is_known(time_is_synced(), time_zone_ready()));
     // A schedule not read yet has no next action to tell, and is no empty one: said apart, new after 1.0.0.
     if (!schedule_is_read()) {
         cJSON_AddBoolToObject(next, "unread", true);

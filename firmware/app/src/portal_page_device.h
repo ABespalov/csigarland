@@ -128,7 +128,8 @@ inline constexpr char kPageDevice[] = R"html(
 
   function budgetText() {
     const [supply, white, idle, margin] = Object.keys(powerFields).map((id) => $(id).valueAsNumber);
-    if (!power || ![supply, white, idle, margin].every(Number.isInteger)) return '';
+    /* Settings the garland would refuse come to nothing it would do: no words of them. */
+    if (!power || ![supply, white, idle, margin].every(Number.isInteger) || !Object.keys(powerFields).every((id) => $(id).checkValidity())) return '';
     const limit = Math.floor(Math.max(0, supply - power.board_ma) * (100 - margin) / 100);
     const dark = power.leds * idle;
     if (dark > limit) return `Limit ${limit} mA. ${power.leds} LEDs draw ${dark} mA dark alone, over the limit, which no dimming takes away, so the LEDs are kept off: fewer LEDs, a lower idle draw, a bigger supply or a smaller margin lets them on.`;

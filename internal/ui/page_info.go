@@ -92,7 +92,7 @@ func (p *firmwarePage) rows(a *App) []layout.Widget {
 		}
 		current := fmt.Sprintf("Running version %s with %d built-in effects.", p.running.Version, p.running.Effects)
 		if p.running.OnTrial {
-			current += " It confirms itself once it has answered a paired request after its first minute, from 1.4.0 on within 10 minutes, or goes back to the previous version."
+			current += " It confirms itself after its first minute, from 1.4.0 on only once it has answered a paired request, within 10 minutes, or goes back to the previous version."
 		}
 		rows := []layout.Widget{
 			a.body(current),

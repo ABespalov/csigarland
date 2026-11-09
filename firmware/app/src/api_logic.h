@@ -68,6 +68,13 @@ struct LogWindow {
     uint32_t lost;    // Bytes gone before the reader came back for them.
 };
 
+// The open /trial-log carries the kept log only while the firmware is on trial. With HTTPS down and
+// the trial over, the status line is the whole answer: once the buffer has slid, its oldest line is
+// some later line of a log a paired client started, and that route is open.
+constexpr bool trial_log_sends_kept_log(bool on_trial) {
+    return on_trial;
+}
+
 constexpr LogWindow log_window(uint32_t after, uint32_t total, size_t kept) {
     const uint32_t new_bytes = total - after;
     // Ahead of the log, as after a restart: this is a new log, so all of it.

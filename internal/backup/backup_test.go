@@ -40,6 +40,9 @@ type garland struct {
 	playlistStatus int
 	// An answer to a POST of the playlist other than taking it, 0 for taking it.
 	playlistRefusal int
+	// The answer to a POST of the screen with Scheduler24, as of a garland without the clock module, 409, or
+	// one of 1.1.1, 400; 0 for taking it.
+	schedulerRefusal int
 	// What GET firmware says, 1.0.0.103 when empty.
 	version string
 	// What GET schedule says the actions name that the garland lacks.
@@ -142,7 +145,13 @@ func (g *garland) serve(t *testing.T) *api.Client {
 		case "GET display":
 			reply(g.display)
 		case "POST display":
-			_ = json.Unmarshal(body, &g.display)
+			var sent api.Display
+			_ = json.Unmarshal(body, &sent)
+			if sent.Saver == "scheduler24" && g.schedulerRefusal != 0 {
+				http.Error(w, "Scheduler24 needs the clock module", g.schedulerRefusal)
+				return
+			}
+			g.display = sent
 			reply(g.display)
 		case "GET leds/power":
 			if g.power == nil {
@@ -217,7 +226,7 @@ func TestABackupPutsAnErasedGarlandBack(t *testing.T) {
 // The power settings go with the rest, the four the owner sets and not what they come to; a garland of a
 // release with them that does not answer fails the backup, as a 1.1.1 garland's 404 does not.
 func TestThePowerSettingsAreKept(t *testing.T) {
-	from := &garland{version: "1.2.0.120", favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
+	from := &garland{version: "1.4.0.120", favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
 		power: &api.PowerBudget{SupplyMilliamps: 4000, WhiteMilliamps: 36, IdleMilliamps: 1, MarginPercent: 10, LimitMilliamps: 3375, Leds: 32}}
 	ctx := context.Background()
 	made, err := Collect(ctx, from.serve(t), time.Now())
@@ -251,7 +260,7 @@ func TestThePowerSettingsAreKept(t *testing.T) {
 	}
 	from.power = nil
 	if _, err := Collect(ctx, from.serve(t), time.Now()); err == nil || !strings.Contains(err.Error(), "power") {
-		t.Fatalf("a 1.2.0 garland without power settings: %v", err)
+		t.Fatalf("a 1.4.0 garland without power settings: %v", err)
 	}
 }
 
@@ -434,7 +443,7 @@ func TestAPlaylistKeepsAnEffectItsGarlandLacks(t *testing.T) {
 // effect it does not list: no list is shortened for it, nor favourites changed by it, and the restore says
 // to try again. The garland refuses what it does not hold, and keeps its own list then.
 func TestARestoreLeavesNothingOutByAListNotWhole(t *testing.T) {
-	made := Backup{Format: Format, Made: "x", Firmware: "1.2.0.106", Schedule: []api.Action{{Enabled: true, Time: "06:30", Days: 127, Effect: "sleeping"}},
+	made := Backup{Format: Format, Made: "x", Firmware: "1.4.0.106", Schedule: []api.Action{{Enabled: true, Time: "06:30", Days: 127, Effect: "sleeping"}},
 		Favorites: []string{"aurora"}, Uploads: []Upload{}, Display: api.Display{Saver: "none"},
 		Playlist: &api.Playlist{Effects: []string{"sleeping", "aurora"}, Missing: []string{"sleeping"}, Dwell: 60, CrossFade: 1000}}
 	partial := false
@@ -509,5 +518,35 @@ func TestARestoreSaysWhatCameOfThePlaylist(t *testing.T) {
 	}
 	if playlistOutcome(errors.New("connection reset")) != PlaylistUnsure {
 		t.Fatal("a request with no answer taken for one refused")
+	}
+}
+
+// A screen with Scheduler24 put back on a garland that refuses it, one without the clock module or of 1.1.1,
+// keeps the rest of the screen, with the Flying Clock in its place, and says so; one that takes it, takes it.
+func TestScheduler24GoesBackAsTheFlyingClockWhereItIsRefused(t *testing.T) {
+	made := Backup{Format: Format, Made: "x", Firmware: "1.4.0.120", Schedule: []api.Action{}, Favorites: []string{"aurora"}, Uploads: []Upload{},
+		Display: api.Display{Saver: "scheduler24", Delay: 90, ScreenBrightness: 70, SaverBrightness: 20}}
+	for _, status := range []int{http.StatusConflict, http.StatusBadRequest} {
+		to := &garland{revision: 1, favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "starfield", Delay: 60},
+			schedulerRefusal: status}
+		_, err := Restore(context.Background(), to.serve(t), made, func(string) {})
+		if err == nil || !strings.Contains(err.Error(), "Flying Clock") {
+			t.Fatalf("%d: %v", status, err)
+		}
+		if to.display != (api.Display{Saver: "flying-clock", Delay: 90, ScreenBrightness: 70, SaverBrightness: 20}) {
+			t.Fatalf("%d: the screen put back as %+v", status, to.display)
+		}
+	}
+	with := &garland{revision: 1, favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "starfield"}}
+	if _, err := Restore(context.Background(), with.serve(t), made, func(string) {}); err != nil || with.display.Saver != "scheduler24" {
+		t.Fatalf("%v %+v", err, with.display)
+	}
+	// Another refusal of the screen is said as it came, and changes nothing.
+	other := made
+	other.Display.Saver = "starfield"
+	refusing := &garland{revision: 1, favorites: map[string]bool{"aurora": true}, uploads: map[string]string{}, display: api.Display{Saver: "none"},
+		schedulerRefusal: http.StatusConflict}
+	if _, err := Restore(context.Background(), refusing.serve(t), other, func(string) {}); err != nil || refusing.display.Saver != "starfield" {
+		t.Fatalf("%v %+v", err, refusing.display)
 	}
 }

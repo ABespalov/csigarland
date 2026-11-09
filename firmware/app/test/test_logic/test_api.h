@@ -80,6 +80,9 @@ static void test_the_log_is_read_from_where_a_reader_got_to() {
     window = log_window(9000, 100, 100);
     TEST_ASSERT_EQUAL_size_t(0, window.skip);
     TEST_ASSERT_EQUAL_UINT32(0, window.lost);
+    // The open log carries what was kept only while on trial. Otherwise its status line is the whole answer.
+    TEST_ASSERT_TRUE(trial_log_sends_kept_log(true));
+    TEST_ASSERT_FALSE(trial_log_sends_kept_log(false));
 }
 
 static void test_an_empty_password_keeps_the_saved_one() {

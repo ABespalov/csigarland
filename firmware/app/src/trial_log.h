@@ -22,9 +22,10 @@ namespace garland {
 // First thing at startup. Does nothing unless the running firmware is on trial.
 void trial_log_start();
 
-// Answers with the first line "version=... on_trial=0|1 https=0|1 boot=... image=... pack=...", then the log. Open to anyone
-// and over plain HTTP, as the portal may not be up, so only while on trial, or while HTTPS has
-// failed and this is how the owner finds out why. 404 otherwise.
+// Answers with the first line "version=... on_trial=0|1 https=0|1 boot=... image=... pack=...", and,
+// while on trial, the log after it. Open to anyone and over plain HTTP, as the portal may not be up,
+// so only while on trial, or while HTTPS has failed and this is how the owner finds out why. With
+// HTTPS down and the trial over, that line is the whole answer. 404 otherwise.
 esp_err_t trial_log_handle(httpd_req_t* req, bool https_running);
 
 // GET /api/v1/log?after=: the log since a position, for a paired client. Starts keeping it.
