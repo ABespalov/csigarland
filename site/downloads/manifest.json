@@ -1,14 +1,25 @@
 {
   "format": "csigarland.downloads/2",
-  "updated": "2026-11-06",
+  "updated": "2026-11-09",
   "source": "https://github.com/ABespalov/csigarland",
-  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.3.0",
+  "release": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.0",
   "products": [
     {
       "id": "firmware",
       "name": "Firmware and effects update",
       "about": "The update file for a garland whose firmware holds the project's root, signed under it: install it from the portal's Firmware page or the utility's catalog.",
       "builds": [
+        {
+          "platform": "ESP32-C6-LCD-1.3",
+          "available": true,
+          "version": "1.4.0.120",
+          "release": "1.4.0",
+          "released": "2026-11-09",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.0/csigarland-1.4.0.120.ota",
+          "sha256": "586f8dfbcf131234b6a5e8960daf9518ee125f115681181dc9db84e7057ed9e0",
+          "size": "1.6 MB"
+        },
         {
           "platform": "ESP32-C6-LCD-1.3",
           "available": true,
@@ -52,6 +63,17 @@
         {
           "platform": "Windows x64",
           "available": true,
+          "version": "1.4.0.52",
+          "release": "1.4.0",
+          "released": "2026-11-09",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.0/csigarland-1.4.0.52-windows-amd64.exe",
+          "sha256": "8ef58c37a0267d53266d3c8f4b1e52747b42310b136d015d3f45d3a3ae0e74e5",
+          "size": "13.4 MB"
+        },
+        {
+          "platform": "Windows x64",
+          "available": true,
           "version": "1.3.0.44",
           "release": "1.3.0",
           "released": "2026-11-06",
@@ -92,6 +114,17 @@
           "url": "https://github.com/ABespalov/csigarland/releases/download/v1.0.0/csigarland-1.0.0.27-windows-amd64.exe",
           "sha256": "dad833ebc2ed9dc6e17e46447e51fddc9a5e9bc5e38bd443699082778530d00f",
           "size": "13.2 MB"
+        },
+        {
+          "platform": "Linux x64",
+          "available": true,
+          "version": "1.4.0.53",
+          "release": "1.4.0",
+          "released": "2026-11-09",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.0/csigarland-1.4.0.53-linux-amd64",
+          "sha256": "22a90eb1104fedc9a827839073655cbb2cfd5cd94967ac1e296e24f4be978f99",
+          "size": "13.6 MB"
         },
         {
           "platform": "Linux x64",
@@ -144,6 +177,17 @@
       "name": "Root certificate of the release",
       "about": "To build the release again and compare it to the byte.",
       "builds": [
+        {
+          "platform": "Any",
+          "available": true,
+          "version": "1.4.0.120",
+          "release": "1.4.0",
+          "released": "2026-11-09",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.0",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.0/csigarland-ota-root.crt",
+          "sha256": "071b59501b482480e0f9b82d332986e0ff6e1f782e22d73a97af8f2fba54dc05",
+          "size": null
+        },
         {
           "platform": "Any",
           "available": true,
