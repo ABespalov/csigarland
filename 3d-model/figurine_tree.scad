@@ -8,6 +8,8 @@
  * Contributors: Anton Bespalov
  */
 
+use <figurine_shell.scad>
+
 /* [Display & Animation Options] */
 view_mode = "assembled"; // [exploded: Exploded Assembly View, assembled: Full Assembled Figurine, cutaway: 90-Degree Cross Section, cap_only: Diffuser Cap (Print Ready), base_only: Base Mount (Print Ready)]
 explode_gap = 24;
@@ -220,6 +222,30 @@ module tree_trunk() {
     }
 }
 
+// The tree's outline as a radius round the axis, r = tree_r(a, z), the same solid the
+// modules above build: collar, taper, core, the lobed tiers with their twist, and the
+// trunk. Its eroded copy is the hollow, so the tree is an even shell of tree_wall that
+// glows alike all over (see figurine_shell.scad), where it was solid with a narrow light
+// channel up the core. The hollow's ceilings stay 35 deg from the horizontal or steeper,
+// so under the flat underside of the lowest tier the wall is thicker.
+tree_wall = 1.50;
+
+function tree_tier_r(t, i, a, z) =
+    let (rot0 = i % 2 == 0 ? 0 : -tier_twist,
+         twist = (i % 2 == 0 ? 1 : -1) * tier_twist,
+         rm = z <= t[1] ? t[3] + (t[4] - t[3]) * (z - t[0]) / (t[1] - t[0])
+                        : t[4] + (t[5] - t[4]) * (z - t[1]) / (t[2] - t[1]),
+         theta = rot0 - twist * (z - t[0]) / (t[2] - t[0]))
+    rm * (1 + lobe_ratio * cos(6 * (a - theta)));
+
+tree_r = function (a, z) max(concat(
+    [0,
+     z <= collar_h ? base_od / 2 : 0,
+     z >= collar_h && z <= tip_z ? base_od / 2 + (tip_r - base_od / 2) * (z - collar_h) / (tip_z - collar_h) : 0,
+     z <= tiers[1][0] + 1.0 ? tip_r : 0,
+     z >= trunk_z && z <= tree_h ? min(trunk_r, trunk_r - 0.6 + (tree_h - z)) : 0],
+    [for (i = [0 : len(tiers) - 1]) let (t = tiers[i]) if (z >= t[0] && z <= t[2]) tree_tier_r(t, i, a, z)]));
+
 module tree_diffuser_cap() {
     color(c_cap)
     difference() {
@@ -254,11 +280,11 @@ module tree_diffuser_cap() {
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
 
-        // 3. Hollow light-diffusion chamber inside core
-        translate([0, 0, neck_h])
-            cylinder(r1=4.4, r2=3.0, h=4.0);
-        translate([0, 0, neck_h + 3.9])
-            cylinder(r1=3.0, r2=1.8, h=16.0);
+        // 3. The hollow, from the neck top, where it opens out of the socket bore
+        intersection() {
+            shell_solid(tree_r, 0, tree_h, dz = 0.2, na = 96, w = tree_wall, ceiling = 35);
+            translate([0, 0, neck_h]) cylinder(r = 30, h = tree_h);
+        }
     }
 }
 

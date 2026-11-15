@@ -30,8 +30,9 @@ CAPS = {
     "gingerbread": "gingerbread_diffuser_cap",
     "lantern": "lantern_diffuser_cap",
 }
-# The tree from a little lower, so that its trunk shows below the tiers.
-CAMERAS = {"tree": ["--camera=0,0,-26,75,0,25,180"]}
+# The tree from a little lower, so that its trunk shows below the tiers, and the bell from below,
+# so that its clapper shows in the mouth.
+CAMERAS = {"tree": ["--camera=0,0,-26,75,0,25,180"], "bell": ["--camera=0,0,-24,118,0,25,175"]}
 BACKGROUND = (248, 248, 248)  # The Tomorrow colour scheme's.
 PITCH = 52  # mm between figurines on the cable in the picture.
 # The enclosure's preview views of control_enclosure.scad, by the picture each makes, and its camera:

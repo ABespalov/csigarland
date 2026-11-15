@@ -9,6 +9,12 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+### Hardware
+
+- The bell is a classic church bell: a rounded crown, a straight waist and a flare to a thick rolled lip, 40 mm across, with a short clapper peeking out of the mouth, where it was a flared trumpet. It snaps onto the same base mount and prints with no support.
+- The tree, icicles, snowman, gingerbread man and lantern look as before but are even 1.5 mm shells, where they were solid or had walls of 2 to 3 mm, so they glow evenly. Bambu Studio no longer leaves supports inside the snowman, the gingerbread man or the bell, where they could not be taken out. The pinecone and the star are as they were.
+- `csigarland_full_set.3mf` holds the new caps; its plate pictures still show the caps before until it is saved again in Bambu Studio. Seams go to the back of each figurine, away from its face, as scarf joints, where aligned seams had run across the front of the round caps; the set takes about 22 h, 2.8 h more.
+
 ## [1.4.0] - 2026-11-09
 
 The firmware and the utility, both 1.4.0. Everything a 1.1.1 garland saved, settings, pairings, uploaded effects, favourites, the schedule, the playlist and its root certificate, stays as it was after this update, but for an uploaded effect with `\u0000` in a key or a text, which is refused, as said below. A garland gone back to 1.1.1 reads what this one saves as it did, with no power settings, so with its 1400 mA, and with the Starfield in place of Scheduler24. A browser paired on plain HTTP while HTTPS was down pairs again once it is up. The utility 1.4.0 works with the firmware 1.1.0 and 1.1.1 too, and the utility 1.3.0 with this firmware, without its new settings. A new firmware confirms itself only once a paired browser or program has reached it: keep the Firmware page or the utility open until the update says it is done.

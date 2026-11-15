@@ -27,13 +27,13 @@ This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects
 ### 1.3 Base Mount & Snap Socket
 * **Base Mount:** Ø17.60 mm flange (4.40 mm tall) + Ø13.80 mm neck (5.00 mm tall) with a Ø14.40 mm snap ridge; total height 9.40 mm.
 * **Cap Socket:** Ø14.00 mm bore with a Ø14.75 mm snap groove; socket depth is **5.30 mm**, i.e. **0.30 mm axial clearance** over the neck top, so the cap seats on the base flange and the ridge engages even if the socket-ceiling bridge sags.
-* **LED Clearance:** every cap clears the 5050 LED chip ($r = 3.54\text{ mm}$ half-diagonal) and capacitor ($r = 3.70\text{ mm}$), which stand **1.65 mm** proud of the neck top: the wide-chamber caps start at **r = 4.2–5.5 mm** and taper above the board, while the narrow-neck star and gingerbread caps have an **Ø8.8 mm (r = 4.4 mm) × 2.2 mm** clearance pocket with a 45° roof.
+* **LED Clearance:** every cap clears the 5050 LED chip ($r = 3.54\text{ mm}$ half-diagonal) and capacitor ($r = 3.70\text{ mm}$), which stand **1.65 mm** proud of the neck top: the hollows of the bell, tree, icicles, snowman, gingerbread man and lantern are at least **r = 4.2 mm** wide up to that height, the pinecone's chamber starts at **r = 4.2 mm**, and the star has an **Ø8.8 mm (r = 4.4 mm) × 2.2 mm** clearance pocket with a 45° roof.
 * **Calibration:** print one base + one cap first; if the snap is too tight or too loose, adjust `snap_ridge_dia` (±0.1 mm) or `neck_socket_gap`.
 
 ### 1.4 Figurine Envelopes
 * **Overall Height:** 45.7–49.0 mm (50 mm height class).
 * **Collar Diameter:** Ø17.60 mm, flush with the base mount flange.
-* **Wall Thickness:** minimum 1.40–1.50 mm (3–4 perimeter loops with a 0.4 mm nozzle), but for the star: an even 1.20 mm shell normal to its facets (`star_wall` in `figurine_star.scad`), about 3 perimeters in plan.
+* **Wall Thickness:** the bell, tree, icicles, snowman, gingerbread man and lantern are even shells of 1.50 mm (3 perimeters), their hollow the outline eroded by the wall, built with [`figurine_shell.scad`](figurine_shell.scad): a solid given as a radius round the axis, or as eroded spheres, ellipsoids and frustums gathered along rays from the axis, made into a hollow whose ceilings, as the cap prints, stay 35° from the horizontal or steeper. A flatter ceiling inside a closed hollow takes tree supports that can never be taken out; Bambu Studio put such supports inside the released snowman, gingerbread man and bell. The star is an even 1.20 mm shell normal to its facets (`star_wall` in `figurine_star.scad`), about 3 perimeters in plan. The pinecone keeps its solid overlapping scales.
 
 ---
 
@@ -41,7 +41,7 @@ This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects
 
 For high-resolution previews, individual visual breakdowns, and Bambu Studio print parameters, see the comprehensive [Optical Diffuser Figurine Catalog](../docs/hardware/diffusers.md), which also gives the order of the figurines along the cable. The table numbers the designs, not that order. Each model's `c_cap` is its filament's colour in the renders, which `deploy/new-model-renders.ps1` makes after a change to a model.
 
-All 8 holiday figurines print collar-down in translucent PETG and hang with the universal snap-fit base mount at the top (cord running overhead). Every figurine prints with tree supports. They hold the socket ceiling inside the collar, which sags into strings unsupported, and on the snowman (nose, hands), gingerbread (arms), pinecone (scale undersides) and the two lower star points they also carry those overhangs:
+All 8 holiday figurines print collar-down in translucent PETG and hang with the universal snap-fit base mount at the top (cord running overhead). Every figurine but the bell prints with tree supports. They hold the socket ceiling inside the collar, which sags into strings unsupported, and on the snowman (nose, hands), gingerbread (arms), pinecone (scale undersides) and the two lower star points they also carry those overhangs. The bell has no socket ceiling and no surface flatter than 35°, and Bambu Studio slices it with no support at all:
 
 | # | Figurine Name | SCAD Source | STL File | Style & Geometry |
 |---|---|---|---|---|
@@ -49,7 +49,7 @@ All 8 holiday figurines print collar-down in translucent PETG and hang with the 
 | 2 | **3D Magen David** | `figurine_star.scad` | `diffuser_cap_star.stl` | 6-pointed faceted Star of David, completely sealed closed shell (49.0 mm) |
 | 3 | **Icicle Cluster** | `figurine_icicle.scad` | `diffuser_cap_icicle.stl` | 5-stalactite organic cluster with freezing meltwater ripples (48.0 mm) |
 | 4 | **Hanging Pinecone** | `figurine_pinecone.scad` | `diffuser_cap_pinecone.stl` | Inverted pinecone with stem at base, shingled checkerboard scales layering down (45.7 mm) |
-| 5 | **Holiday Bell** | `figurine_bell.scad` | `diffuser_cap_bell.stl` | Flared trumpet bell with clapper, rolled lip, and ribbon bow at crown (48.0 mm) |
+| 5 | **Holiday Bell** | `figurine_bell.scad` | `diffuser_cap_bell.stl` | Classic church bell: rounded crown shoulder, straight waist, flare to a thick rolled lip, and a clapper peeking out of the mouth (49.0 mm) |
 | 6 | **Cozy Snowman** | `figurine_snowman.scad` | `diffuser_cap_snowman.stl` | Inverted snowman with pom-pom/beanie at base, carrot nose, scarf, and round belly with ball-hands (47.6 mm) |
 | 7 | **Gingerbread Man** | `figurine_gingerbread.scad` | `diffuser_cap_gingerbread.stl` | Baker's cap at base, 3D bow tie, welcoming hug arms with icing cuffs, gumdrop buttons, and legs (47.9 mm) |
 | 8 | **Vintage Lantern** | `figurine_lantern.scad` | `diffuser_cap_lantern.stl` | Hexagonal pagoda canopy at base, 6 fluted columns, diamond-faceted crystal panes, and acorn finial (47.5 mm) |
@@ -69,7 +69,7 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
 | 2 | Star ×4 | PETG Translucent Light Blue | tree supports |
 | 3 | Icicle ×4 | PETG Clear | tree supports |
 | 4 | Pinecone ×4 | PETG Translucent Brown | tree supports, 0.16 mm layers |
-| 5 | Bell ×4 | PETG Translucent Teal | tree supports |
+| 5 | Bell ×4 | PETG Translucent Teal | tree supports (none are made) |
 | 6 | Snowman ×4 | PETG Clear | tree supports, 0.16 mm layers |
 | 7 | Gingerbread ×4 | PETG Translucent Orange | tree supports, 0.16 mm layers |
 | 8 | Lantern ×4 | PETG Translucent Gray | tree supports |
@@ -77,10 +77,17 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
 
 * **Process:** `0.20mm Standard @BBL P2S` with 3 walls, 0% sparse infill (hollow translucent shells),
   6 top layers, 3 mm outer brim (0.15 mm gap), prime tower off, elephant-foot compensation 0.15 mm.
+* **Seams:** at the back (`seam_position = back`), the +Y side of each figurine as it stands on the plate,
+  which is the side opposite the snowman's and the gingerbread man's faces: turn a cap on its base so
+  that side faces the wall. Every wall's seam is a scarf joint (`seam_slope_type = all`, contours and
+  holes, inner walls too), which overrides the filament presets' own setting of none
+  (`override_filament_scarf_seam_setting`). Aligned seams had wandered across the front of the round
+  caps, and translucent PETG shows every seam, the inner ones as well. The scarf joints cost about
+  2.8 h over the set.
 * **Supports** (plates 1–8): tree (auto), threshold 30°, not limited to the build plate, 0.2 mm top/bottom Z distance.
 * **Filament presets:** `Bambu PETG Translucent @BBL P2S 0.4 nozzle` (245 °C) and
   `Bambu PETG Basic @BBL P2S 0.4 nozzle` (250 °C); plate 70 °C.
-* **Estimate (Bambu Studio):** ~17.8 h in total, ~214 g of translucent PETG + ~47 g of PETG Basic.
+* **Estimate (Bambu Studio 02.08):** ~22.2 h in total, ~212 g of translucent PETG + ~46 g of PETG Basic.
 * Re-export the project after changing any SCAD source; the plate colours in the file are approximate,
   sync them with the AMS if you want exact swatches.
 

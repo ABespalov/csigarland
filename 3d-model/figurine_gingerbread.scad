@@ -8,6 +8,8 @@
  * Contributors: Anton Bespalov
  */
 
+use <figurine_shell.scad>
+
 /* [Display & Animation Options] */
 view_mode = "assembled"; // [exploded: Exploded Assembly View, assembled: Full Assembled Figurine, cutaway: 90-Degree Cross Section, cap_only: Diffuser Cap (Print Ready), base_only: Base Mount (Print Ready)]
 explode_gap = 24;
@@ -312,58 +314,53 @@ module gingerbread_diffuser_cap() {
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
 
-        // 3. Hollow light-diffusion chamber inside (continuous open channel from socket)
-        // LED clearance pocket: chip + capacitor stand 1.65 mm above the neck top
-        // (half-diagonal 3.54 mm, capacitor up to r = 3.7 mm); 45-degree roof, no bridge
-        translate([0, 0, neck_h - 0.1])
-            cylinder(r=4.4, h=2.3, $fn=32);
-        translate([0, 0, neck_h + 2.2])
-            cylinder(r1=4.4, r2=2.6, h=1.8, $fn=32);
-
-        // Narrow channel from clearance pocket through collar into head (Z = 8.9 to 13.5 mm)
-        translate([0, 0, neck_h])
-            cylinder(r1=3.5, r2=2.0, h=8.5);
-        
-        // Head cavity (scaled to cookie thickness, leaves > 2.0mm wall everywhere!)
-        translate([0, 0, z_head])
-            scale([1.0, 0.78, 1.0])
-                sphere(r=4.6, $fn=24);
-
-        // Narrow connecting tunnel through neck into torso (Z = 20.0 to 26.0 mm)
-        // Strictly narrow: Ø3.8mm max -> leaves >= 2.39mm solid wall in front and back! ZERO HOLES!
-        translate([0, 0, 20.0])
-            cylinder(r=1.9, h=6.0, $fn=16);
-
-        // Torso cavity (leaves > 2.0mm walls)
-        hull() {
-            translate([0, 0, 25.8])
-                scale([1.0, 0.78, 1.0])
-                    cylinder(r=3.6, h=1.0, center=true);
-            translate([0, 0, 33.0])
-                scale([1.1, 0.82, 1.0])
-                    cylinder(r=4.2, h=1.0, center=true);
-        }
-
-        // Arm inner light channels (narrow, safe)
-        hull() {
-            translate([0, 0, 26.5]) sphere(r=1.6, $fn=12);
-            translate([-10.0, -0.6, 29.0]) sphere(r=1.1, $fn=12);
-        }
-        hull() {
-            translate([0, 0, 26.5]) sphere(r=1.6, $fn=12);
-            translate([10.0, -0.6, 29.0]) sphere(r=1.1, $fn=12);
-        }
-
-        // Leg inner light channels (narrow, safe)
-        hull() {
-            translate([-2.8, 0, 34.5]) sphere(r=1.6, $fn=12);
-            translate([-5.8, 0, 42.0]) sphere(r=1.1, $fn=12);
-        }
-        hull() {
-            translate([2.8, 0, 34.5]) sphere(r=1.6, $fn=12);
-            translate([5.8, 0, 42.0]) sphere(r=1.1, $fn=12);
+        // 3. The hollow, from the neck top, where it opens out of the socket bore: the head,
+        // neck and torso round the axis, and the arms and legs as tubes of their own
+        intersection() {
+            union() {
+                shell_solid(function (a, z) shell_ray_union(cookie_hollow(), a, z),
+                            neck_h, cookie_height, dz = 0.2, na = 96, ceiling = 35);
+                for (s = [-1, 1]) {
+                    cookie_limb([[[s * 4.8, 0, 26.5], 3.2], [[s * 14.2, -1.2, 30.0], 3.0]]);
+                    // A leg's tube runs on up into the torso, past the flat underside
+                    // where the torso's own hollow has closed.
+                    cookie_limb([[[s * 3.4, 0, 31.5], 3.4], [[s * 3.6, 0, 34.5], 3.6], [[s * 7.2, 0, 44.5], 3.4]]);
+                }
+            }
+            translate([0, 0, neck_h]) cylinder(r = 30, h = cookie_height);
         }
     }
+}
+
+// The hollow: collar taper, head, neck and torso, each eroded by cookie_wall, so the
+// cookie is an even shell that glows alike all over (see figurine_shell.scad), where
+// its walls were 2 to 3 mm with narrow channels into the limbs. The eyes, nose, smile,
+// bow tie, buttons and icing cuffs are too thin to hollow and stay solid. Where the
+// outline turns flat as the cookie prints, under the torso, the hollow closes at 35 deg.
+cookie_wall = 1.50;
+function cookie_hollow() =
+    let (w = cookie_wall,
+         // collar outline [z, r], each run eroded across its slope
+         c = [[4.4, base_od / 2], [6.8, base_od / 2 - 1.6], [8.8, 5.6], [11.0, 4.4], [13.0, 3.7], [14.0, 3.5]])
+    concat(
+        [for (i = [0 : len(c) - 2])
+            let (k = w / cos(atan((c[i][1] - c[i + 1][1]) / (c[i + 1][0] - c[i][0]))))
+                ["f", c[i][0], c[i + 1][0], [0, 0], [0, 0], c[i][1] - k, c[i + 1][1] - k]],
+        shell_ellipsoid([0, 0, 17.5], [7.5, 7.5 * 0.78, 7.5] - [w, w, w]),          // head
+        [["x", 22.95, 25.45, 5.5 - w, 5.5 * 0.78 - w, 5.5 - w, 5.5 * 0.78 - w],    // neck
+         ["x", 24.5, 34.5 - w, 5.8 - w, 5.8 * 0.78 - w, 6.6 * 1.1 - w, 6.6 * 0.82 - w]]); // torso
+
+// A limb's hollow: the hull of its spheres [[centre, radius], ...] eroded by the wall,
+// with a ridge on top at 35 deg from the horizontal, so the tube prints with no support
+// inside it.
+module cookie_limb(balls) {
+    for (i = [0 : len(balls) - 2])
+        hull() {
+            for (b = [balls[i], balls[i + 1]]) {
+                translate(b[0]) sphere(r = b[1] - cookie_wall, $fn = 24);
+                translate(b[0] + [0, 0, (b[1] - cookie_wall) / cos(35)]) sphere(r = 0.05, $fn = 6);
+            }
+        }
 }
 
 // =============================================================================

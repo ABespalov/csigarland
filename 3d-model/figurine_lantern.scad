@@ -8,6 +8,8 @@
  * Contributors: Anton Bespalov
  */
 
+use <figurine_shell.scad>
+
 /* [Display & Animation Options] */
 view_mode = "assembled"; // [exploded: Exploded Assembly View, assembled: Full Assembled Figurine, cutaway: 90-Degree Cross Section, cap_only: Diffuser Cap (Print Ready), base_only: Base Mount (Print Ready)]
 explode_gap = 24;
@@ -272,15 +274,36 @@ module lantern_diffuser_cap() {
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
 
-        // 3. Hollow light-diffusion chamber inside
-        translate([0, 0, neck_h])
-            cylinder(r1=neck_od/2 - wall_thickness, r2=8.6, h=7.0);
-        translate([0, 0, neck_h + 6.9])
-            cylinder(r1=8.6, r2=7.6, h=19.5, $fn=6);
-        translate([0, 0, neck_h + 26.3])
-            cylinder(r1=7.6, r2=2.0, h=7.5, $fn=6);
+        // 3. The hollow, from the neck top, where it opens out of the socket bore
+        intersection() {
+            shell_solid(function (a, z) shell_ray_union(lantern_hollow(), a, z),
+                        neck_h, lantern_height, dz = 0.2, na = 120, ceiling = 35);
+            translate([0, 0, neck_h]) cylinder(r = 30, h = lantern_height);
+        }
     }
 }
+
+// The hollow: canopy, eaves, window cage, base tray and finial, each eroded by
+// lantern_wall across its slope, so the lantern is an even shell that glows alike all
+// over (see figurine_shell.scad), where its walls were 2 to 3 mm and the tray and finial
+// solid. The corner columns and the window reliefs are too thin to hollow and stay
+// solid. Under the flat eaves, as the lantern prints, the hollow closes at 35 deg.
+lantern_wall = 1.50;
+// A hexagonal frustum's hollow: circumradii r0 to r1 over z0..z1, eroded across its slope.
+function lantern_hex(z0, z1, r0, r1) =
+    let (k = lantern_wall / cos(atan((r0 - r1) * cos(30) / (z1 - z0))) / cos(30))
+    ["p", z0, z1, r0 - k, r1 - k, 6, 0];
+function lantern_hollow() =
+    let (w = lantern_wall)
+    concat(
+        [["f", 4.4, 5.2, [0, 0], [0, 0], base_od / 2 - w / cos(atan(1.2 / 0.81)), 7.6 - w / cos(atan(1.2 / 0.81))],
+         lantern_hex(5.2, 12.0, 17.6 / 2, 26.4 / 2),     // canopy
+         lantern_hex(12.0, 13.5, 27.2 / 2, 27.2 / 2),    // eaves
+         lantern_hex(13.5, 32.5, 22.4 / 2, 19.6 / 2),    // window cage
+         lantern_hex(32.5, 36.3, 21.4 / 2, 16.8 / 2),    // base tray
+         lantern_hex(36.3, 38.8, 16.8 / 2, 11.0 / 2),
+         ["f", 38.5, 41.3, [0, 0], [0, 0], 4.8 - w / cos(atan(2.3 / 2.8)), 2.5 - w / cos(atan(2.3 / 2.8))]],
+        shell_ellipsoid([0, 0, 42.8], [3.4, 3.4, 3.4 * 1.4] - [w, w, w]));   // finial drop
 
 // =============================================================================
 // MAIN ASSEMBLY CONTROLLER

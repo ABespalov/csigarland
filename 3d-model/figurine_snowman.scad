@@ -8,6 +8,8 @@
  * Contributors: Anton Bespalov
  */
 
+use <figurine_shell.scad>
+
 /* [Display & Animation Options] */
 view_mode = "assembled"; // [exploded: Exploded Assembly View, assembled: Full Assembled Figurine, cutaway: 90-Degree Cross Section, cap_only: Diffuser Cap (Print Ready), base_only: Base Mount (Print Ready)]
 explode_gap = 24;
@@ -300,26 +302,34 @@ module snowman_diffuser_cap() {
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
 
-        // 3. Hollow light-diffusion chamber inside
-        translate([0, 0, neck_h])
-            cylinder(r1=neck_od/2 - wall_thickness, r2=5.6, h=4.0);
-        translate([0, 0, neck_h + 3.9])
-            cylinder(r1=5.6, r2=6.0, h=8.5);
-        
-        // Head cavity (wall >= 1.4mm)
-        translate([0, 0, z_head])
-            sphere(r=r_head - wall_thickness * 1.3, $fn=24);
-
-        // Neck cavity
-        translate([0, 0, 25.2])
-            cylinder(r1=5.8, r2=6.2, h=3.2);
-
-        // Lower body cavity
-        translate([0, 0, z_body])
-            scale([1, 1, 0.96])
-                sphere(r=r_body - wall_thickness * 1.3, $fn=24);
+        // 3. The hollow, from the neck top, where it opens out of the socket bore
+        intersection() {
+            shell_solid(function (a, z) shell_ray_union(snowman_hollow(), a, z),
+                        neck_h, snowman_height, dz = 0.2, na = 96, ceiling = 35);
+            translate([0, 0, neck_h]) cylinder(r = 30, h = snowman_height);
+        }
     }
 }
+
+// The hollow: the hat, head, scarf, body, arms and the round at the bottom, each eroded
+// by snowman_wall, so the snowman is an even shell that glows alike all over (see
+// figurine_shell.scad). The eyes, nose, smile, buttons and scarf tails are too thin to
+// hollow and stay solid. Where the outline turns flat, at the top of the head and the
+// bottom of the body as the snowman prints, the hollow closes at 35 deg instead.
+snowman_wall = 1.50;
+function snowman_hollow() =
+    let (w = snowman_wall, z_head = 19.5, r_head = 8.2, z_body = 35.0, r_body = 11.2)
+    concat(
+        // Collar shoulder and hat, their slopes taken in
+        [["f", 4.4, 6.8, [0, 0], [0, 0], base_od / 2 - w / cos(atan(1.4 / 2.4)), 7.4 - w / cos(atan(1.4 / 2.4))],
+         ["f", 6.8, 15.5, [0, 0], [0, 0], 7.4 - w, 8.2 - w],
+         ["f", 25.2, 28.4, [0, 0], [0, 0], 5.8, 6.2],              // neck, inside the scarf
+         ["t", 25.5, 7.0, 1.9 * 1.1 - w, 1.9 * 1.2 - w]],          // scarf
+        shell_sphere([0, 0, z_head], r_head - w),
+        shell_ellipsoid([2.4, -7.5, 26.5], [1.2, 0.85, 1.1] * 2.2 - [w, w, w]),   // scarf knot
+        shell_ellipsoid([0, 0, z_body], [r_body, r_body, r_body * 0.96] - [w, w, w]),
+        shell_sphere([0, 0, z_body + r_body * 0.96 - 0.6], 2.5 - w),
+        [for (s = [-1, 1]) each shell_capsule([s * 8.5, 0, z_body - 2.4], 2.6 - w, [s * 12.0, -2.8, z_body - 1.2], 3.2 - w)]);
 
 // =============================================================================
 // MAIN ASSEMBLY CONTROLLER

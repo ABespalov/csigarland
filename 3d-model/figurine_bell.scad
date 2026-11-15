@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: Parametric Holiday Bell Diffuser Cap & Universal Base Mount (50mm Standard)
+ * Purpose: Parametric classic Holiday Bell Diffuser Cap & Universal Base Mount (50mm Standard)
  *          Fully optimized for FDM 3D printing with 0.40mm nozzle and 0.20mm layers.
  * Contributors: Anton Bespalov
  */
@@ -31,7 +31,7 @@ snap_ridge_z      = 11 * layer_h; // 2.20 mm
 snap_ridge_h      = 6 * layer_h;  // 1.20 mm
 neck_top_chamfer  = 4 * layer_h;  // 0.80 mm
 base_bottom_r     = 6 * layer_h;  // 1.20 mm
-bell_height       = 240 * layer_h;// 48.00 mm
+bell_height       = 245 * layer_h;// 49.00 mm, the clapper peeking out of the mouth
 
 base_od           = 17.60;
 neck_od           = 13.80;
@@ -166,68 +166,101 @@ module wire_harness_dummy(len=36) {
 }
 
 // =============================================================================
-// SUB-MODULE: Holiday Bell Diffuser Cap (Print Ready, Sealed Plafond)
+// SUB-MODULE: Holiday Bell Diffuser Cap (Print Ready)
 // =============================================================================
+// A classic church bell, drawn in the cap's own frame: Z = 0 is the collar on the
+// base flange, the top of the bell as it hangs, and Z grows towards the mouth,
+// which is up on the print bed. The outline (r, z) is a chain of cubic Bezier
+// segments: a rounded crown shoulder, a nearly straight waist, the flare and a
+// thick rolled lip (the sound bow). No printed surface is flatter than 35 deg
+// from the horizontal, but the socket ceiling inside the collar, and the
+// interior is cut as a shell of bell_wall normal to the outline.
+
+bell_wall     = 1.50;  // shell normal to the outline, 3-4 perimeters
+bell_lip_z    = 48.0;  // top face of the lip, the mouth as the bell hangs
+bell_mouth_r  = 16.8;  // where the lip's outline meets its top face
+bell_apex_z   = 37.0;  // apex of the conical mouth ceiling, on the axis: a short clapper
+bell_plate    = 1.60;  // that ceiling's thickness, normal to its 45 deg cone
+clapper_z     = 45.5;  // centre of the clapper ball, which peeks out of the mouth
+clapper_r     = 3.5;
+
+// Outline segments: [start, control, control, end].
+bell_segments = [
+    [[base_od/2, 4.4], [10.40, 5.52], [11.7, 8.4], [11.7, 12.0]],   // crown shoulder, 35 deg at the collar
+    [[11.7, 12.0], [11.7, 15.5], [11.2, 18.5], [11.2, 22.0]],       // waist, narrowing a little
+    [[11.2, 22.0], [11.2, 30.0], [14.4, 37.4], [18.6, 40.4]],       // flare, 35.5 deg at its end
+    [[18.6, 40.4], [19.6, 41.1], [20.0, 43.3], [19.8, 45.3]],       // lip bulge, OD 40.0 mm
+    // The lip rolls over to the mouth and meets it at 36 deg from the horizontal, so the
+    // wall inside it runs parallel, with no flat ceiling that would want support.
+    [[19.8, 45.3], [19.7, 46.4], [17.9, 47.2], [bell_mouth_r, bell_lip_z]]
+];
+
+function bez(s, t) = pow(1 - t, 3) * s[0] + 3 * pow(1 - t, 2) * t * s[1]
+                   + 3 * (1 - t) * t * t * s[2] + t * t * t * s[3];
+function bell_outline(n = 16) = concat(
+    [[0, 0], [base_od/2, 0]],
+    [for (s = bell_segments) for (i = [0 : n - 1]) bez(s, i / n)],
+    [[bell_mouth_r, bell_lip_z]]
+);
+
+// The bell's solid, and the same solid running on past the mouth, mirrored over
+// the axis, so that offsetting it inward neither leaves a core on the axis nor
+// closes the mouth.
+module bell_solid_2d() {
+    polygon(concat(bell_outline(), [[0, bell_lip_z]]));
+}
+module bell_open_2d() {
+    union() {
+        for (m = [0, 1]) mirror([m, 0])
+            polygon(concat(bell_outline(), [[bell_mouth_r, bell_lip_z + 20], [0, bell_lip_z + 20]]));
+    }
+}
+
+module bell_shell_2d() {
+    roof_z = bell_apex_z - bell_plate * sqrt(2);  // apex of the light chamber's roof
+    // The chamber opens straight out of the socket bore and widens at 35 deg from the
+    // horizontal, as the crown shoulder does, so the shoulder keeps an even wall and
+    // the socket has no ceiling to support.
+    k = 1 / tan(35);
+    socket_r = (neck_od + neck_socket_gap) / 2;
+    r0 = socket_r - socket_axial_gap * k;          // at the neck top, socket_r at the socket's end
+    rc = (r0 + k * (roof_z - neck_h)) / (1 + k);   // where the widening meets the 45 deg roof
+    difference() {
+        bell_solid_2d();
+        intersection() {
+            offset(r = -bell_wall) bell_open_2d();
+            union() {
+                // The mouth, down to its 45 deg conical ceiling.
+                polygon([[0, bell_apex_z], [40, bell_apex_z - 40], [40, 80], [0, 80]]);
+                // The light chamber above the LED closes under a 45 deg roof,
+                // so nothing inside needs support.
+                polygon([[0, neck_h], [r0, neck_h], [rc, roof_z - rc], [0, roof_z]]);
+            }
+        }
+    }
+}
+
+// The clapper: a tapered rod from the apex of the mouth ceiling, ending in a ball
+// that a 45 deg cone carries, so it prints without support.
+module bell_clapper_2d() {
+    tangent = [clapper_r * cos(45), clapper_z - clapper_r * sin(45)];
+    intersection() {
+        union() {
+            translate([0, clapper_z]) circle(r = clapper_r, $fn = 40);
+            // The rod's foot sits below the cone of the mouth ceiling all round.
+            polygon([[0, bell_apex_z - 3.4], [2.2, bell_apex_z - 3.4],
+                     [1.6, tangent[1] - (tangent[0] - 1.6)], tangent, [0, tangent[1]]]);
+        }
+        translate([0, 0]) square([20, 80]);
+    }
+}
+
 module bell_diffuser_cap() {
     color(c_cap)
     difference() {
-        union() {
-            // Lower collar matching base mount with rounded shoulder (Z = 0..7.2 mm)
-            rotate_extrude($fn=64) {
-                polygon([
-                    [0, 0],
-                    [base_od/2, 0],
-                    [base_od/2, 4.4],       // full 17.6mm OD protects snap groove (wall = 1.425mm)
-                    [base_od/2 - 0.2, 5.2], // rounded shoulder
-                    [7.8, 6.2],
-                    [7.2, 7.2],
-                    [0, 7.2]
-                ]);
-            }
-
-            // Ribbon bows on BOTH front and back sides (Z = 7.4 mm)
-            for (side = [0, 180]) {
-                rotate([0, 0, side])
-                    translate([0, 0, 7.4]) {
-                        translate([0, -7.2, 0]) sphere(r=1.8, $fn=20);
-                        translate([-3.0, -7.0, 0.5]) rotate([0, -20, 15]) scale([1.8, 0.7, 1.1]) sphere(r=1.6, $fn=16);
-                        translate([3.0, -7.0, 0.5]) rotate([0, 20, -15]) scale([1.8, 0.7, 1.1]) sphere(r=1.6, $fn=16);
-                        translate([-2.2, -6.8, -2.2]) rotate([15, -15, 0]) cube([1.6, 0.9, 4.0], center=true);
-                        translate([2.2, -6.8, -2.2]) rotate([15, 15, 0]) cube([1.6, 0.9, 4.0], center=true);
-                    }
-            }
-
-            // Bell flared trumpet skirt (Z = 7.0 to 48.0 mm)
-            // Wall thickness of bell skirt is strictly >= 1.4 mm!
-            translate([0, 0, 7.0]) {
-                rotate_extrude($fn=64) {
-                    polygon([
-                        [7.2, 0.2],
-                        [6.6, 5.0],     // waist
-                        [7.4, 12.0],
-                        [9.2, 20.0],
-                        [12.0, 28.0],
-                        [15.6, 36.0],
-                        [17.4, 39.5],   // rolled rim apex (OD = 34.8 mm)
-                        [16.6, 41.0],   // rolled lip top (total Z = 48.0 mm)
-                        [15.4, 40.2],   // inner lip
-                        [13.4, 36.0],   // inner trumpet flare (wall thickness = 1.5 - 2.0 mm)
-                        [10.0, 28.0],
-                        [7.2, 21.0],
-                        [5.2, 17.0],    // inner mouth ceiling (Z_abs = 24.0 mm)
-                        [0, 17.0],      // solid ceiling center
-                        [0, 0]
-                    ]);
-                }
-            }
-
-            // Clapper ball firmly anchored into the solid mouth ceiling (Z_abs = 24.0 mm)
-            // Ceiling is 9.0 mm thick solid plastic! Anchor rod is Ø3.4 mm!
-            translate([0, 0, 7.0 + 17.0 - 1.0]) {
-                cylinder(r=1.7, h=9.0, $fn=24); // sturdy rod Ø3.4mm
-                translate([0, 0, 9.0])
-                    sphere(r=3.8, $fn=32);      // clapper ball Ø7.6mm
-            }
+        rotate_extrude($fn = 96, convexity = 10) {
+            bell_shell_2d();
+            bell_clapper_2d();
         }
 
         // 1. Socket cavity for base neck with entrance chamfer
@@ -241,14 +274,6 @@ module bell_diffuser_cap() {
             cylinder(d1=neck_od + neck_socket_gap, d2=snap_ridge_dia + 0.35, h=snap_ridge_h * 0.5);
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
-
-        // 3. Hollow light-diffusion chamber inside
-        // Ends at Z = 15.0 mm (9.0 mm BELOW the mouth ceiling at Z = 24.0 mm!)
-        // Solid plastic ceiling thickness = 9.0 mm!
-        translate([0, 0, neck_h])
-            cylinder(r1=neck_od/2 - wall_thickness, r2=4.8, h=5.0);
-        translate([0, 0, neck_h + 4.9])
-            cylinder(r1=4.8, r2=3.0, h=5.1);
     }
 }
 

@@ -168,7 +168,9 @@ module wire_harness_dummy(len=36) {
 // =============================================================================
 // SUB-MODULE: Natural Wavy Stalactite / Icicle Generator
 // =============================================================================
-module single_icicle(h=32, r_base=4.8, r_tip=0.8, curve_amp=1.8, curve_dir=0, ripple_amp=0.25, steps=24) {
+// inset > 0 draws the icicle's hollow: each section narrowed by inset, and none where
+// that leaves less than 0.3 mm.
+module single_icicle(h=32, r_base=4.8, r_tip=0.8, curve_amp=1.8, curve_dir=0, ripple_amp=0.25, steps=24, inset=0) {
     dz = h / steps;
     for (i = [0:steps-1]) {
         t1 = i / steps;
@@ -187,10 +189,20 @@ module single_icicle(h=32, r_base=4.8, r_tip=0.8, curve_amp=1.8, curve_dir=0, ri
         dx2 = curve_amp * sin(t2 * 180) * cos(curve_dir);
         dy2 = curve_amp * sin(t2 * 180) * sin(curve_dir);
         
-        hull() {
-            translate([dx1, dy1, z1]) cylinder(r=max(0.4, r1), h=0.02, center=true, $fn=16);
-            translate([dx2, dy2, z2]) cylinder(r=max(0.4, r2), h=0.02, center=true, $fn=16);
-        }
+        if (inset == 0)
+            hull() {
+                translate([dx1, dy1, z1]) cylinder(r=max(0.4, r1), h=0.02, center=true, $fn=16);
+                translate([dx2, dy2, z2]) cylinder(r=max(0.4, r2), h=0.02, center=true, $fn=16);
+            }
+        else if (r1 - inset >= 0.3)
+            hull() {
+                translate([dx1, dy1, z1]) cylinder(r=r1 - inset, h=0.02, center=true, $fn=16);
+                // the last section closes to a point, so the tube ends in a cone
+                if (r2 - inset >= 0.3)
+                    translate([dx2, dy2, z2]) cylinder(r=r2 - inset, h=0.02, center=true, $fn=16);
+                else
+                    translate([dx2, dy2, z2 + r1 - inset]) cylinder(r=0.01, h=0.02, center=true, $fn=8);
+            }
     }
 }
 
@@ -259,11 +271,26 @@ module icicle_cluster_cap() {
         translate([0, 0, snap_ridge_z + snap_ridge_h * 0.5 - 0.1])
             cylinder(d1=snap_ridge_dia + 0.35, d2=neck_od + neck_socket_gap, h=snap_ridge_h * 0.5);
 
-        // 3. Optical light cavity directing LED light into all 5 icicle roots
+        // 3. The hollow: a cone out of the socket bore into the icicles, and every icicle
+        // a tube eroded by icicle_wall down to where it is too thin to hold one, so the
+        // light reaches into each, where they were solid with a short chamber over the
+        // socket. The hollow starts a wall above the socket's end, and each tube closes
+        // to its icicle's tip, so it has no ceiling to support.
         translate([0, 0, neck_h])
             cylinder(r1=neck_od/2 - wall_thickness, r2=3.0, h=4.0);
+        intersection() {
+            union() {
+                for (ic = icicles)
+                    translate([ic[0], ic[1], 6.0])
+                        single_icicle(h=ic[2], r_base=ic[3], r_tip=ic[4], curve_amp=ic[5],
+                                      curve_dir=ic[6], steps=ic[7], inset=icicle_wall);
+            }
+            translate([0, 0, neck_h + socket_axial_gap + icicle_wall]) cylinder(r=30, h=cluster_height);
+        }
     }
 }
+
+icicle_wall = 1.50;
 
 // =============================================================================
 // MAIN ASSEMBLY CONTROLLER
