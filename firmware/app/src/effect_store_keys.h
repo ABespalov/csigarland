@@ -39,6 +39,20 @@ inline void store_key_for(const char* id, uint32_t attempt, char (&key)[kStoreKe
     std::snprintf(key, sizeof(key), "e%08lx", static_cast<unsigned long>(hash));
 }
 
+// What flash holds under a key no entry here knows, as an upload choosing its key finds it: nothing, a blob
+// this firmware read and passed by or could not read, or one too long for it to read, as a later firmware
+// with a larger limit may have saved before the garland went back.
+enum class StoredKey : uint8_t { Free, Held, TooLong };
+
+// Whether an upload under an id with no key yet may take a key its id comes to. One too long to read is
+// taken with the free: under this id's own key, it is this id's file but for two ids sharing a hash, and
+// the upload replaces it as it replaces any effect of its id. Passed by, the upload would lie beside it
+// under the next key, two files of one id: the later firmware would read both, play whichever came last,
+// and bring the other back at the start after the effect is deleted.
+constexpr bool store_key_may_be_taken(StoredKey found) {
+    return found != StoredKey::Held;
+}
+
 class StoreKeys {
 public:
     const char* find(const char* id) const {
@@ -82,7 +96,7 @@ public:
     }
 
     // A key for an id with none yet: free both here and, by the caller's check, in flash, which
-    // may hold entries unknown here. False if every attempt failed.
+    // may hold entries unknown here, see store_key_may_be_taken. False if every attempt failed.
     template <typename IsFree>
     bool choose(const char* id, char (&key)[kStoreKeyBytes], IsFree is_free) const {
         for (uint32_t attempt = 0; attempt < kAttempts; ++attempt) {

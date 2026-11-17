@@ -19,8 +19,9 @@ The ready project, and the full list of its settings, is in [`3d-model/README.md
 | Setting | Recommended Value | Optical Reason |
 |---|---|---|
 | **Material** | Bambu Translucent PETG | Excellent light transmission with soft tint |
-| **Nozzle Temperature** | 245 °C | The `Bambu PETG Translucent` preset the print project uses |
+| **Nozzle Temperature** | 250 °C first layer, 240 °C after | The `Bambu PETG Translucent` preset, 5 °C cooler than its 245 °C after the first layer: printed at 245 °C the caps left many fine strings, which show through the PETG. Supports come away more easily too |
 | **Wall Loops** | 3 | At least 1.40 mm, the star's 1.20 mm shell apart: sturdy, and still translucent |
+| **Wall Generator** | Arachne | Keeps the lines of a 1.5 mm shell whole. The classic generator broke them into beads with gap fill where the shell ran just under the width of four lines, which shows as rings through the PETG |
 | **Sparse Infill** | 0% | Completely hollow interior for maximum internal light bounce |
 | **Top Shell Layers** | 6 | Clean closure on pointed ornaments (stars, trees, icicles) |
 | **Bottom Shell Layers** | 3–4 | Solid base for snap-fit attachment |

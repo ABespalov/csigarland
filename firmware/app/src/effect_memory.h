@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <type_traits>
 
 #include "garland_state.h"
 
@@ -25,8 +26,15 @@ struct StoredSettings {
     uint8_t speed_x4 = 0;
     char effect_id[33] = {};  // By id, so a change in the catalog cannot point it at another effect.
     uint8_t playing = 0;  // 0 or 1, and nothing else, as 1.0.0 reads any other value as on.
+    // The four bytes the compiler left as padding before the time, named: the record is compared and
+    // written whole, and padding is set by no initialiser, so it held whatever the stack did. Zero in
+    // every value made here, and kept as read in one a build before this saved.
+    uint8_t reserved[4] = {};
     int64_t choice_epoch = 0;  // When this was chosen, 0 with no clock then.
 };
+
+static_assert(sizeof(StoredSettings) == 48 && offsetof(StoredSettings, choice_epoch) == 40, "the layout 1.0.0 saved");
+static_assert(std::has_unique_object_representations_v<StoredSettings>, "no padding: every byte compared and written is a member's");
 
 // Nothing has been remembered yet, so nobody has chosen anything.
 constexpr int64_t kNoChoiceYet = -1;

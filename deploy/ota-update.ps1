@@ -319,7 +319,9 @@ function Get-WaitSeconds {
 
 # Asks the owner at the panel, and returns the token the garland gives this script.
 function Request-PortalToken {
-    $json = @{ ContentType = 'application/json'; Method = 'Post' } + $TlsCheck
+    # 15 s each, as the bash twin's request 15: a garland that takes the connection and says nothing must
+    # not hold the request past the minute the code lasts, and PowerShell by itself sets no limit at all.
+    $json = @{ ContentType = 'application/json'; Method = 'Post'; TimeoutSec = 15 } + $TlsCheck
     $asked = Invoke-RestMethod @json -Uri "$BaseUri/api/auth/request" -Body (@{ label = 'ota-update.ps1' } | ConvertTo-Json)
     Write-Host "If the garland shows the code $($asked.code), press POWER and SPEED together there."
     $deadline = [DateTime]::UtcNow.AddSeconds((Get-WaitSeconds $asked.seconds))
@@ -350,7 +352,8 @@ function Protect-TokenFile {
     }
 }
 Protect-TokenFile
-$token = if (Test-Path -LiteralPath $TokenPath) { (Get-Content -LiteralPath $TokenPath -Raw).Trim() } else { '' }
+# As text whatever the file holds: an empty one reads as nothing at all, and is no token, as for the bash twin.
+$token = if (Test-Path -LiteralPath $TokenPath) { "$(Get-Content -LiteralPath $TokenPath -Raw)".Trim() } else { '' }
 $AuthHeaders = @{ Cookie = "csig=$token" }
 # A check of who answers comes before the token goes anywhere. A firmware whose HTTPS failed keeps
 # the portal on plain HTTP and must still take the next update, which is what -Insecure is for:
@@ -369,8 +372,9 @@ try {
     $BaseUri = "http://$Address"
     $Uri = "$BaseUri/api/ota"
 }
+# 30 s, as the bash twin's request 30, here and after the token below.
 try {
-    $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders
+    $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders -TimeoutSec 30
 } catch {
     # A connection that broke has no response to ask, and what it said is what is to be told.
     $refused = $_.Exception.PSObject.Properties['Response'] -and $_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 401
@@ -405,7 +409,7 @@ try {
         }
     }
     $AuthHeaders = @{ Cookie = "csig=$token" }
-    $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders
+    $before = Invoke-RestMethod -Uri $Uri @TlsCheck -Headers $AuthHeaders -TimeoutSec 30
 }
 # By number, as mDNS can be slow to find a garland that has just restarted.
 $hostAddress = $Address

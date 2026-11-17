@@ -32,7 +32,7 @@ inline constexpr char kPageEffects[] = R"html(
   <details id="upload-box">
     <summary>Add an effect from a file</summary>
     <p class="m" id="upload-info"></p>
-    <p class="m">The file's name is the effect's id: my-effect.json makes my-effect. A file named as a built-in effect replaces it until deleted.</p>
+    <p class="m">The file's name is the effect's id: my-effect.json makes my-effect, and My_Effect.json makes my-effect too. A file named as a built-in effect replaces it until deleted.</p>
     <label for="upload-file">Effect file</label>
     <input type="file" id="upload-file" accept=".json,application/json">
     <p class="r">
@@ -331,7 +331,9 @@ inline constexpr char kPageEffects[] = R"html(
     report('upload-status', 'Saving...', false);
     try {
       const file = await chosenFile();
-      const id = file.name.replace(/\.json$/i, '');
+      /* As the utility makes it from a file's name, EffectIDFromPath: lowercase, and _ as -, so one file
+         makes one id whichever sends it. What is left the garland still judges. */
+      const id = file.name.replace(/\.json$/i, '').toLowerCase().replaceAll('_', '-');
       await send(`/api/effects/file?id=${encodeURIComponent(id)}`, 'POST', await file.text());
       report('upload-status', `Saved as ${id}.`, false);
       loadEffects();

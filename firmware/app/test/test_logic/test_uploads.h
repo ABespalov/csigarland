@@ -147,6 +147,28 @@ static void test_ids_that_share_a_hash_keep_their_own_keys() {
     TEST_ASSERT_FALSE(unknown_in_flash.choose("costarring", other, [](const char*) { return false; }));
 }
 
+// A file a later firmware saved, too long for this one to read, lies under its id's own key, and the table
+// does not know it. An upload of that id takes that key and replaces it; under the next key it would be a
+// second file of one id, which the later firmware reads both of, and deleting one brings the other back.
+static void test_an_upload_replaces_the_file_too_long_to_read_under_its_key() {
+    TEST_ASSERT_TRUE(store_key_may_be_taken(StoredKey::Free));
+    TEST_ASSERT_TRUE(store_key_may_be_taken(StoredKey::TooLong));
+    TEST_ASSERT_FALSE(store_key_may_be_taken(StoredKey::Held));
+
+    char own[kStoreKeyBytes];
+    store_key_for("mine", 0, own);
+    const auto flash = [&own](StoredKey under_own) {
+        return [&own, under_own](const char* key) { return store_key_may_be_taken(std::strcmp(key, own) == 0 ? under_own : StoredKey::Free); };
+    };
+    StoreKeys keys;
+    char chosen[kStoreKeyBytes];
+    TEST_ASSERT_TRUE(keys.choose("mine", chosen, flash(StoredKey::TooLong)));
+    TEST_ASSERT_EQUAL_STRING(own, chosen);
+    // One this firmware read and passed by, or could not tell of, is left where it is.
+    TEST_ASSERT_TRUE(keys.choose("mine", chosen, flash(StoredKey::Held)));
+    TEST_ASSERT_TRUE(std::strcmp(own, chosen) != 0);
+}
+
 static void test_the_store_has_room_for_every_upload_beside_refused_files() {
     StoreKeys keys;
     char id[16];
@@ -394,6 +416,7 @@ static void run_upload_tests() {
     RUN_TEST(test_replacing_never_touches_what_is_playing);
     RUN_TEST(test_two_changes_between_looks_are_still_seen);
     RUN_TEST(test_ids_that_share_a_hash_keep_their_own_keys);
+    RUN_TEST(test_an_upload_replaces_the_file_too_long_to_read_under_its_key);
     RUN_TEST(test_the_store_has_room_for_every_upload_beside_refused_files);
     RUN_TEST(test_files_not_read_at_the_start_hold_back_uploads_until_read);
     RUN_TEST(test_a_partition_not_readied_is_no_empty_store);

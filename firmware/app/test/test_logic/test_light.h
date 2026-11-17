@@ -430,6 +430,13 @@ static void test_a_playlist_resumes_only_with_its_own_record() {
     StoredSettings remembered;
     std::snprintf(remembered.effect_id, sizeof(remembered.effect_id), "%s", "aurora");
     remembered.playing = 1;
+    // Compared byte by byte, so every byte of a value made anew is set: one with nothing in it is all zeros,
+    // whatever the memory it is made in held.
+    uint8_t held[sizeof(StoredSettings)];
+    std::memset(held, 0xA5, sizeof(held));
+    const StoredSettings* const made = new (held) StoredSettings;
+    const uint8_t zeros[sizeof(StoredSettings)] = {};
+    TEST_ASSERT_EQUAL_MEMORY(zeros, made, sizeof(zeros));
     uint8_t record[kPlaylistRecordBytes];
     char text[kPlaylistTextBytes];
     bool resumes = false;

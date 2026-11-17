@@ -326,6 +326,7 @@ esp_err_t settings_save_playlist(const char* text, const uint32_t* expected, uin
     }
     return err;
 }
+
 StoredRead settings_read_timezone(char* out, size_t out_size) {
     // Either step's NOT_FOUND is none saved, and any other failure one there and not read.
     return stored_read(NvsAnswer::Ok, nvs_answer(read_string_err(kTimeZoneKey, out, out_size)));
@@ -625,6 +626,8 @@ esp_err_t settings_save_remembered(const char* effect_id, uint8_t brightness_per
     // The list and remembered as they are, in one picture: what cannot be read fails the save, which the
     // scheduler tries again, rather than leave a playing list unmarked as if it had been marked.
     err = read_playlist(handle, s_playlist_now);
+    // The whole of it is compared and written below. Every byte of it is a member's, see StoredSettings:
+    // padding, which no initialiser sets, would make equal values read as a change, and be written again.
     StoredSettings stored;
     stored.brightness_percent = brightness_percent;
     stored.speed_x4 = speed_x4;
@@ -673,12 +676,14 @@ esp_err_t settings_save_remembered(const char* effect_id, uint8_t brightness_per
     }
     if (err == ESP_OK && s_playlist_now.found && !plays) {
         err = write_record(nullptr, 0);
-    }    if (err == ESP_OK) {
+    }
+    if (err == ESP_OK) {
         err = nvs_commit(handle);
     }
     nvs_close(handle);
     return err;
 }
+
 bool settings_load_wifi(WifiCredentials& out) {
     out = WifiCredentials{};
     return read_string(kWifiSsidKey, out.ssid, sizeof(out.ssid)) && out.ssid[0] != '\0' &&
@@ -721,7 +726,6 @@ esp_err_t settings_save_hostname(const char* name) {
 }
 
 StoredRead settings_load_auth(AuthDevice* out, size_t count) {
-
     const size_t expected = sizeof(AuthDevice) * count;
     size_t bytes = expected;
     nvs_handle_t handle = 0;

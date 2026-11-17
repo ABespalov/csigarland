@@ -58,7 +58,7 @@ All 8 holiday figurines print collar-down in translucent PETG and hang with the 
 
 ## 3. Bambu Studio Print Profiles
 
-[`csigarland_full_set.3mf`](csigarland_full_set.3mf) is a ready Bambu Studio 02.08 project for the whole garland
+[`csigarland_full_set.3mf`](csigarland_full_set.3mf) is a ready Bambu Studio project, saved in 02.09, for the whole garland
 (32 caps + 32 base mounts) on a **Bambu Lab P2S, 0.4 mm nozzle, Textured PEI Plate**. It holds 9 plates with
 exactly one filament per plate, so no filament changes happen during a print and a single 4-slot AMS is enough;
 print the plates one by one ("Print plate") and map the plate's filament to the loaded AMS slot.
@@ -77,6 +77,7 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
 
 * **Process:** `0.20mm Standard @BBL P2S` with 3 walls, 0% sparse infill (hollow translucent shells),
   6 top layers, 3 mm outer brim (0.15 mm gap), prime tower off, elephant-foot compensation 0.15 mm.
+* **Wall generator: Arachne** (`wall_generator = arachne`), where the preset has classic. A 1.5 mm shell is a ring with a wall on each side, the outline's and the hollow's, and the classic generator's four lines need about 1.6 mm: where the shell runs a little under that, as round the gingerbread man's head at 16-19 mm, the snowman's body and the bell's clapper, it broke the inner lines into short pieces with gap fill between them, which print as a ring of beads that shows through the PETG. All six gingerbread men of the first print had two such rings on the head. Arachne draws the lines in variable width and keeps them whole, and the set prints faster with it.
 * **Seams:** at the back (`seam_position = back`), the +Y side of each figurine as it stands on the plate,
   which is the side opposite the snowman's and the gingerbread man's faces: turn a cap on its base so
   that side faces the wall. Every wall's seam is a scarf joint (`seam_slope_type = all`, contours and
@@ -85,9 +86,12 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
   caps, and translucent PETG shows every seam, the inner ones as well. The scarf joints cost about
   2.8 h over the set.
 * **Supports** (plates 1–8): tree (auto), threshold 30°, not limited to the build plate, 0.2 mm top/bottom Z distance.
-* **Filament presets:** `Bambu PETG Translucent @BBL P2S 0.4 nozzle` (245 °C) and
-  `Bambu PETG Basic @BBL P2S 0.4 nozzle` (250 °C); plate 70 °C.
-* **Estimate (Bambu Studio 02.08):** ~22.2 h in total, ~212 g of translucent PETG + ~46 g of PETG Basic.
+* **Filament presets:** `Bambu PETG Translucent @BBL P2S 0.4 nozzle`, its nozzle at 250 °C for the
+  first layer as the preset has it and 240 °C after it, where the preset has 245 °C: the first caps
+  printed at 245 °C left many fine strings, and at 240 °C the supports also come away more easily.
+  `Bambu PETG Basic @BBL P2S 0.4 nozzle` as it comes, 245 °C for the first layer and 250 °C after;
+  plate 70 °C.
+* **Estimate (Bambu Studio 02.09):** ~21.2 h in total, the preparation of each plate included (~20.1 h of printing), ~207 g of translucent PETG + ~46 g of PETG Basic.
 * Re-export the project after changing any SCAD source; the plate colours in the file are approximate,
   sync them with the AMS if you want exact swatches.
 
@@ -135,7 +139,7 @@ Preview with component mock-ups: `view_mode="assembled"`.
 * **Labels:** flush 0.4 mm (two layers) colour inlays on the panel — logo `csi` (white) + `Garland` (sky blue) in the csiPass 5×7 pixel face (same glyph table and 6-cell pitch as the csiPass wordmark, 0.85 mm cells, 50.2 × 6.0 mm), `POWER` and `SPEED` (white), `EFFECT` (sky blue) — synthetic narrow bold (Liberation Sans Bold 3.4 mm, squeezed to 72 % in X, outline grown 0.12 mm, spacing 1.25): ~0.70 mm strokes and 0.5 mm between letters, so the first layer prints every stroke; `220V~ INSIDE` engraved 0.6 mm without colour at the front of the AC bay; `AC 220V~` and `LED OUT` raised 0.6 mm on the side walls.
 
 ### 4.3 Printing Guidelines
-* **Ready Project:** [`csigarland_control_enclosure.3mf`](csigarland_control_enclosure.3mf) — Bambu Lab P2S Combo (AMS), 0.4 mm nozzle, Textured PEI, `0.20mm Standard @BBL P2S` with 6 walls, 5 top / 4 bottom layers, 20% gyroid, no supports, no brim, prime tower on. Filaments: 1 = PLA Basic Black (body), 2 = PLA Basic White, 3 = PLA Basic Sky Blue (inlays). Both parts on one plate: about 3 h and 103 g (Bambu Studio estimate). First-layer safeguards for the inlays: the first layer prints black first, then sky blue, then white (`first_layer_print_sequence` 1-3-2), so the inlays fill finished recesses instead of standing as loose islands the nozzle can catch during the filament changes; avoid crossing walls on; first-layer travel acceleration 3000 mm/s²; elephant-foot compensation off; a single first-layer wall. The first print showed the recesses shifted diagonally by ~1.4 mm against the layer-1 inlays — the CoreXY signature of a skipped motor step after the first-layer colour change (the file itself places the inlays exactly); colour changes happen only in the first two lid layers (4 changes, the prime tower stops at 0.4 mm). The swatch colours are approximate — sync them with the AMS.
+* **Ready Project:** [`csigarland_control_enclosure.3mf`](csigarland_control_enclosure.3mf) — Bambu Lab P2S Combo (AMS), 0.4 mm nozzle, Textured PEI, `0.20mm Standard @BBL P2S` with 6 walls, 5 top / 4 bottom layers, 20% gyroid, tree supports from the build plate only, no brim, prime tower on. Filaments: 1 = PLA Basic Black (body), 2 = PLA Basic White, 3 = PLA Basic Sky Blue (inlays). Both parts on one plate: about 3.7 h and 113 g (Bambu Studio 02.09 estimate, ~3.6 h of printing). First-layer safeguards for the inlays: the first layer prints black first, then sky blue, then white (`first_layer_print_sequence` 1-3-2), so the inlays fill finished recesses instead of standing as loose islands the nozzle can catch during the filament changes; avoid crossing walls on; first-layer travel acceleration 3000 mm/s²; elephant-foot compensation off; a single first-layer wall. The first print showed the recesses shifted diagonally by ~1.4 mm against the layer-1 inlays — the CoreXY signature of a skipped motor step after the first-layer colour change (the file itself places the inlays exactly); colour changes happen only in the first two lid layers (4 changes, the prime tower stops at 0.4 mm). The swatch colours are approximate — sync them with the AMS.
 * **Material:** PLA Basic is used for this unit. The shell holds mains wiring and PLA is not flame-retardant; a UL94 V-0 filament (e.g. Bambu PC FR) is the safer choice if you reprint it.
 * **Orientation:**
   * `enclosure_base.stl`: floor on the plate (Z=0), no supports (only short bridges over the connector windows and post bores).

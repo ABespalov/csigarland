@@ -9,11 +9,25 @@ tell builds apart by the hashes of what they hold.
 
 ## [Unreleased]
 
+### Firmware
+
+- An uploaded effect saved by a later firmware with a larger file limit, and found too large after the garland went back, is refused at a start and left in flash, where it counted as not read and refused every upload under a new id for good. An upload of the same id replaces it.
+### Portal
+
+- The Effects page makes an uploaded file's id as the utility does: lowercase, with `_` as `-`, so `My_Effect.json` saves as `my-effect` from either.
+
+### Build and release
+
+- `ota-update.ps1` gives its first look at the garland and the pairing requests the timeouts `ota-update.sh` has, 30 and 15 s, where it waited with no limit for a garland that took the connection and said nothing.
+
 ### Hardware
 
 - The bell is a classic church bell: a rounded crown, a straight waist and a flare to a thick rolled lip, 40 mm across, with a short clapper peeking out of the mouth, where it was a flared trumpet. It snaps onto the same base mount and prints with no support.
 - The tree, icicles, snowman, gingerbread man and lantern look as before but are even 1.5 mm shells, where they were solid or had walls of 2 to 3 mm, so they glow evenly. Bambu Studio no longer leaves supports inside the snowman, the gingerbread man or the bell, where they could not be taken out. The pinecone and the star are as they were.
-- `csigarland_full_set.3mf` holds the new caps; its plate pictures still show the caps before until it is saved again in Bambu Studio. Seams go to the back of each figurine, away from its face, as scarf joints, where aligned seams had run across the front of the round caps; the set takes about 22 h, 2.8 h more.
+- `csigarland_full_set.3mf` holds the new caps, and is saved in Bambu Studio 02.09, its plate pictures with them. Seams go to the back of each figurine, away from its face, as scarf joints, where aligned seams had run across the front of the round caps; the scarf joints cost about 2.8 h over the set.
+- `csigarland_control_enclosure.3mf` is saved in Bambu Studio 02.09 too, about 3.7 h and 113 g by its estimate. It prints with tree supports from the build plate, as the project always has, which the models' README now says, where it said none.
+- `csigarland_full_set.3mf` draws walls with Arachne, where it had the classic generator: on the 1.5 mm shells that broke the inner lines into short pieces with gap fill wherever the shell ran a little under four lines' width, which printed as rings of beads, two on the head of every gingerbread man of the first print, and would have on the snowman's body and round the bell's clapper. The set takes about 21 h and 207 g of translucent PETG with it.
+- `csigarland_full_set.3mf` prints the caps at 240 °C after the first layer, which stays at 250 °C, where the translucent PETG's preset has 245 °C: the first caps printed left many fine strings. The supports come away more easily too.
 
 ## [1.4.0] - 2026-11-09
 

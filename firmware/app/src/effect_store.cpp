@@ -63,11 +63,22 @@ std::atomic<bool> s_all_read{false};
 uint32_t s_entries_read = 0;
 
 // True when the blob was read, kept or refused; false, and nothing known of it, when it could not be. Too
-// short to hold an id is read all the same: it holds none, and is left as it is.
+// short to hold an id is read all the same: it holds none, and is left as it is. So is one too long for
+// this firmware's buffer, as a later firmware with a larger limit may have saved before the garland went
+// back: NVS says so every time, so reading it again could never change the answer, and left unread it
+// would refuse every upload under a new id for good. Its id cannot be read, so the table does not know
+// it: an upload whose id comes to its key replaces it, see store_key_may_be_taken.
 bool load_entry(nvs_handle_t handle, const char* key) {
     char* const blob = s_read_blob;
     size_t bytes = sizeof(s_read_blob);
     const esp_err_t err = nvs_get_blob(handle, key, blob, &bytes);
+    if (err == ESP_ERR_NVS_INVALID_LENGTH) {
+        if (!s_quiet) {
+            ESP_LOGW(TAG, "%s refused: %u bytes, more than this firmware takes", key, static_cast<unsigned>(bytes));
+        }
+        ++s_entries_read;
+        return true;
+    }
     if (err != ESP_OK || bytes <= kIdBytes) {
         if (!s_quiet) {
             ESP_LOGW(TAG, "%s unreadable: %s", key, esp_err_to_name(err));
@@ -287,6 +298,20 @@ const char* effect_store_read(const char* id) {
     return effect_store_body();
 }
 
+namespace {
+
+// What flash holds under key, which the table does not know. Anything that cannot be told is held.
+StoredKey stored_key(nvs_handle_t handle, const char* key) {
+    nvs_type_t type = NVS_TYPE_ANY;
+    if (nvs_find_key(handle, key, &type) == ESP_ERR_NVS_NOT_FOUND) {
+        return StoredKey::Free;
+    }
+    size_t bytes = 0;
+    return nvs_get_blob(handle, key, nullptr, &bytes) == ESP_OK && bytes > kBlobBytes ? StoredKey::TooLong : StoredKey::Held;
+}
+
+}  // namespace
+
 const char* effect_store_save(const char* id) {
     const std::lock_guard<std::mutex> guard(s_store_lock);
     if (!s_available) {
@@ -318,13 +343,19 @@ const char* effect_store_save(const char* id) {
     nvs_handle_t handle = 0;
     esp_err_t err = nvs_open_from_partition(kPartition, kNamespace, NVS_READWRITE, &handle);
     if (err == ESP_OK) {
+        // The key taken last is the one chosen: whether it held a file too long for this firmware.
+        bool replaces_too_long = false;
         if (known_key != nullptr) {
             std::snprintf(key, sizeof(key), "%s", known_key);
-        } else if (!s_keys.choose(id, key, [handle](const char* candidate) {
-                       nvs_type_t type = NVS_TYPE_ANY;
-                       return nvs_find_key(handle, candidate, &type) == ESP_ERR_NVS_NOT_FOUND;
+        } else if (!s_keys.choose(id, key, [handle, &replaces_too_long](const char* candidate) {
+                       const StoredKey found = stored_key(handle, candidate);
+                       replaces_too_long = found == StoredKey::TooLong;
+                       return store_key_may_be_taken(found);
                    })) {
             err = ESP_FAIL;
+        }
+        if (err == ESP_OK && replaces_too_long) {
+            ESP_LOGW(TAG, "%s replaces the file under %s, too long for this firmware", id, key);
         }
         if (err == ESP_OK) {
             err = nvs_set_blob(handle, key, s_blob, kIdBytes + std::strlen(effect_store_body()) + 1);
