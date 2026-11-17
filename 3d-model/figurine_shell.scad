@@ -37,29 +37,38 @@ function shell_rings(R, z0, z1, m, na, w, ceiling) =
               min([for (q = [j : min(m, j + reach)]) rings[q][i] + (q - j) * k])]]
         : rings;
 
-// Points of the rings, and the two axis points that close the ends.
-function shell_points(R, z0, z1, m, na, w, ceiling) =
-    let (rings = shell_rings(R, z0, z1, m, na, w, ceiling))
+// The last ring the solid is open at; above it the radius is nothing all round. A ring
+// is drawn at no less than 0.05 mm, so rings past this one would run on as a needle up
+// the axis to z1, and a hollow ending at the figure's top would pierce it there.
+function shell_top(rings) =
+    let (open = [for (j = [1 : len(rings) - 1]) if (max(rings[j]) > 0) j])
+    len(open) > 0 ? open[len(open) - 1] : 1;
+
+// Points of rings 0 to t, and the two axis points that close the ends.
+function shell_points(rings, z0, z1, m, t, na) =
     concat(
-        [for (j = [0 : m]) let (z = z0 + (z1 - z0) * j / m)
+        [for (j = [0 : t]) let (z = z0 + (z1 - z0) * j / m)
             for (i = [0 : na - 1]) let (a = i * 360 / na, r = max(0.05, rings[j][i]))
                 [r * cos(a), r * sin(a), z]],
-        [[0, 0, z0], [0, 0, z1]]);
+        [[0, 0, z0], [0, 0, z0 + (z1 - z0) * t / m]]);
 
 // The solid r <= R(a, z) for z0 <= z <= z1, eroded by w when w > 0, its ceilings held
-// to ceiling degrees from the horizontal when ceiling > 0.
+// to ceiling degrees from the horizontal when ceiling > 0. It ends at its last open
+// ring, below z1 where the radius comes to nothing first.
 module shell_solid(R, z0, z1, dz = 0.25, na = 72, w = 0, ceiling = 0) {
     m = ceil((z1 - z0) / dz);
-    bottom = (m + 1) * na;
+    rings = shell_rings(R, z0, z1, m, na, w, ceiling);
+    t = shell_top(rings);
+    bottom = (t + 1) * na;
     top = bottom + 1;
     polyhedron(
-        points = shell_points(R, z0, z1, m, na, w, ceiling),
+        points = shell_points(rings, z0, z1, m, t, na),
         faces = concat(
-            [for (j = [0 : m - 1]) for (i = [0 : na - 1])
+            [for (j = [0 : t - 1]) for (i = [0 : na - 1])
                 let (p = j * na + i, q = j * na + (i + 1) % na)
                     for (f = [[p, p + na, q + na], [p, q + na, q]]) f],
             [for (i = [0 : na - 1]) [bottom, i, (i + 1) % na]],
-            [for (i = [0 : na - 1]) [top, m * na + (i + 1) % na, m * na + i]]),
+            [for (i = [0 : na - 1]) [top, t * na + (i + 1) % na, t * na + i]]),
         convexity = 10);
 }
 
