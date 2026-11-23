@@ -24,7 +24,6 @@ $Target = Join-Path $RepoRoot 'site\assets'
 
 # The site's name for each, and where it comes from under docs/images.
 $Pictures = [ordered]@{
-    'garland-hanging.png'   = 'diffusers\garland_octet_hanging.png'
     'garland-octet.png'     = 'diffusers\garland_octet.png'
     'figurine-tree.png'     = 'diffusers\diffuser_tree.png'
     'figurine-star.png'     = 'diffusers\diffuser_star.png'
@@ -46,6 +45,7 @@ $Pictures = [ordered]@{
     'utility-tune.png'      = 'utility\tune.png'
     'utility-firmware.png'  = 'utility\firmware.png'
     'schematic.svg'         = 'schematic.svg'
+    'photo-garland-lit.jpg' = 'photos\garland-lit.jpg'
     'photo-harness-tinned.jpg' = 'photos\harness-tinned.jpg'
     'photo-garland-current.jpg' = 'photos\garland-current.jpg'
     'photo-controller-closed.jpg' = 'photos\controller-closed.jpg'
