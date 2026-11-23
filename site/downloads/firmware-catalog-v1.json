@@ -2,6 +2,15 @@
   "format": "csigarland.firmware-catalog/1",
   "firmware": [
     {
+      "version": "1.4.1.126",
+      "file": "csigarland-1.4.1.126.ota",
+      "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.1/csigarland-1.4.1.126.ota",
+      "sha256": "2c8913910a5fd0f8a66ebdfbee8eaa45272eabae45b0fd55b244c00a09231782",
+      "bytes": 1645786,
+      "effects": 154,
+      "published": "2026-11-23"
+    },
+    {
       "version": "1.4.0.120",
       "file": "csigarland-1.4.0.120.ota",
       "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.0/csigarland-1.4.0.120.ota",
