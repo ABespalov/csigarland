@@ -228,7 +228,7 @@ func (p *schedulePage) timelineCard(a *App) layout.Widget {
 		}
 		rows := []layout.Widget{
 			a.hint(p.clockText()),
-			a.hint("Lit or dark as the actions leave it, from now. Where actions meet in one minute, the later in the list win, step by step."),
+			a.hint("Lit or dark from now, as the actions leave it. Actions in the same minute apply in list order, so a later one overrides an earlier one."),
 			bar,
 		}
 		for _, event := range events {

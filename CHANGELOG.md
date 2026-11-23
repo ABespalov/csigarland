@@ -7,6 +7,20 @@ Versions are not Semantic Versioning: a release is a base, such as `1.0.0`, and 
 the utility each add their own build number to it, such as `1.0.0.102` and `1.0.0.27`. Updates
 tell builds apart by the hashes of what they hold.
 
+## [Unreleased]
+
+### Portal
+
+- The Schedule page says plainly how actions in the same minute combine: in list order, a later one overriding an earlier one.
+
+### Utility
+
+- The Schedule page says the same, and Tune's range fields read "Stop before LED, stop" and "Rotate by LEDs, of".
+
+### Site
+
+- The Gallery's effect animations show the bell as it is printed now, and each opens on its brightest frame.
+
 ## [1.4.1] - 2026-11-23
 
 The firmware and the utility, both 1.4.1, the utility for Windows, Linux and macOS. Everything a 1.4.0 garland saved stays as it was after this update, but for an LED count left on automatic detection, which takes the firmware's own count, 32, until one is set: set yours on the Device page if the chain is not 32. A garland gone back to 1.4.0 reads what this one saves. The utility 1.4.1 works with the firmware 1.4.0 and before, and the utility 1.4.0 with this firmware, whose automatic choice then takes the firmware's own count.

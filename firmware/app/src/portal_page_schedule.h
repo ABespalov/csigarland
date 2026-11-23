@@ -15,7 +15,7 @@ inline constexpr char kPageSchedule[] = R"html(
 <section aria-labelledby="day-title">
   <h2 id="day-title">The next 24 hours</h2>
   <p class="m" id="clock" aria-live="polite"></p>
-  <p class="m">Lit or dark as the actions leave it, from now. Where actions meet in one minute, the later in the list win, step by step.</p>
+  <p class="m">Lit or dark from now, as the actions leave it. Actions in the same minute apply in list order, so a later one overrides an earlier one.</p>
   <svg id="day-bar" viewBox="0 0 1440 28" width="100%" height="28" preserveAspectRatio="none" role="img" aria-label="The next 24 hours"></svg>
   <ul id="day"></ul>
 </section>

@@ -218,10 +218,10 @@ func (p *tunePage) rangeRow(a *App, layer int) layout.Widget {
 		return row(gtx,
 			field("From LED, start", "start", &c.start, 0, 0, ledIndexMax),
 			// stop is the first LED left out, as the preview numbers them.
-			field("Up to LED, not lit, stop (0: the end)", "stop", &c.stop, 0, 0, ledIndexMax),
+			field("Stop before LED, stop (0: the end)", "stop", &c.stop, 0, 0, ledIndexMax),
 			field("LEDs per group, grp", "grp", &c.grp, 1, 1, byteMax),
 			field("Skipped between, spc", "spc", &c.spc, 0, 0, byteMax),
-			field("Turned by, of", "of", &c.of, 0, -rotateMax-1, rotateMax),
+			field("Rotate by LEDs, of", "of", &c.of, 0, -rotateMax-1, rotateMax),
 		)
 	}
 }
