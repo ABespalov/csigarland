@@ -9,7 +9,7 @@ tell builds apart by the hashes of what they hold.
 
 ## [1.4.1] - 2026-11-23
 
-The firmware and the utility, both 1.4.1, the utility for Windows and Linux, with macOS to follow. Everything a 1.4.0 garland saved stays as it was after this update, but for an LED count left on automatic detection, which takes the firmware's own count, 32, until one is set: set yours on the Device page if the chain is not 32. A garland gone back to 1.4.0 reads what this one saves. The utility 1.4.1 works with the firmware 1.4.0 and before, and the utility 1.4.0 with this firmware, whose automatic choice then takes the firmware's own count.
+The firmware and the utility, both 1.4.1, the utility for Windows, Linux and macOS. Everything a 1.4.0 garland saved stays as it was after this update, but for an LED count left on automatic detection, which takes the firmware's own count, 32, until one is set: set yours on the Device page if the chain is not 32. A garland gone back to 1.4.0 reads what this one saves. The utility 1.4.1 works with the firmware 1.4.0 and before, and the utility 1.4.0 with this firmware, whose automatic choice then takes the firmware's own count.
 
 ### Firmware
 

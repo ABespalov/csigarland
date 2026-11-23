@@ -184,6 +184,28 @@
         {
           "platform": "macOS Intel",
           "available": true,
+          "version": "1.4.1.69",
+          "release": "1.4.1",
+          "released": "2026-11-23",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.1",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.1/csigarland-1.4.1.69-darwin-amd64.zip",
+          "sha256": "a2ced6faa6acc9a2073b32c331ca9fd663521733bba0716e72b3733f8de25e3d",
+          "size": "12.9 MB"
+        },
+        {
+          "platform": "macOS Apple silicon",
+          "available": true,
+          "version": "1.4.1.68",
+          "release": "1.4.1",
+          "released": "2026-11-23",
+          "notes": "https://github.com/ABespalov/csigarland/releases/tag/v1.4.1",
+          "url": "https://github.com/ABespalov/csigarland/releases/download/v1.4.1/csigarland-1.4.1.68-darwin-arm64.zip",
+          "sha256": "b45afac6239316a99ff87ff0ba7b3122014f1671e11bf300e95ce977e93e03a4",
+          "size": "11.8 MB"
+        },
+        {
+          "platform": "macOS Intel",
+          "available": true,
           "version": "1.4.0.55",
           "release": "1.4.0",
           "released": "2026-11-09",
