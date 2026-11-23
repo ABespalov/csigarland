@@ -64,9 +64,23 @@ csg_undo_build_number() {
 csg_platformio_core() { printf '%s\n' "${PLATFORMIO_CORE_DIR:-$HOME/.platformio}"; }
 csg_platformio_packages() { printf '%s\n' "${PLATFORMIO_PACKAGES_DIR:-$(csg_platformio_core)/packages}"; }
 
-# The PlatformIO environment of a profile, which is also its folder under firmware/app/.pio/build.
+# The PlatformIO environment of a profile, which is also its folder under firmware/app/.pio/build. Lab is Dev
+# with what measuring a garland needs, see docs/guides/lab.md, and never a release.
 csg_firmware_environment() {
-    if [ "$1" = Release ]; then printf 'esp32c6-release\n'; else printf 'esp32c6\n'; fi
+    case "$1" in
+        Release) printf 'esp32c6-release\n' ;;
+        Lab) printf 'esp32c6-lab\n' ;;
+        *) printf 'esp32c6\n' ;;
+    esac
+}
+
+# The profile whose folder under firmware/app/.pio/build is named $1, the other way round.
+csg_firmware_profile_of() {
+    case "$1" in
+        esp32c6-release) printf 'Release\n' ;;
+        esp32c6-lab) printf 'Lab\n' ;;
+        *) printf 'Dev\n' ;;
+    esac
 }
 
 csg_firmware_identity() { csg_tool firmware-identity "$1" "$2" "$3"; }

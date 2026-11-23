@@ -350,16 +350,17 @@ bool parse_effect(const char* json, const char* id, EffectSpec& out, const char*
         return false;
     }
 
-    EffectSpec spec;
-    std::snprintf(spec.id, sizeof(spec.id), "%s", id);
-    std::snprintf(spec.name, sizeof(spec.name), "%s", name->valuestring);
+    // Straight into out, with no copy of 452 bytes on the stack beside the caller's own: the scheduler's task
+    // has 4 KB, and cJSON's recursion and NVS share it.
+    out = EffectSpec{};
+    std::snprintf(out.id, sizeof(out.id), "%s", id);
+    std::snprintf(out.name, sizeof(out.name), "%s", name->valuestring);
     for (int i = 0; i < layer_count; ++i) {
-        if (!parse_layer(cJSON_GetArrayItem(layers, i), spec.layers[i], error)) {
+        if (!parse_layer(cJSON_GetArrayItem(layers, i), out.layers[i], error)) {
             return false;
         }
     }
-    spec.layer_count = static_cast<uint8_t>(layer_count);
-    out = spec;
+    out.layer_count = static_cast<uint8_t>(layer_count);
     return true;
 }
 

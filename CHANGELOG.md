@@ -7,21 +7,56 @@ Versions are not Semantic Versioning: a release is a base, such as `1.0.0`, and 
 the utility each add their own build number to it, such as `1.0.0.102` and `1.0.0.27`. Updates
 tell builds apart by the hashes of what they hold.
 
-## [Unreleased]
+## [1.4.1] - 2026-11-23
+
+The firmware and the utility, both 1.4.1, the utility for Windows and Linux, with macOS to follow. Everything a 1.4.0 garland saved stays as it was after this update, but for an LED count left on automatic detection, which takes the firmware's own count, 32, until one is set: set yours on the Device page if the chain is not 32. A garland gone back to 1.4.0 reads what this one saves. The utility 1.4.1 works with the firmware 1.4.0 and before, and the utility 1.4.0 with this firmware, whose automatic choice then takes the firmware's own count.
 
 ### Firmware
 
+- An update over HTTPS no longer fails on a garland that has run a while: mbedTLS takes its memory from 33 KB of its own, a slot for its 16.7 KB record buffer and a pool for the rest, where that buffer, freed and asked for again at every record of an upload, found no block in a heap the Wi-Fi buffers had cut up. With some 50 KB free, every update of the owner's garland failed a second or two in, from the portal, the utility and the build machine's script alike, until one went in over plain HTTP on the setup network.
+- The LED count is set by hand only, on the Device page of the portal or the utility: the automatic estimate is gone. On the owner's garland, 32 LEDs on the switched rail, it could count nothing: those LEDs let too little current from their data input into the rail to charge the capacitance it measured, so it showed `?`. A count left on automatic takes the firmware's own, 32, and the screen shows the number, never `~N` or `?`. Whether a garland is on the data line is still told, every 3 s, and a turn on no longer waits about 0.7 s for the estimate.
 - An uploaded effect saved by a later firmware with a larger file limit, and found too large after the garland went back, is refused at a start and left in flash, where it counted as not read and refused every upload under a new id for good. An upload of the same id replaces it.
+- A date and time set by hand on the clock module that it cannot hold, as the first hours of 2026 east of UTC, is refused with 400, where it was answered with 500 and left the module marked untrusted, so the garland went by no clock offline until the internet set it.
+- While HTTPS is still starting, plain HTTP off the setup network answers 503 with `Retry-After`, where for those seconds, or the minute or two of a first key, it served the portal and its cookie in the clear.
+- `/api/v1/schedule` no longer names a playlist step among the effects it misses, and an action sent with `"effect": "@playlist"` is refused, as a playlist step comes only from `"playlist": true`.
+- An uploaded effect whose text holds a string ending in an escaped backslash is kept as sent, where the garland took the rest of the file for a string, and comments are refused rather than taken out.
+- A schedule change of a step between on and rising alone is saved in one write, where a failed second write could leave the refused change in force at the next start.
+- At a start the rail waits for the LED count as well as the power settings to be read, so a longer chain saved is never weighed as the firmware's own 32.
+- Pairing over the setup network's HTTPS gives the browser the cookie that HTTPS keeps, and the list of paired clients answers 503 while it cannot be read, where it said none.
+- Deleting an uploaded effect takes it out of the favourites before an effect read late can take its place.
+
 ### Portal
 
 - The Effects page makes an uploaded file's id as the utility does: lowercase, with `_` as `-`, so `My_Effect.json` saves as `my-effect` from either.
+- The Device page takes the LED count as a number, with no choice of detecting it.
+- The Firmware page's Install button keeps its words once a file is chosen.
+- The clock module's date field takes only the years it can hold.
+
+### Public API
+
+- `leds.estimate` is always 0, and a count of 0 sent to `/api/v1/leds` takes the firmware's own count, where it asked for the estimate. Both stay, for the programs that use them.
+
+### Utility
+
+- The Device page takes the LED count as a number, from 1, with no choice of detecting it.
+- Dragging in Tune's colour picker no longer breaks an effect file whose colour is written `[r, g, b]`.
+- The Device and Schedule pages fill what they can when one of the garland's answers is a moment late, where one 503 left the whole page empty.
+- A backup is refused while the garland goes by cautious power settings of its own, its saved ones unread, which a restore would have put back as the owner's.
+- The utility follows no redirect from a garland, and the release catalog none to plain HTTP.
+- On a Mac with no keychain in the session, as over SSH, the utility pairs for as long as it runs, as on Linux with no Secret Service, where forgetting a garland failed.
 
 ### Build and release
 
+- A Lab build of the firmware, for measuring a garland: `-BuildProfile Lab` for `flash-device`, `stage-assets` and `ota-update`, `--build-profile Lab` for their bash versions. It keeps its log from the start and says why the board started, a brownout among the reasons, and once a minute the chip's and the clock module's temperatures, free memory, the model's current, the rail and the LED count, and mbedTLS's memory: its peak, its pool and slot, and what spilled to the heap, said again after a restart by the firmware, as an update's. Its version ends in `-lab`, the utility's catalog compares it with releases by its number, CI builds it, and it is never published: [the Lab build](docs/guides/lab.md) has it.
+- `publish-release.sh` ends the release notes' table with a blank line, as `publish-release.ps1` does, and neither writes the notes from a release it could not read; `monitor-device.sh` says that no board appeared, where it ended with an error; `new-signing-certificate.sh` keeps a passphrase's spaces at either end and checks the country's two capitals under any locale; the build's date takes its month in English under any locale.
 - `ota-update.ps1` gives its first look at the garland and the pairing requests the timeouts `ota-update.sh` has, 30 and 15 s, where it waited with no limit for a garland that took the connection and said nothing.
 
 ### Hardware
 
+- The garland outlet, J2, a JST-XH, is rated 3 A with 22 AWG wire: the documents say to keep the LED limit at 3000 mA or below with it, as the power settings allow up to about 3.9 A. RV1's 470 V is its varistor voltage, its clamping voltage 775 V at most.
+- The base mount is two parts, a cup and a plug, so that the garland is soldered and tested on the bench and the mounts close round it after: nothing is threaded through a mount and nothing is soldered inside one, where the wires had to go through a closed channel and onto the pads inside a well 6 mm wide. The board goes up into the cup from below and stops under a lip at the neck top, its wires drop in two wells beside it to the channel, it is potted in the cup, and the plug snaps in from below. Outside it is the one-piece base of 1.4.0, so every cap printed for 1.4.0 fits it as it is. The LED sits 0.45 mm lower, under the lip. `base_cup.stl` and `base_plug.stl` replace `base_mount.stl`.
+- Plate 9 of `csigarland_full_set.3mf` holds 32 cups and 32 plugs, both with no support, in PETG Basic Green, where it held 32 one-piece bases in PETG Basic Pine Green. The bases take about 38 g, where they took 46 g, in about the same time, 2 h 50 min; the whole set takes about 21.1 h.
+- The base and the eight caps take their fit, the neck, the snap ridge, the flange and the socket's gaps, from one file, `base_interface.scad`, and the base is drawn once, in `base_mount.scad`, where each figurine's file had its own copy.
 - The bell is a classic church bell: a rounded crown, a straight waist and a flare to a thick rolled lip, 40 mm across, with a short clapper peeking out of the mouth, where it was a flared trumpet. It snaps onto the same base mount and prints with no support.
 - The tree, icicles, snowman, gingerbread man and lantern look as before but are even 1.5 mm shells, where they were solid or had walls of 2 to 3 mm, so they glow evenly. Bambu Studio no longer leaves supports inside the snowman, the gingerbread man or the bell, where they could not be taken out. The pinecone and the star are as they were.
 - `csigarland_full_set.3mf` holds the new caps, and is saved in Bambu Studio 02.09, its plate pictures with them. Seams go to the back of each figurine, away from its face, as scarf joints, where aligned seams had run across the front of the round caps; the scarf joints cost about 2.8 h over the set.

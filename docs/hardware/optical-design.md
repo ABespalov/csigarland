@@ -8,7 +8,7 @@ For a warm, cozy holiday aesthetic, csiGarland uses **soft volumetric diffusion*
 * The figurines, in the 50 mm height class (45.7–49.0 mm), are printed completely **hollow (0% infill)**.
 * Wall thickness is **1.40–1.50 mm** at least: 3 perimeter loops with a 0.4 mm nozzle. The star is the exception, an even **1.20 mm** shell normal to its facets: see [Diffusers](diffusers.md#2-3d-faceted-magen-david).
 * Light bounces internally and exits evenly across the entire surface of the figurine.
-* Finished weight per cap is about **6.7 grams** (214 g for 32 caps, Bambu Studio's estimate).
+* Finished weight per cap is about **6.5 grams** (about 207 g for 32 caps, Bambu Studio's estimate with Arachne walls).
 
 ---
 
@@ -59,12 +59,12 @@ Rather than printing a monolithic figurine with a bottom opening, csiGarland uti
            │
       (Snap / Twist)
            │
- [ Base Mount (17.6mm) ]  <-- Opaque PETG (Green/White), holds the LED board and hot-glued wires
+ [ Base Mount (17.6mm) ]  <-- Opaque PETG Basic Green, cup + plug, holds the LED board, potted
            │
  ───[ 3-Wire Cable ]─── (Soldered and strain-relieved before assembly)
 ```
 
 ### Benefits of the Modular System:
 1. **Simplified Assembly and Soldering:** The 32 LEDs are soldered into a continuous cable harness on the bench and snapped into the rugged base mounts. All electrical continuity and LED testing is completed before touching the translucent caps.
-2. **Wire Strain Relief:** The wires run through a side channel of the base mount and are potted in it with hot glue, so pulling on the garland never reaches the solder pads.
+2. **Wire Strain Relief:** The wires run through a side channel of the base mount and are potted in its cup with compound or hot glue, so pulling on the garland never reaches the solder pads.
 3. **Interchangeable Themes:** The electronics harness can remain intact while diffuser caps are swapped (Christmas trees & snowflakes in December, hearts in February, or stars year-round).

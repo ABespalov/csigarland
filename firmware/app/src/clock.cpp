@@ -120,8 +120,12 @@ private:
     SemaphoreHandle_t lock_;
 };
 
-// Marked as under way until it reads back as what was set. The caller holds RtcGuard.
+// Marked as under way until it reads back as what was set. The caller holds RtcGuard. A time the module cannot
+// hold is refused before the mark, which nothing would ever clear: the module, sound, would stay untrusted.
 bool write_rtc_checked(int64_t epoch) {
+    if (!rtc_epoch_is_valid(epoch)) {
+        return false;
+    }
     bool done = settings_save_rtc_unfinished(true) == ESP_OK;
     if (done) {
         s_rtc_unfinished.store(true);
@@ -252,7 +256,7 @@ bool time_set_rtc(int64_t epoch, ClockSource source) {
     return true;
 }
 
-bool time_set_rtc_local(const LocalDateTime& local, ClockSource source) {
+bool time_local_to_epoch(const LocalDateTime& local, int64_t& epoch) {
     tm fields = {};
     fields.tm_year = local.year - 1900;
     fields.tm_mon = local.month - 1;
@@ -261,7 +265,12 @@ bool time_set_rtc_local(const LocalDateTime& local, ClockSource source) {
     fields.tm_min = local.minute;
     fields.tm_sec = local.second;
     fields.tm_isdst = -1;
-    return time_set_rtc(static_cast<int64_t>(std::mktime(&fields)), source);
+    const time_t made = std::mktime(&fields);
+    if (made == static_cast<time_t>(-1)) {
+        return false;
+    }
+    epoch = static_cast<int64_t>(made);
+    return rtc_epoch_is_valid(epoch);
 }
 
 void time_sync_now() {

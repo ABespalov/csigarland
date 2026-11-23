@@ -23,12 +23,15 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "lab_logic.h"
 #include "ota.h"
 #include "portal_common.h"
 
 namespace garland {
 namespace {
 
+// The same in the Lab build, which keeps it from the start: twice as much, 1.4.0.121-lab found, took memory an
+// update's TLS record buffer needed, and the reader goes on reading past it anyway.
 constexpr size_t kKeptBytes = 6144;
 constexpr size_t kLineBytes = 200;
 constexpr size_t kHeadBytes = 256;
@@ -137,7 +140,8 @@ esp_err_t log_busy(httpd_req_t* req) {
 }  // namespace
 
 void trial_log_start() {
-    if (ota_on_trial()) {
+    // The Lab build from the start too, so what came before a first look, a brownout or the probe at boot, is there.
+    if (ota_on_trial() || kLabBuild) {
         start_keeping();
     }
 }

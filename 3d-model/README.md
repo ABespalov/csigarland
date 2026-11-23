@@ -1,6 +1,6 @@
 # 3D Modeling & CAD Guidelines
 
-This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects) for the `csiGarland` holiday figurines and mounting hardware.
+This directory contains the CAD models (OpenSCAD sources, STL, and Bambu Studio 3MF projects) for the `csiGarland` holiday figurines and mounting hardware.
 
 ---
 
@@ -12,23 +12,23 @@ This directory contains the CAD models (STEP, STL, and Bambu Studio 3MF projects
   * Distance between parallel flat chords: **9.05 mm**.
   * PCB substrate thickness: **1.25 mm** (total height with 5050 LED + capacitor: ~2.85 mm).
   * Solder pads: 6 oblong pads on the **underside / back** (Input: 5V, Din, GND; Output: 5V, Vout, GND).
-* **CAD Anti-Rotation Pocket & Soldering Well:** 
-  * Socket arc diameter: **Ø9.80 mm** (+0.30 mm tolerance for PETG shrinkage).
-  * Flat-to-flat width: **9.35 mm** (keyed anti-rotation profile matching board chords).
-  * Seating depth: **1.40 mm** at the top of the neck (board top sits 0.15 mm below the neck top).
-  * Soldering well: **Ø9.80 mm × 6.00 mm** keyed slot under the board, open down to the wire channel; the board rests on the two flat-chord ledges, all 6 back pads stay inside the well.
-  * Solid floor: **1.20 mm** solid PETG bottom across the entire base (completely sealed, zero through-holes).
+* **Keyed Bore & Lip** (`base_mount.scad`):
+  * The board goes up into the cup from below, pads down, through a keyed bore: **Ø9.80 mm** (+0.30 mm for PETG shrinkage) with flats **9.35 mm** apart that stop it turning.
+  * It stops under a **0.60 mm** lip at the neck top, whose opening of **Ø8.30 mm** clears the 5050 chip ($r = 3.54\text{ mm}$) and capacitor ($r = 3.70\text{ mm}$) by 0.45 mm. The board's top is 0.60 mm under the neck top, 0.45 mm lower than in the one-piece base of 1.4.0. As the garland hangs, the neck points down and the board rests on the lip.
+  * **Wire wells:** beside the bore at ±X, as wide as the cable channel (6.00 mm) and reaching $r = 6.10\text{ mm}$, from the plug up to the board's back. Each takes the three wires of one side of the board on their way down from the pads, up to 2.0 mm each; the neck wall outside them is 0.80 mm.
 
-### 1.2 Cable Entry & Hot-Glue Potting Bay
+### 1.2 Cable Channel & Potting
 * **Wire Specification:** 3-conductor flat ribbon (1.27 mm pitch) or flexible silicone wire. The channel takes three wires side by side of up to 2.0 mm outside, which is meant for 20 AWG silicone wire; check the outer diameter of yours. How to choose: [Garland cable](../docs/guides/hardware.md#garland-cable).
-* **Side Channel Dimensions:** **6.00 mm (W) × 2.00 mm (H)** running horizontally through the base.
-* **Assembly Method:** Wires are threaded through the side slots into the open central well, soldered to the back pads, pulled taut to seat the board flush onto its perimeter shelf, and then potted/sealed with hot glue injected directly into the side channels. Zero external pull tension reaches the solder pads.
+* **Side Channel Dimensions:** **6.00 mm (W) × 2.00 mm (H)** along X through the flange, as in the one-piece base. In the cup it is open below; the cable lies on the plug, which closes it.
+* **Assembly Method:** the garland is soldered and tested on the bench first. Each board's wires are bent down at its edge, the cup is lowered over the board from above until the board meets the lip, and the wires lie in the wells and the channel. With the cup upside down, potting compound or hot glue poured onto the board's back holds it and its joints, so that a pull on the cable never reaches the pads; the plug snaps in last. Nothing is threaded, and nothing is soldered inside a part. Press the board onto the lip before the compound goes in, so that none runs past its rim onto the LED, and keep the compound under the channel.
 
 ### 1.3 Base Mount & Snap Socket
-* **Base Mount:** Ø17.60 mm flange (4.40 mm tall) + Ø13.80 mm neck (5.00 mm tall) with a Ø14.40 mm snap ridge; total height 9.40 mm.
+* **Two Parts:** the base mount is [`base_mount.scad`](base_mount.scad): the **cup** ([`base_cup.stl`](base_cup.stl)), which is the flange and the neck, open from below; and the **plug** ([`base_plug.stl`](base_plug.stl)), the floor. Together they are the shape of the one-piece base of 1.4.0: Ø17.60 mm flange (4.40 mm tall) + Ø13.80 mm neck (5.00 mm tall) with a Ø14.40 mm snap ridge; total height 9.40 mm. Every cap printed for 1.4.0 fits it.
+* **The Fit, in One Place:** the neck, the ridge, the flange and the socket's gaps are in [`base_interface.scad`](base_interface.scad), which `base_mount.scad` and every `figurine_*.scad` include, so the base and the caps cannot drift apart. Every cap is printed to those numbers: change one, and the caps change with it.
+* **Plug Snap:** the plug is the base's 1.20 mm floor with its rounded edge, and the seam runs where that rounding ends. Two lugs at ±Y, clear of the cable, 0.90 × 5.00 × 2.40 mm, go up into pockets in the flange; a **0.30 mm** bead on each clicks into a groove, engaging 0.20 mm past the lug's 0.10 mm clearance. If the click is too stiff or too loose, adjust `lug_bead` or `lug_gap` (±0.05 mm).
 * **Cap Socket:** Ø14.00 mm bore with a Ø14.75 mm snap groove; socket depth is **5.30 mm**, i.e. **0.30 mm axial clearance** over the neck top, so the cap seats on the base flange and the ridge engages even if the socket-ceiling bridge sags.
-* **LED Clearance:** every cap clears the 5050 LED chip ($r = 3.54\text{ mm}$ half-diagonal) and capacitor ($r = 3.70\text{ mm}$), which stand **1.65 mm** proud of the neck top: the hollows of the bell, tree, icicles, snowman, gingerbread man and lantern are at least **r = 4.2 mm** wide up to that height, the pinecone's chamber starts at **r = 4.2 mm**, and the star has an **Ø8.8 mm (r = 4.4 mm) × 2.2 mm** clearance pocket with a 45° roof.
-* **Calibration:** print one base + one cap first; if the snap is too tight or too loose, adjust `snap_ridge_dia` (±0.1 mm) or `neck_socket_gap`.
+* **LED Clearance:** every cap clears the 5050 LED chip ($r = 3.54\text{ mm}$ half-diagonal) and capacitor ($r = 3.70\text{ mm}$), which stand **1.20 mm** proud of the neck top: the hollows of the bell, tree, icicles, snowman, gingerbread man and lantern are at least **r = 4.2 mm** wide up to that height, the pinecone's chamber starts at **r = 4.2 mm**, and the star has an **Ø8.8 mm (r = 4.4 mm) × 2.2 mm** clearance pocket with a 45° roof. The space above the socket does not let the board go higher for every cap: the star's pocket and the pinecone's chamber are narrower than the board.
+* **Calibration:** print one cup, one plug and one cap first; if the cap's snap is too tight or too loose, adjust `snap_ridge_dia` (±0.1 mm) or `neck_socket_gap`.
 
 ### 1.4 Figurine Envelopes
 * **Overall Height:** 45.7–49.0 mm (50 mm height class).
@@ -73,7 +73,13 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
 | 6 | Snowman ×4 | PETG Clear | tree supports, 0.16 mm layers |
 | 7 | Gingerbread ×4 | PETG Translucent Orange | tree supports, 0.16 mm layers |
 | 8 | Lantern ×4 | PETG Translucent Gray | tree supports |
-| 9 | Base mount ×32 | PETG Basic Pine Green | 4 walls, 100% zig-zag infill, no brim |
+| 9 | Base cup ×32 + base plug ×32 | PETG Basic Green | 4 walls, 100% zig-zag infill, no brim, no support |
+
+**Plate 9** holds four rows of [`base_cup.stl`](base_cup.stl), standing on its open bottom, and four
+rows of [`base_plug.stl`](base_plug.stl), floor down, eight to a row at a 25.6 mm pitch. Neither needs
+support: the cup's channel, wells and lug pockets end under bridges of 1.2 to 6 mm, and its lip
+overhangs 0.75 mm. The plate was rebuilt from the two STLs outside the slicer, and its pictures
+were drawn by Bambu Studio 02.09 when it sliced the plate from the command line.
 
 * **Process:** `0.20mm Standard @BBL P2S` with 3 walls, 0% sparse infill (hollow translucent shells),
   6 top layers, 3 mm outer brim (0.15 mm gap), prime tower off, elephant-foot compensation 0.15 mm.
@@ -91,7 +97,7 @@ print the plates one by one ("Print plate") and map the plate's filament to the 
   printed at 245 °C left many fine strings, and at 240 °C the supports also come away more easily.
   `Bambu PETG Basic @BBL P2S 0.4 nozzle` as it comes, 245 °C for the first layer and 250 °C after;
   plate 70 °C.
-* **Estimate (Bambu Studio 02.09):** ~21.2 h in total, the preparation of each plate included (~20.1 h of printing), ~207 g of translucent PETG + ~46 g of PETG Basic.
+* **Estimate (Bambu Studio 02.09):** ~21.1 h in total, the preparation of each plate included (~20.1 h of printing), ~207 g of translucent PETG + ~38 g of PETG Basic, of which plate 9 takes 2 h 50 min.
 * Re-export the project after changing any SCAD source; the plate colours in the file are approximate,
   sync them with the AMS if you want exact swatches.
 
@@ -142,8 +148,8 @@ Preview with component mock-ups: `view_mode="assembled"`.
 * **Ready Project:** [`csigarland_control_enclosure.3mf`](csigarland_control_enclosure.3mf) — Bambu Lab P2S Combo (AMS), 0.4 mm nozzle, Textured PEI, `0.20mm Standard @BBL P2S` with 6 walls, 5 top / 4 bottom layers, 20% gyroid, tree supports from the build plate only, no brim, prime tower on. Filaments: 1 = PLA Basic Black (body), 2 = PLA Basic White, 3 = PLA Basic Sky Blue (inlays). Both parts on one plate: about 3.7 h and 113 g (Bambu Studio 02.09 estimate, ~3.6 h of printing). First-layer safeguards for the inlays: the first layer prints black first, then sky blue, then white (`first_layer_print_sequence` 1-3-2), so the inlays fill finished recesses instead of standing as loose islands the nozzle can catch during the filament changes; avoid crossing walls on; first-layer travel acceleration 3000 mm/s²; elephant-foot compensation off; a single first-layer wall. The first print showed the recesses shifted diagonally by ~1.4 mm against the layer-1 inlays — the CoreXY signature of a skipped motor step after the first-layer colour change (the file itself places the inlays exactly); colour changes happen only in the first two lid layers (4 changes, the prime tower stops at 0.4 mm). The swatch colours are approximate — sync them with the AMS.
 * **Material:** PLA Basic is used for this unit. The shell holds mains wiring and PLA is not flame-retardant; a UL94 V-0 filament (e.g. Bambu PC FR) is the safer choice if you reprint it.
 * **Orientation:**
-  * `enclosure_base.stl`: floor on the plate (Z=0), no supports (only short bridges over the connector windows and post bores).
-  * `enclosure_lid.stl` + inlays: panel face down on the textured PEI plate, no supports; the inlays fill their recesses in the first two layers (0.4 mm).
+  * `enclosure_base.stl`: floor on the plate (Z=0), with the tree supports from the build plate above.
+  * `enclosure_lid.stl` + inlays: panel face down on the textured PEI plate, with the same supports; the inlays fill their recesses in the first two layers (0.4 mm).
 * **Button Caps:** standard factory round snap-on caps (head Ø11.5 mm, total height with the switch 12.0 mm) — no 3D printing required.
 * **Fasteners:**
   * 4× **M3 heat-set inserts**, M3 × 5.7 mm, OD 4.6 mm, melted into the tips of the four lid posts (Ø4.0 × 6.5 mm holes, 0.4 mm lead-in chamfer, Ø3.2 × 2.0 mm relief above). Adjust `insert_d` / `insert_len` for other inserts.

@@ -47,7 +47,7 @@ const (
 )
 
 // chainLeds is how many LEDs the preview and Tune draw, and work the current out for: as many as the garland
-// connected to sends to, as its Device page sets or its probe finds, and previewLeds with none.
+// connected to sends to, as its Device page sets, and previewLeds with none.
 func (a *App) chainLeds() int {
 	leds := a.state.Leds.Count
 	if a.state.Leds.Kept != 0 {

@@ -11,6 +11,31 @@
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 
+# The same pages by the clean addresses Cloudflare Pages serves them at, which /*.html does not match.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/roadmap
+  Cache-Control: public, max-age=0, must-revalidate
+
+/documents
+  Cache-Control: public, max-age=0, must-revalidate
+
+/downloads
+  Cache-Control: public, max-age=0, must-revalidate
+
+/ru/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/ru/roadmap
+  Cache-Control: public, max-age=0, must-revalidate
+
+/ru/documents
+  Cache-Control: public, max-age=0, must-revalidate
+
+/ru/downloads
+  Cache-Control: public, max-age=0, must-revalidate
+
 /styles.css
   Cache-Control: public, max-age=0, must-revalidate
 

@@ -446,8 +446,10 @@ bool read_remembered_late(State& state, MemorySaveTimer& timer, uint16_t& real_e
                 switch (late_remembered_effect(state.owner_chose_play() || state.scheduled_play(), index, remembered.effect_id[0] != '\0',
                                                all_read)) {
                     case LateEffect::Take:
-                        state.restore_effect_unless_chosen(real_effect, saved_effect);
-                        real_effect = saved_effect;
+                        // What plays is the owner's if they chose it meanwhile, and stays what it was here.
+                        if (state.restore_effect_unless_chosen(real_effect, saved_effect)) {
+                            real_effect = saved_effect;
+                        }
                         break;
                     case LateEffect::Hold:
                         s_pending_effect.hold(remembered.effect_id);
@@ -498,8 +500,9 @@ void resolve_pending_effect(State& state, MemorySaveTimer& timer, uint16_t& real
         case PendingEffectStep::Keep:
             return;
         case PendingEffectStep::Resolve:
-            state.restore_effect_unless_chosen(real_effect, static_cast<uint16_t>(found));
-            real_effect = static_cast<uint16_t>(found);
+            if (state.restore_effect_unless_chosen(real_effect, static_cast<uint16_t>(found))) {
+                real_effect = static_cast<uint16_t>(found);
+            }
             timer.saved_effect_found(real_effect);
             ESP_LOGI(TAG, "the remembered effect %s was read late", s_pending_effect.id());
             break;

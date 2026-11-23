@@ -156,7 +156,7 @@ func FetchRoot(ctx context.Context, address string) (Root, error) {
 		return Root{}, err
 	}
 	config := &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12} //nolint:gosec // The owner checks the fingerprint.
-	client := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{TLSClientConfig: config}}
+	client := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{TLSClientConfig: config}, CheckRedirect: noRedirects}
 	defer client.CloseIdleConnections()
 	return readRoot(ctx, client, base)
 }
@@ -218,8 +218,12 @@ func New(address string, rootPEM []byte, token string) (*Client, error) {
 			VerifyConnection:   func(state tls.ConnectionState) error { return verifyChain(state, roots) },
 		},
 	}
-	return &Client{base: base, token: token, stall: installStall, http: &http.Client{Transport: transport, Timeout: requestTimeout}}, nil
+	return &Client{base: base, token: token, stall: installStall, http: &http.Client{Transport: transport, Timeout: requestTimeout, CheckRedirect: noRedirects}}, nil
 }
+
+// noRedirects keeps every request at the address it was sent to: the garland's API never redirects, and a
+// redirect followed could carry the token to plain HTTP, or a probe with no trust to another host.
+func noRedirects(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 // idleConnection is how long a connection waits for its next request here: less than the garland's own
 // limit on one, kHeaderDeadlineUs in firmware/app/src/portal_watch.h, past which it closes it. A request

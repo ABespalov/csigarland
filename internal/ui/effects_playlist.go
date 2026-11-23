@@ -158,7 +158,8 @@ func (p *effectsPage) playlistWidget(a *App) layout.Widget {
 			}
 		}
 		playing := a.state.Effect
-		canAdd := playing != "" && !slices.Contains(c.list.Effects, playing) && len(c.list.Effects) < c.list.Max
+		// Not the preview Tune plays, which lives only until the next one: the garland refuses it in a playlist.
+		canAdd := playing != "" && playing != previewEffectID && !slices.Contains(c.list.Effects, playing) && len(c.list.Effects) < c.list.Max
 		if c.add.Clicked(gtx) && canAdd {
 			c.list.Effects = append(slices.Clone(c.list.Effects), playing)
 			c.removes = make([]widget.Clickable, len(c.list.Effects))
@@ -220,3 +221,6 @@ func (p *effectsPage) playlistWidget(a *App) layout.Widget {
 		return a.card(gtx, fmt.Sprintf("Playlist (%d of %d)", len(c.list.Effects), c.list.Max), rows...)
 	}
 }
+
+// previewEffectID is the id the garland gives the effect Tune plays, kPreviewEffectId in firmware/app/src/effect_catalog.h.
+const previewEffectID = "preview"

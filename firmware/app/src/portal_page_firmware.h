@@ -53,6 +53,9 @@ inline constexpr char kPageFirmware[] = R"html(
     if (packStart + packBytes + imageBytes !== file.size || packBytes + imageBytes === 0) {
       throw new Error('This update file is incomplete.');
     }
+    if (packBytes > 0 && packBytes < 12) {
+      throw new Error('This update file holds an effects part too short to be one.');
+    }
     const contents = { firmware: null, effects: null, version: null, image: null, digest: null };
     if (packBytes > 0) {
       contents.digest = [...new Uint8Array(head.buffer, 20, 32)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -98,7 +101,7 @@ inline constexpr char kPageFirmware[] = R"html(
     chosenFile = file;
     pendingUpdate = null;
     $('firmware-install').disabled = true;
-    glyph($('firmware-install'), 'upload', 'Install');
+    glyph($('firmware-install'), 'upload', 'Install', '', true);
     report('firmware-status', '', false);
     if (!file) return;
     try {
@@ -114,7 +117,7 @@ inline constexpr char kPageFirmware[] = R"html(
       $('firmware-contents').textContent = `This file holds ${parts.join(' and ')}.`
         + (firmware ? '' : ' The firmware stays as it is.')
         + (effects ? '' : ' The effects stay as they are.');
-      glyph($('firmware-install'), 'upload', firmware && effects ? 'Install firmware and effects' : (firmware ? 'Install firmware' : 'Install effects'));
+      glyph($('firmware-install'), 'upload', firmware && effects ? 'Install firmware and effects' : (firmware ? 'Install firmware' : 'Install effects'), '', true);
       $('firmware-install').disabled = false;
     } catch (error) {
       if (chosenFile === file) $('firmware-contents').textContent = error.message;

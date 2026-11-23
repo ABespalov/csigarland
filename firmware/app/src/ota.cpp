@@ -468,7 +468,10 @@ const char* ota_receive(httpd_req_t* req, State& state, OtaInstalled& installed)
 }
 
 void ota_restart_soon() {
-    s_turn.store(Turn::Restarting);
+    // One restart task is enough: a second call while it waits starts no other.
+    if (s_turn.exchange(Turn::Restarting) == Turn::Restarting) {
+        return;
+    }
     if (xTaskCreate(restart_task, "ota_restart", kTaskStackBytes, nullptr, tskIDLE_PRIORITY + 1, nullptr) != pdPASS) {
         // Whatever needed the restart is done and answered, and the screen says one is coming.
         ESP_LOGE(TAG, "no task to wait in: restarting once the settings are saved");

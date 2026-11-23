@@ -282,12 +282,13 @@ The screen says `Making the HTTPS key` for that moment, then shows the setup net
 | `deploy\flash-device.ps1 -NoMonitor` | Stops after flashing |
 | `deploy\monitor-device.ps1` | Attaches to the log, without flashing |
 | `deploy\ota-update.ps1 -Address <host>` | Builds and installs over Wi-Fi, then watches the garland restart and confirm the new firmware. An update that gets no answer at all, as when the connection drops while the garland restarts, may still have been installed, so it watches all the same and says what it finds. See [Updates](user-guide.md#10-updates) |
-| `deploy\stage-assets.ps1` | Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices, whose digests the manifest records, as the next staging writes them again. It copies the build's files to a set of their own under `temp\` and checks that set, so a build meanwhile cannot mix two builds' files, and fetches the Go modules first, whose licences the notices hold. Add `-NewBuild` to spend a new build number, and `-BuildProfile Dev` to stage a Dev build in place of a Release one. A build it makes and then cannot stage, for any check or a failed copy, gives its number back, and leaves nothing staged under it |
+| `deploy\stage-assets.ps1` | Checks a build's signature under your root and copies it to `assets/firmware`, with a checksum, a manifest and the third-party notices, whose digests the manifest records, as the next staging writes them again. It copies the build's files to a set of their own under `temp\` and checks that set, so a build meanwhile cannot mix two builds' files, and fetches the Go modules first, whose licences the notices hold. Add `-NewBuild` to spend a new build number, `-BuildProfile Dev` to stage a Dev build in place of a Release one, and `-BuildProfile Lab` for a [Lab build](lab.md), which is never published. A build it makes and then cannot stage, for any check or a failed copy, gives its number back, and leaves nothing staged under it |
 | `deploy\new-third-party-notices.ps1` | Writes `THIRD_PARTY_NOTICES.md` from what the last firmware build linked and the versions it and the Go program use, and fails on a library it cannot place. Run it after a build that changed a dependency or a setting that links more. `-Check` writes nothing and fails if the file differs, which CI and `stage-assets.ps1` do. `-UtilityOnly` checks the utility's part alone, with no firmware build, as `deploy\build-utility.ps1` does for its manifest |
 | `deploy\new-signing-certificate.ps1` | Section 4 |
 | `deploy\test-utility.ps1` | The checks of the Go code. Use it rather than plain `go test`, which could keep an effect engine compiled before the firmware last changed |
 | `deploy\build-utility.ps1`, `deploy\run.ps1` | Build [the utility](utility.md) into `assets/utility`; the second also starts it, and starts nothing if the build failed. `-NoRun` only builds, `-Force` spends a build number though nothing changed, and `-BuildProfile Dev` keeps the debug information |
 | `deploy\new-doc-images.ps1` | Makes the pictures of the screens, portal pages and utility in `docs/images`, from the firmware's own drawing code, its real pages and the utility's own window, with no device. Needs one firmware build first, and Chrome or Edge |
+| `deploy\new-model-renders.ps1` | Renders the figurines and the enclosure from `3d-model/` into `docs/images`, with OpenSCAD |
 | `deploy\site-assets.ps1` | Copies the renders and pictures the [public site](../../site/README.md) shows from `docs/images` |
 | `deploy\site-pages.ps1` | Makes the public site's Russian pages under `site/ru` from its English pages and `deploy/site-ru.json`; `-Check` says whether they are current |
 | `deploy\rebuild-release.ps1` | Builds a published release again in a copy of the sources, and compares it to the byte. See [Building a Release Again](rebuild.md) |
@@ -321,14 +322,15 @@ What differs by system:
 
 A version is `CSIGARLAND_FIRMWARE_BASE` from [`platformio.ini`](../../firmware/app/platformio.ini) with a build number in it, such as `1.0.0.102`. The utility counts its own builds of the same base, so its numbers are not the firmware's.
 
-A build has one of two profiles, which the PlatformIO environment picks for `pio run` and `-BuildProfile` for the deploy scripts:
+A build has one of three profiles, which the PlatformIO environment picks for `pio run` and `-BuildProfile` for the deploy scripts:
 
 | Profile | Environment | Debug information | Version | Default of |
 |---|---|---|---|---|
 | Release | `esp32c6-release` | None, in the firmware or the utility | `1.0.0.102` | `flash-device.ps1`, `ota-update.ps1`, `stage-assets.ps1`, `build-utility.ps1`, `run.ps1` |
 | Dev | `esp32c6` | ESP-IDF's, and the utility's symbols | `1.0.0.102-dev` | A plain `pio run` |
+| Lab | `esp32c6-lab` | As Dev | `1.0.0.102-lab` | Nothing: the firmware alone, for measuring a garland, see [the Lab build](lab.md) |
 
-Releases are Release builds. A Dev build is never published, and its `-dev` says so wherever its version shows. Each profile builds in its own folder, `firmware/app/.pio/build/<environment>`, as its flags differ for every component of ESP-IDF: going from one to the other compiles nothing again that has not changed, and a last build of the other profile is never staged.
+Releases are Release builds. A Dev or Lab build is never published, and its `-dev` or `-lab` says so wherever its version shows. Each profile builds in its own folder, `firmware/app/.pio/build/<environment>`, as its flags differ for every component of ESP-IDF: going from one to the other compiles nothing again that has not changed, and a last build of the other profile is never staged.
 
 **A build compiles only what changed.** PlatformIO deletes all of `.pio/build`, every environment's objects, when `platformio.ini` or the list of source files changes, and ESP-IDF then takes minutes to compile again. The deploy scripts build with `--disable-auto-clean`, and `firmware_build_version.py` does in its place what such a change needs: CMake configures each environment again, and only objects whose command changed are compiled. Add the flag to a `pio run` of your own for the same:
 
@@ -401,7 +403,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | Add | Sends |
 |---|---|
 | Nothing | A new build: firmware and effects |
-| `-NoBuild` | The last build, with no new build number. With both a Release and a Dev build on the computer, add `-BuildProfile Release` or `-BuildProfile Dev` to say which. A build whose firmware is not of that profile and of this checkout's version, such as one left from 1.0.0, is refused: send it with `-File` if it is meant |
+| `-NoBuild` | The last build, with no new build number. With builds of more than one profile on the computer, add `-BuildProfile Release`, `Dev` or `Lab` to say which. A build whose firmware is not of that profile and of this checkout's version, such as one left from 1.0.0, is refused: send it with `-File` if it is meant |
 | `-FirmwareOnly` | Firmware. The effects on the garland stay |
 | `-EffectsOnly` | Only the effects, with no build |
 | `-File <path>` | That file as it is |

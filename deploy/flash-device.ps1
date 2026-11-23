@@ -56,10 +56,11 @@
 #       For deploy\stage-assets.ps1 alone, which holds the firmware build lock of this checkout for all its
 #       staging and runs this under it: no lock is taken here. Never given by hand.
 #
-#   -BuildProfile Release|Dev
+#   -BuildProfile Release|Dev|Lab
 #       Release, the default, builds with no debug information and the plain version, such as
 #       1.0.0.102, as the environment esp32c6-release. Dev, as esp32c6, keeps the debug
-#       information and marks the version 1.0.0.102-dev.
+#       information and marks the version 1.0.0.102-dev. Lab, as esp32c6-lab, is Dev with what
+#       measuring a garland needs, docs/guides/lab.md, as 1.0.0.102-lab.
 #
 #   -WhatIf, -Confirm
 #       Standard PowerShell. -WhatIf reports what would be flashed and stops.
@@ -94,7 +95,7 @@ param(
     [switch]$FullClean,
     [switch]$NoMonitor,
     [string]$LogFile = '',
-    [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release',
+    [ValidateSet('Release', 'Dev', 'Lab')][string]$BuildProfile = 'Release',
     [switch]$LockHeld
 )
 

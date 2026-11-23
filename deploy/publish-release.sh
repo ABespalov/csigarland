@@ -387,16 +387,19 @@ write_notes() {
         rows="$rows| \`$utility_name\` | $described | \`$sha\` |"$'\n'
     fi
     case "$rows" in *'.ota` |'*) signed_said='The update file is signed under the root in `csigarland-ota-root.crt`. ' ;; esac
-    printf '%s\n\nThe full list: [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md).\n\n## Files\n\ncsiGarland %s, built from commit %s.\n\n| File | What | SHA-256 |\n|---|---|---|\n%s\n%sEach file builds again to the byte from this tag'"'"'s sources: see [Building a Release Again](https://github.com/%s/blob/%s/docs/guides/rebuild.md).' \
+    printf '%s\n\nThe full list: [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md).\n\n## Files\n\ncsiGarland %s, built from commit %s.\n\n| File | What | SHA-256 |\n|---|---|---|\n%s\n\n%sEach file builds again to the byte from this tag'"'"'s sources: see [Building a Release Again](https://github.com/%s/blob/%s/docs/guides/rebuild.md).' \
         "$tag_notes" "$repository" "$tag" "$release" "$tag_commit" "${rows%$'\n'}" "$signed_said" "$repository" "$tag" >"$notes"
     csg_say "The release's notes are in $notes."
 }
 # The day each of this run's files came to the release, as GitHub dates its upload, once it holds them all.
 files_days() {
     local held="$scratch/held-days.json" file
+    local names=()
     read_release "$held" || csg_die "GitHub has no release $tag to write the site for."
     for file in "${files[@]}"; do
         release_holds "$held" "$file" || csg_die "The release $tag on GitHub does not hold $(basename "$file"): the site is left as it is."
+        # Each name a word of its own, quoted, whatever it holds.
+        names[${#names[@]}]="$(basename "$file")"
     done
     csg_python -c 'import json, sys, datetime
 held = json.load(open(sys.argv[1]))
@@ -406,7 +409,7 @@ for asset in held["assets"]:
     if asset["name"] in names:
         moment = datetime.datetime.strptime(asset["updated_at"], "%Y-%m-%dT%H:%M:%SZ")
         days[asset["name"]] = moment.strftime("%Y-%m-%d")
-print(json.dumps(days))' "$held" $(for file in "${files[@]}"; do basename "$file"; done)
+print(json.dumps(days))' "$held" ${names[@]+"${names[@]}"}
 }
 
 existing="$scratch/existing.json"
@@ -438,7 +441,8 @@ if [ -f "$existing" ]; then
     # Written from what the release holds then, and read back: a run elsewhere may write its own between.
     whole=0
     for try in 1 2 3; do
-        read_release "$scratch/now.json" || true
+        # Unread, the notes would be written from an empty file, without the files of other runs: tried again.
+        read_release "$scratch/now.json" || continue
         write_notes "$scratch/now.json"
         gh release edit "$tag" --repo "$repository" --notes-file "$notes" ||
             csg_die 'gh release edit failed: the files are added, the notes are as they were. Run this again to write them.'

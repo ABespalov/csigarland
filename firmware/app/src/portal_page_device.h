@@ -16,9 +16,7 @@ inline constexpr char kPageDevice[] = R"html(
   <h2 id="leds-title">LED count</h2>
   <p class="m" id="current" aria-live="polite">Loading...</p>
   <form id="form">
-    <label><input type="radio" name="mode" value="auto" id="auto"> Detect automatically</label>
-    <label><input type="radio" name="mode" value="manual" id="manual"> Set manually</label>
-    <input type="number" id="count" min="1" step="1" inputmode="numeric" aria-label="Number of LEDs">
+    <input type="number" id="count" min="1" step="1" inputmode="numeric" aria-label="Number of LEDs" required>
     <button data-g="save" type="submit" id="save">Save</button>
   </form>
   <p class="s" id="status" role="status"></p>
@@ -68,17 +66,12 @@ inline constexpr char kPageDevice[] = R"html(
 </section>
 <script>
   /* LED count */
+  /* The count is set by hand only: a garland cannot be counted from its data line. */
   function describe(leds) {
     if (leds.kept !== 0) return `Could not change to ${leds.count} LEDs. Still sending to ${leds.kept}: restart the garland, or choose another number.`;
-    if (leds.setting !== 0) return `Using ${leds.count} LEDs, set manually.`;
-    if (leds.probe === 'present' && leds.estimate > 0) return `Using about ${leds.count} LEDs, as detected.`;
-    if (leds.probe === 'present') return `LEDs found, but their number could not be measured. Using ${leds.count}.`;
-    if (leds.probe === 'absent') return `No LEDs detected. Using ${leds.count}.`;
-    return `Checking for LEDs. Using ${leds.count}.`;
-  }
-
-  function syncInput() {
-    $('count').disabled = $('auto').checked;
+    const none = leds.probe === 'absent' ? ' Nothing is on the data line.' : '';
+    if (leds.setting !== 0) return `Using ${leds.count} LEDs.${none}`;
+    return `Using ${leds.count} LEDs, the firmware's own number: set yours below.${none}`;
   }
 
   /* A form takes no edits while it is saved, and what was typed before the first reading came is
@@ -93,19 +86,13 @@ inline constexpr char kPageDevice[] = R"html(
     if (ledsTyped) return;
     $('count').max = state.leds.max;
     $('count').value = state.leds.count;
-    $('manual').checked = state.leds.setting !== 0;
-    $('auto').checked = state.leds.setting === 0;
-    syncInput();
   }
-
-  $('auto').addEventListener('change', syncInput);
-  $('manual').addEventListener('change', syncInput);
 
   $('form').addEventListener('submit', async (event) => {
     event.preventDefault();
     report('status', '', false);
-    if ($('manual').checked && !$('count').reportValidity()) return;
-    const count = $('manual').checked ? Number($('count').value) : 0;
+    if (!$('count').reportValidity()) return;
+    const count = Number($('count').value);
     $('form').inert = true;
     try {
       const saved = await request('/api/leds', { count });
@@ -155,8 +142,13 @@ inline constexpr char kPageDevice[] = R"html(
     showBudget();
   }
 
+  /* Opens the form, and clears what a failed first reading said, once a reading comes. */
   function loadPower() {
-    return request('/api/leds/power').then(showPower);
+    return request('/api/leds/power').then((power) => {
+      showPower(power);
+      $('power-form').inert = false;
+      report('power-status', '', false);
+    });
   }
 
   $('power-form').addEventListener('input', () => { powerTyped = true; showBudget(); });

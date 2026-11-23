@@ -102,6 +102,17 @@ csg_profile() {
     esac
 }
 
+# A firmware's profile, Release, Dev or Lab, as PowerShell's ValidateSet takes them: in any case. The utility
+# has no Lab, see csg_profile.
+csg_firmware_profile() {
+    case "$(csg_lower "$1")" in
+        release) printf 'Release\n' ;;
+        dev) printf 'Dev\n' ;;
+        lab) printf 'Lab\n' ;;
+        *) csg_die "--build-profile is Release, Dev or Lab, not $1." ;;
+    esac
+}
+
 # The value of an option that takes one, or a refusal when it is missing.
 csg_need_value() {
     [ "$2" -ge 2 ] || csg_die "$1 needs a value."
@@ -174,7 +185,8 @@ csg_lock() {
     owner="$(exec sh -c 'echo "$PPID"')"
     mkdir -p "$CSG_TEMP"
     file="$CSG_TEMP/build-$kind.lock"
-    status="$CSG_TEMP/build-$kind.lock.$$.status"
+    # By the owner, not $$, which subshells of one shell share, and would write over each other's answer.
+    status="$CSG_TEMP/build-$kind.lock.$owner.status"
     rm -f "$status"
     # The Python itself in the background, not a function, so that $! is the holder and not a subshell.
     "$CSG_PYTHON" -B -E -s "$CSG_LIB_DIR/csg_tool.py" lock-hold "$file" "$wait" "$status" "$owner" </dev/null >/dev/null 2>&1 &

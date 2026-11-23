@@ -54,7 +54,7 @@ func (c *Client) Events(ctx context.Context, onState func(State)) error {
 		cancel()
 	})
 	defer timer.Stop()
-	stream := &http.Client{Transport: transport.Clone()}
+	stream := &http.Client{Transport: transport.Clone(), CheckRedirect: noRedirects}
 	defer stream.CloseIdleConnections()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+prefix+"events", nil)
 	if err != nil {

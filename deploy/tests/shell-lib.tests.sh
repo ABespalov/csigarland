@@ -75,6 +75,10 @@ check 'a field of JSON' "$(printf '%s' "$built" | csg_tool json-get - b.1)" 2
 check 'a missing field with a default' "$(printf '%s' "$built" | csg_tool json-get - nope fallback)" fallback
 
 check 'a firmware identity' "$(csg_firmware_identity "$CSG_REPO_ROOT/firmware/app/platformio.ini" 7 Dev | sed 's/^[0-9]*\.[0-9]*\.[0-9]*//')" '.7-dev'
+check 'a Lab firmware identity' "$(csg_firmware_identity "$CSG_REPO_ROOT/firmware/app/platformio.ini" 7 Lab | sed 's/^[0-9]*\.[0-9]*\.[0-9]*//')" '.7-lab'
+check 'the Lab profile in any case' "$(csg_firmware_profile lab)" Lab
+check 'the environment of each profile' "$(csg_firmware_environment Release) $(csg_firmware_environment Dev) $(csg_firmware_environment Lab)" 'esp32c6-release esp32c6 esp32c6-lab'
+check 'the profile of each folder' "$(csg_firmware_profile_of esp32c6-release) $(csg_firmware_profile_of esp32c6) $(csg_firmware_profile_of esp32c6-lab)" 'Release Dev Lab'
 check 'a command as Go splits it' "$(csg_tool split-command 'gcc -m64 "a b"' | tr '\n' '|')" 'gcc|-m64|a b|'
 check 'a compiler build' "$(csg_compiler_build 'gcc.exe (MinGW-W64) 16.1.0')" '(MinGW-W64) 16.1.0'
 check 'an identity hash' "$(csg_identity_hash ' 40:4c:ca:01:02:03 ')" "$(printf '40:4C:CA:01:02:03' | csg_tool sha256-text | tr '[:lower:]' '[:upper:]')"

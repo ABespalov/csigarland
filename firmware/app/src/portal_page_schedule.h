@@ -64,7 +64,7 @@ inline constexpr char kPageSchedule[] = R"html(
   <h2 id="rtc-title">Clock module</h2>
   <p class="m" id="rtc-state"></p>
   <label for="rtc-local" class="h">Date and time, for setting by hand</label>
-  <input type="datetime-local" id="rtc-local" step="1">
+  <input type="datetime-local" id="rtc-local" step="1" min="2026-01-01T00:00" max="2099-12-31T23:59:59">
   <div class="r">
     <button data-g="computer" type="button" class="q" id="rtc-browser">Set from device</button>
     <button data-g="globe" type="button" class="q" id="rtc-ntp">Set from internet</button>

@@ -130,6 +130,10 @@ def check_syntax(repo: Path, sources: list[str], shells: list[str], problems: li
     done = subprocess.run([pwsh, "-NoProfile", "-Command", reader], input="\n".join(str(repo / file) for file in scripts), capture_output=True, text=True)
     for line in done.stdout.splitlines():
         problems.append(line.replace(str(repo) + os.sep, "").strip())
+    # A reader that failed itself checked nothing, whatever it printed.
+    if done.returncode != 0:
+        said = done.stderr.strip().splitlines()
+        problems.append(f"the PowerShell syntax check failed with exit code {done.returncode}: {said[-1] if said else 'no word'}")
 
 
 def resolve_stub(path: Path, stubs: Path) -> Path:

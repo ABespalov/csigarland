@@ -23,17 +23,18 @@ import (
 )
 
 type devicePage struct {
-	mode         choice
-	count        widget.Editor
-	saveLeds     widget.Clickable
-	saver        choice
-	screen       widget.Editor
-	delay        widget.Editor
-	saverLevel   widget.Editor
-	saveScreen   widget.Clickable
-	last         api.Display
-	savingScreen bool
-	power        powerForm
+	count      widget.Editor
+	saveLeds   widget.Clickable
+	saver      choice
+	screen     widget.Editor
+	delay      widget.Editor
+	saverLevel widget.Editor
+	// displayLoaded is set once the screen's settings were read: until then the form holds nothing to save.
+	displayLoaded bool
+	saveScreen    widget.Clickable
+	last          api.Display
+	savingScreen  bool
+	power         powerForm
 }
 
 func (p *devicePage) init() {
@@ -50,25 +51,21 @@ func (p *devicePage) load(a *App) {
 		if err != nil {
 			return nil, err
 		}
-		display, err := client.Display(ctx)
-		if err != nil {
-			return nil, err
-		}
-		budget, held, err := readPowerBudget(ctx, client)
-		if err != nil {
-			return nil, err
-		}
+		// The screen and the power settings apart: a 503 from one, for a moment, leaves the LED count and the
+		// other to fill, and the screen's form stays closed until its own answer has come.
+		display, displayErr := client.Display(ctx)
+		budget, held, budgetErr := readPowerBudget(ctx, client)
 		return func() {
 			a.takeState(state)
-			p.mode.Value = "auto"
-			if state.Leds.Setting != 0 {
-				p.mode.Value = "manual"
-			}
 			p.count.SetText(strconv.Itoa(state.Leds.Count))
-			p.takeDisplay(display)
-			p.power.take(budget, held)
-			a.takeGarlandBudget(client, budget, held)
-		}, nil
+			if displayErr == nil {
+				p.takeDisplay(display)
+			}
+			if budgetErr == nil {
+				p.power.take(budget, held)
+				a.takeGarlandBudget(client, budget, held)
+			}
+		}, errors.Join(displayErr, budgetErr)
 	})
 }
 
@@ -78,23 +75,25 @@ func (p *devicePage) takeDisplay(display api.Display) {
 	p.screen.SetText(strconv.Itoa(display.ScreenBrightness))
 	p.delay.SetText(strconv.Itoa(display.Delay))
 	p.saverLevel.SetText(strconv.Itoa(display.SaverBrightness))
+	p.displayLoaded = true
 }
 
-// LedsText says what the garland is using, as the portal does.
+// LedsText says what the garland is using, as the portal does. The count is only ever set by hand; a garland
+// of 1.4.0 or before may still say it estimated one, which is said as it was.
 func LedsText(leds api.Leds) string {
+	none := ""
+	if leds.Probe == "absent" {
+		none = " Nothing is on the data line."
+	}
 	switch {
 	case leds.Kept != 0:
 		return fmt.Sprintf("Could not change to %d LEDs. Still sending to %d: restart the garland, or choose another number.", leds.Count, leds.Kept)
 	case leds.Setting != 0:
-		return fmt.Sprintf("Using %d LEDs, set manually.", leds.Count)
-	case leds.Probe == "present" && leds.Estimate > 0:
+		return fmt.Sprintf("Using %d LEDs.%s", leds.Count, none)
+	case leds.Estimate > 0:
 		return fmt.Sprintf("Using about %d LEDs, as detected.", leds.Count)
-	case leds.Probe == "present":
-		return fmt.Sprintf("LEDs found, but their number could not be measured. Using %d.", leds.Count)
-	case leds.Probe == "absent":
-		return fmt.Sprintf("No LEDs detected. Using %d.", leds.Count)
 	default:
-		return fmt.Sprintf("Checking for LEDs. Using %d.", leds.Count)
+		return fmt.Sprintf("Using %d LEDs, the firmware's own number: set yours below.%s", leds.Count, none)
 	}
 }
 
@@ -121,16 +120,7 @@ func (p *devicePage) ledsCard(a *App) layout.Widget {
 		}
 		rows := []layout.Widget{
 			a.hint(LedsText(a.state.Leds)),
-			// The count is asked for on the same line, only when it is set by hand.
-			func(gtx C) D {
-				children := []layout.FlexChild{layout.Rigid(func(gtx C) D { return a.segments(gtx, &p.mode, ledModes) })}
-				if p.mode.Value == "manual" {
-					children = append(children,
-						layout.Rigid(layout.Spacer{Width: gapLarge}.Layout),
-						layout.Rigid(func(gtx C) D { return a.field(gtx, &p.count, "32", 90) }))
-				}
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
-			},
+			func(gtx C) D { return a.field(gtx, &p.count, "32", 90) },
 		}
 		rows = append(rows, func(gtx C) D { return a.labelButton(gtx, &p.saveLeds, buttonMain, "save", "Save", "", true) })
 		return a.card(gtx, "LED count", rows...)
@@ -138,14 +128,14 @@ func (p *devicePage) ledsCard(a *App) layout.Widget {
 }
 
 func (p *devicePage) saveCount(a *App) {
-	count := 0
-	if p.mode.Value == "manual" {
-		value, err := number(&p.count, "the LED count")
-		if err != nil {
-			a.reportError(err)
-			return
-		}
-		count = value
+	count, err := number(&p.count, "the LED count")
+	if err != nil {
+		a.reportError(err)
+		return
+	}
+	if count < 1 {
+		a.reportError(errors.New("the LED count must be 1 or more"))
+		return
 	}
 	a.work(func(ctx context.Context, client *api.Client) (func(), error) {
 		state, err := client.SetLeds(ctx, count)
@@ -168,8 +158,6 @@ func (p *devicePage) saveCount(a *App) {
 	})
 }
 
-var ledModes = []segment{{"auto", "Detect automatically"}, {"manual", "Set manually"}}
-
 var savers = []segment{
 	{"none", "None"},
 	{"starfield", "Starfield"},
@@ -191,7 +179,7 @@ func saverChoices(display api.Display) []segment {
 
 func (p *devicePage) screenCard(a *App) layout.Widget {
 	return func(gtx C) D {
-		if p.savingScreen {
+		if p.savingScreen || !p.displayLoaded {
 			gtx = gtx.Disabled()
 		}
 		if p.saveScreen.Clicked(gtx) {
@@ -442,6 +430,12 @@ func (p *networkPage) joinNetwork(a *App, ssid, password string) {
 		return func() {
 			p.wifi = wifi
 			p.password.SetText("")
+			if ssid == "" {
+				// Forgotten: no network is joined, and the field keeps no name of the one gone.
+				p.ssid.SetText("")
+				a.report("The garland forgot its network. It brings up its setup network until it is given one.")
+				return
+			}
 			a.report("The garland is joining the network. If its address changes, connect again.")
 		}, nil
 	})

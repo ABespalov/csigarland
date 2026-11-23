@@ -41,8 +41,10 @@ func (a *App) numberStepper(gtx C, f *numberField, value, low, high int, set fun
 	if !typing && f.editor.Text() != shown {
 		f.editor.SetText(shown)
 	}
+	// value follows each step, so several in one frame, as a quick wheel brings, each count.
 	step := func(by int) {
 		if next := min(max(value+by, low), high); next != value {
+			value = next
 			set(next)
 		}
 	}

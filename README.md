@@ -98,6 +98,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 | [Building the Hardware](docs/guides/hardware.md) | Schematic, bill of materials, wiring, checks before power |
 | [Building a Fork and the First Flash](docs/guides/build-and-flash.md) | Tools, certificates, every script, updates from the build machine, recovery |
 | [Building a Release Again](docs/guides/rebuild.md) | Building a published firmware and utility again from a clean fork, the same to the byte |
+| [The Lab Build](docs/guides/lab.md) | A firmware for measuring a garland: current, voltage, temperatures, memory, and the log from the start |
 | [User Guide](docs/guides/user-guide.md) | Buttons, the screen, portal access, every page, updates, troubleshooting |
 | [Effects Guide](docs/guides/effects.md) | The catalog, the file format, every algorithm, tuning |
 | [The csiGarland Utility](docs/guides/utility.md) | The program for your computer: control, tuning with a live preview, the log. Windows, Linux and macOS |
@@ -112,7 +113,7 @@ pwsh -File deploy\ota-update.ps1 -Address csigarland.local
 
 ```
 csigarland/
-├── 3d-model/          # CAD designs (STEP, STL, Bambu Studio 3MF projects)
+├── 3d-model/          # CAD designs (OpenSCAD sources, STL, Bambu Studio 3MF projects)
 ├── cmd/, internal/    # The Go + Gio utility, and the firmware's effect engine through cgo
 ├── deploy/            # Scripts for PowerShell and bash: build, flash, update, certificates, pictures
 ├── docs/              # Guides, hardware, roadmap, pictures in docs/images

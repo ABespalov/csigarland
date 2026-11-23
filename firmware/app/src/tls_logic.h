@@ -175,9 +175,19 @@ inline bool tls_parse_ipv4(const char* text, uint8_t (&out)[4]) {
     return true;
 }
 
-// Four numbers and nothing else, as sscanf alone would let spaces and signs through.
+// Four numbers and nothing else, as sscanf alone would let spaces and signs through, and none with a leading
+// zero, as 192.168.001.1, which some read as octal and a certificate would name as written.
 inline bool tls_is_ipv4_text(const char* text, uint8_t (&out)[4]) {
-    return std::strspn(text, "0123456789.") == std::strlen(text) && tls_parse_ipv4(text, out);
+    if (std::strspn(text, "0123456789.") != std::strlen(text)) {
+        return false;
+    }
+    for (const char* c = text; *c != '\0'; ++c) {
+        const bool starts_part = c == text || c[-1] == '.';
+        if (starts_part && c[0] == '0' && c[1] >= '0' && c[1] <= '9') {
+            return false;
+        }
+    }
+    return tls_parse_ipv4(text, out);
 }
 
 // One domain, one fixed address, or nothing. A domain is lowercase labels with dots between, at

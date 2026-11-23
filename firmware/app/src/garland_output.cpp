@@ -31,6 +31,8 @@ constexpr uint32_t kRmtResolutionHz = 10'000'000;
 constexpr size_t kRmtMemBlockSymbols = 96;
 
 void configure_output_low(gpio_num_t pin) {
+    // gpio_reset_pin leaves the internal pull-up on, which only wastes current against an output held low.
+    gpio_pullup_dis(pin);
     gpio_set_level(pin, 0);
     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
 }

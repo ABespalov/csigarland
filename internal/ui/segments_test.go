@@ -49,6 +49,7 @@ func TestAPressChoosesItsSegmentButNotWhenItCannot(t *testing.T) {
 	var router input.Router
 	var mode choice
 	mode.Value = "auto"
+	modes := []segment{{"auto", "Detect automatically"}, {"manual", "Set manually"}}
 	draw := func(enabled bool) {
 		ops.Reset()
 		a.frames++
@@ -57,12 +58,12 @@ func TestAPressChoosesItsSegmentButNotWhenItCannot(t *testing.T) {
 		if !enabled {
 			gtx = gtx.Disabled()
 		}
-		a.segments(gtx, &mode, ledModes)
+		a.segments(gtx, &mode, modes)
 		router.Frame(&ops)
 	}
 	// Just past the first option, which is the second's.
 	measure := sceneContext(new(op.Ops), &router, sceneWidth, sceneHeight)
-	second := a.segmentWidth(measure, ledModes[0].words) + 2*measure.Dp(segmentPad) + 5
+	second := a.segmentWidth(measure, modes[0].words) + 2*measure.Dp(segmentPad) + 5
 	press := func(enabled bool) {
 		draw(enabled)
 		at := f32.Pt(float32(second), 10)

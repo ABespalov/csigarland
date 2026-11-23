@@ -1,6 +1,6 @@
 # Project Roadmap: csiGarland
 
-Milestones leading to Christmas & New Year deployment. A ticked firmware item is implemented and passes the host tests or builds; what has been seen working on the owner's garland is listed separately in Milestone 3. Agreed work that is not done, the applications and what is left to measure among it, is in the [to-do list](../stubs/TODO.md).
+Milestones leading to Christmas & New Year deployment. The full garland of 32 figurines is built; what is left is the measurements of Milestone 1 and Milestone 5. A ticked firmware item is implemented and passes the host tests or builds; what has been seen working on the owner's garland is listed separately in Milestone 3. Agreed work that is not done, the applications and what is left to measure among it, is in the [to-do list](../stubs/TODO.md).
 
 ```mermaid
 flowchart LR
@@ -15,10 +15,10 @@ flowchart LR
 ### Milestone 1: Electrical Proof-of-Concept & Power Baseline
 - [ ] Verify Hi-Link 5V 2A output under test load.
 - [ ] Verify the MOSFET gate on the LED rail and measure standby draw.
-- [ ] Check a garland on the gated rail against the LED count estimate, and calibrate it.
+- [x] ~~Check a garland on the gated rail against the LED count estimate, and calibrate it.~~ Dropped, 2026-11-23: on the owner's garland the estimate counted nothing, as its LEDs let too little current from their data input into the rail, so 1.4.1 takes the count by hand only. [Architecture](../architecture.md), Garland detection, says why.
 
 ### Milestone 2: 3D Modeling & Print Optimization
-- [ ] Print test pieces of the figurines in translucent PETG; evaluate light dispersion and snap-fit.
+- [x] Print test pieces of the figurines in translucent PETG; evaluate light dispersion and snap-fit. Then the whole set of 32, on the garland.
 - [x] Design and print an enclosure for the Hi-Link 220V converter and ESP32 controller.
 
 ### Milestone 3: Firmware
@@ -46,10 +46,11 @@ Seen working on the owner's garland:
 Not implemented: see **Planned** below.
 
 ### Milestone 4: Full Garland Assembly (32 Figurines)
-- [ ] Solder a continuous 32-node cable harness.
+- [x] Solder a continuous 32-node cable harness.
 - [x] Fix the physical order of the figurines along the cable, and match the layout in the [Effects Guide](../guides/effects.md) to it: the firmware of 1.1.1.
-- [ ] Batch print 32 base mounts and 32 holiday diffuser caps.
-- [ ] Snap LEDs into bases, secure strain-relief channels, and attach diffuser caps.
+- [x] Batch print 32 base mounts and 32 holiday diffuser caps.
+- [x] Snap LEDs into bases, secure strain-relief channels, and attach diffuser caps.
+- [x] Current and voltage of the whole garland under load, 2026-11-23: 1012 mA on white, 3.99 V at the last LED, within the WS2812B's range, the rest of the drop in the wire between the figurines. The [to-do list](../stubs/TODO.md) has every figure.
 
 ### Milestone 5: Acceptance Testing & Tree Installation
 - [ ] 24-hour thermal and stability burn-in test.
@@ -58,6 +59,7 @@ Not implemented: see **Planned** below.
 
 ## Released
 
+* **1.4.1**, released 2026-11-23 (firmware 1.4.1.126, utility 1.4.1.66 for Windows and 1.4.1.67 for Linux, macOS to follow): updates over HTTPS that no longer fail on a heap cut up, with 33 KB of mbedTLS's own; the LED count set by hand only, the automatic estimate gone, as it could not count the owner's garland on its switched rail; a Lab build of the firmware for measuring a garland; the base mount in two parts, with caps of even shells; and what the owner's external audit of 1.4.1 found, as the [changelog](../../CHANGELOG.md) has it. Tested on the host and the portal's pages in a browser against the stubbed portal; its updates over HTTPS seen on the owner's garland with the Lab build, lit and in standby; 1.4.1 itself not yet on the garland.
 * **1.4.0**, released 2026-11-09 (firmware 1.4.0.120, utility 1.4.0.52 for Windows, 1.4.0.53 for Linux, 1.4.0.54 for macOS on Apple silicon and 1.4.0.55 for macOS on Intel): the firmware and the utility both, tested on the host and the portal's pages in a browser against the stubbed portal, and seen working on the owner's garland, updated over the air from 1.1.1 and confirmed. A garland updated from 1.1.1 keeps all it saved. The [changelog](../../CHANGELOG.md) has each:
 * **The current limit set by the owner:** on the Device page of the portal and the utility, the power supply's current, 500-4400 mA, what one LED draws at full white and dark, and a margin of 5-20 % of what the supply gives beyond the board's 250 mA, from which the firmware works out the limit, at most (4400 - 250) * 95 % = 3942 mA, under the 4.3 A of the MOSFET module, and the page what the chain draws at full white and how many LEDs that leaves undimmed. The defaults keep the 1400 mA limit, with 40 mA an LED at full white, from one LED measured at 36.1 mA, where 1.1.1 assumed 55 mA. Saved settings that are not valid give the most cautious ones, a 500 mA supply, 100 mA white, 5 mA dark and a 20 % margin, a 200 mA limit, with a warning on the Device page until they are saved again. Tested on the host and the Device page in a browser against the stubbed portal; not yet on the garland.
 * **A trial confirmed by an answer:** a new firmware confirms itself only once it has answered a paired browser or program, a refusal not counting, as the portal, the utility and `ota-update` send while they wait, within 10 minutes, and otherwise goes back to the firmware before; after an update, the portal and the utility show their Info page. Seen on the garland, by the update to 1.4.0 itself; the return after 10 minutes with nothing asking has not been brought about on it.
@@ -80,7 +82,7 @@ Not implemented: see **Planned** below.
 
 ## In the Next Release
 
-Nothing yet beyond 1.4.0.
+Nothing yet.
 
 
 ## Planned
@@ -94,13 +96,13 @@ Not implemented, and not to be read as what the firmware or the utility does:
 Neither confirmed nor refuted by the running prototype:
 
 * Mains inlet: a connector made for mains, or an external 5 V supply. See [Power Inlet](../hardware/control-unit.md#1-power-inlet-amass-xt60h-f-female-with-sheath-left-wall).
-* The exact WS2812B variant, and its guaranteed input logic level from a 3.3 V GPIO on a 5 V rail. A one-way level shifter would break the probe on that pin.
-* YZ_CTL_V1's active polarity, reset and boot behaviour, and real off current.
-* Where a 470-1000 uF capacitor goes relative to the gate: the count estimate assumes mostly the LED boards' capacitors on the switched rail.
-* Longest wire run, its gauge, drop at the last LED and temperature of a full 32-LED harness. The figures in [Garland cable](../guides/hardware.md#garland-cable) are calculated.
+* The exact WS2812B variant, and its guaranteed input logic level from a 3.3 V GPIO on a 5 V rail. A one-way level shifter would break the presence check on that pin.
+* YZ_CTL_V1's real off current. Its polarity and its standby are seen on the garland: the connector reads 0 V in standby, 2026-11-23.
+* Where a 470-1000 uF capacitor goes relative to the gate.
+* Temperature of the full 32-LED harness. Its drop is measured, 2026-11-23: 0.81 V from the plug to the last LED at about 1 A, in the wire between the figurines, as the [to-do list](../stubs/TODO.md) has it.
 * The current limit is a model from colours and the LED count in use, not a measurement of the rail; its draw of an LED rests on one LED measured, and the board's 250 mA on the specification.
 
 ## Validation Still to Do
 
-Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off while it probes before turning on, which must stay dark. Of 1.1.1, on the garland: settings, the remembered choice, the playlist, paired browsers or an uploaded effect that cannot be read at a start, each read again later, the 503s meanwhile, and a press during a slow start. Of 1.3.0: the utility for macOS on Intel. Of 1.4.0, which runs on the garland, there in particular: the limit from power settings other than the defaults, the cautious settings and their warning after a saved record that is not valid, the Scheduler24 screensaver, the preview and Tune on the garland's own LED count, and a return to the previous firmware after 10 minutes with nothing asking.
+Host tests cover logic, not these, and the garland has not shown them yet: power cuts during writes, LEDs with LCD, Wi-Fi and flash writes together on 256 LEDs, a change to or from daylight saving, and several browsers at once. In a real browser against a board: a request from a page of another origin under the owner's domain refused for its cookie; the HTTP portal reached again after HTTPS failed, by a browser that was redirected from it before; the schedule edited from two browsers, one saving over the other's change; and a garland turned off just as it turns on, which must stay dark. Of 1.1.1, on the garland: settings, the remembered choice, the playlist, paired browsers or an uploaded effect that cannot be read at a start, each read again later, the 503s meanwhile, and a press during a slow start. Of 1.3.0: the utility for macOS on Intel. Of 1.4.0, which runs on the garland, there in particular: the limit from power settings other than the defaults, the cautious settings and their warning after a saved record that is not valid, the Scheduler24 screensaver, the preview and Tune on the garland's own LED count, and a return to the previous firmware after 10 minutes with nothing asking.
 

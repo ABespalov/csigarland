@@ -8,7 +8,8 @@
 #
 # The bash twin of deploy/new-model-renders.ps1, for Linux and macOS, by deploy/model_renders.py. Each
 # figurine on its mount, in the colour its model gives its filament, and the eight hanging from the cable
-# in the order of the firmware's layout, into docs/images/diffusers; the control unit's enclosure, exploded
+# in the order of the firmware's layout, and the two-part base mount exploded and cut open, into
+# docs/images/diffusers; the control unit's enclosure, exploded
 # and as its parts print, into docs/images/hardware. Run it after a change to a model, a colour or the
 # layout, then deploy/site-assets.sh and deploy/site-pages.sh for the site. It needs OpenSCAD.
 #

@@ -41,8 +41,11 @@ const char* effect_store_preview();
 // An uploaded effect's file, in effect_store_body() until the next request, or nullptr.
 const char* effect_store_read(const char* id);
 
-// A built-in effect goes back to its own definition, any other leaves the catalog.
-const char* effect_store_delete(const char* id);
+// A built-in effect goes back to its own definition, any other leaves the catalog. after, when given, runs
+// once it is deleted with the store still held, given the place the effect had: no upload read meanwhile can
+// take that place before what refers to it is cleared. It must call nothing of the store.
+const char* effect_store_delete(const char* id, void (*after)(size_t position, void* context) = nullptr,
+                                void* context = nullptr);
 
 // Holds the store's lock while it lives: no upload is read, saved or deleted meanwhile, so a place the catalog
 // gives for an id stays that effect's until what is done with it is done. Nothing else of the store may be called

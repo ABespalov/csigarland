@@ -20,7 +20,7 @@ repository.
     with the Lighting task, only ahead of or behind it.
   - Power supply: Hi-Link 5V 2A (HLK-10M05B, 47x28x22 mm) isolated AC-DC converter.
   - LEDs: 32x WS2812B addressable LEDs (8 unique figurines x 4 copies each) on 9x9x2.5 mm breakout
-    boards. The firmware takes chains of up to 256, set by hand or estimated by its probe.
+    boards. The firmware takes chains of up to 256, set by hand: it cannot count them, see `docs/architecture.md`.
   - Optical diffusers: hollow holiday figurines of the 50 mm height class (about 46-49 mm) printed on Bambu Lab (P2S / P1S / X1C)
     with translucent PETG, mounted with base at top on hanging garland cord.
   - Controls: three push buttons, POWER, EFFECT and SPEED (GPIO with internal pull-up), the
@@ -63,7 +63,9 @@ repository.
   `cmd/csigarland/version.go`, and `deploy/build-utility.ps1` adds its build number.
 - **Profiles:** a build is Release, with no debug information and the plain version, or Dev, with
   debug information and `-dev` on its version. The deploy scripts build Release unless given
-  `-BuildProfile Dev`; a plain `pio run` builds Dev. Only Release builds are published.
+  `-BuildProfile Dev`; a plain `pio run` builds Dev. The firmware has a third, Lab, Dev with
+  `CSIGARLAND_LAB` for measuring a garland and `-lab` on its version, which goes back to Release once
+  the measurements are done. Only Release builds are published.
 - **PowerShell:** every tracked `.ps1` states `#requires -Version 7.2` under its
   header and is invoked as `pwsh -File`.
 - **Bash:** every tracked `.sh` starts with `#!/usr/bin/env bash` and states `set -euo pipefail`, or,
@@ -136,6 +138,7 @@ refresh `THIRD_PARTY_NOTICES.md` with `deploy/new-third-party-notices.ps1`.
 | `docs/guides/user-guide.md` | Using a garland |
 | `docs/guides/build-and-flash.md` | Building, signing and installing, for a fork too |
 | `docs/guides/rebuild.md` | Building a release again, to the byte, and comparing it with the release |
+| `docs/guides/lab.md` | The Lab build, and the measurements on the garland it serves |
 | `docs/guides/effects.md` | Every effect and algorithm, enforced by the source rules |
 | `docs/guides/hardware.md`, `docs/hardware/` | Building the hardware, its specification |
 | `docs/stubs/ROADMAP.md` | What is planned, and what is left to see working on the board |

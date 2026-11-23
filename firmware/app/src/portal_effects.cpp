@@ -73,11 +73,12 @@ int portal_state_json(const State& state, char* out, size_t size) {
         out, size,
         "{\"power\":%s,\"brightness\":%u,\"effect\":\"%s\",\"effect_name\":\"%s\",\"speed\":%s,\"playlist\":%s,"
         "\"playlist_at\":%u,\"playlist_size\":%u,\"steps_done_until\":%lld,"
-        "\"leds\":{\"setting\":%u,\"count\":%u,\"kept\":%u,\"max\":%d,\"probe\":\"%s\",\"estimate\":%u}}",
+        // "estimate" stays for the programs that read it, and is always 0: the count is only ever set by hand.
+        "\"leds\":{\"setting\":%u,\"count\":%u,\"kept\":%u,\"max\":%d,\"probe\":\"%s\",\"estimate\":0}}",
         s.power_requested ? "true" : "false", s.brightness_percent, catalog_id(s.effect).c_str(),
         catalog_name(s.effect).c_str(), speed, s.playlist ? "true" : "false", s.playlist_at, s.playlist_size,
         static_cast<long long>(steps_done_until),
-        s.led_setting, s.led_count, s.led_kept, CSIGARLAND_MAX_LEDS, probe_id(s.probe), s.led_estimate);
+        s.led_setting, s.led_count, s.led_kept, CSIGARLAND_MAX_LEDS, probe_id(s.probe));
     return length < 0 || static_cast<size_t>(length) >= size ? -1 : length;
 }
 
@@ -267,7 +268,8 @@ esp_err_t portal_handle_power(httpd_req_t* req) {
     return send_state(req, state);
 }
 
-// Body: {"count": N}, where 0 returns to automatic detection.
+// Body: {"count": N}, 1 to the most a chain may have. 0, which once asked for automatic detection, still answers,
+// as programs may send it, and takes the build's own count.
 esp_err_t portal_handle_set_leds(httpd_req_t* req) {
     const JsonPtr root = portal_read_json(req);
     if (root == nullptr) {
@@ -469,27 +471,36 @@ esp_err_t portal_handle_effect_delete(httpd_req_t* req) {
     if (named == Named::Yes) {
         return portal_send_status(req, "409 Conflict", "The playlist uses this effect");
     }
-    // The file first: should that fail, nothing else has changed.
-    const char* const problem = effect_store_delete(id);
-    if (problem != nullptr) {
-        return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, problem);
-    }
-    if (leaves_the_catalog) {
-        // Nothing has been read into the catalog since the place was found, so it is still this effect's.
-        const Snapshot now = state.snapshot();
+    // The file first: should that fail, nothing else has changed. What refers to its place is cleared with the
+    // store still held, as the scheduler may read an upload left unread into that place as soon as it is free.
+    struct Cleanup {
+        State& state;
+        bool favorites_read;
+        bool leaves_the_catalog;
+        size_t expected;
+    } cleanup{state, favorites_read, leaves_the_catalog, position};
+    const char* const problem = effect_store_delete(id, [](size_t at, void* context) {
+        const Cleanup& c = *static_cast<const Cleanup*>(context);
+        if (!c.leaves_the_catalog || at != c.expected) {
+            return;
+        }
+        const Snapshot now = c.state.snapshot();
         EffectMask updated = now.favorites;
-        updated.set(position, false);
-        if (now.favorites.test(position)) {
+        updated.set(at, false);
+        if (now.favorites.test(at)) {
             const EffectMask kept = updated.any() ? updated : catalog_default_favorites();
             // A saved list naming a gone effect is read as if it did not, so failing costs nothing.
-            state.set_favorites(kept);
-            if (favorites_read) {
-                save_favorites(state, kept);
+            c.state.set_favorites(kept);
+            if (c.favorites_read) {
+                save_favorites(c.state, kept);
             }
         }
-        if (now.effect == position) {
-            state.select_first_favorite();
+        if (now.effect == at) {
+            c.state.select_first_favorite();
         }
+    }, &cleanup);
+    if (problem != nullptr) {
+        return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, problem);
     }
     return send_catalog_change(req, "{\"ok\":true}");
 }

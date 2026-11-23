@@ -361,10 +361,9 @@ void poll_state(lv_timer_t* timer) {
     }
     char speed[kSpeedTextBytes];
     speed_to_text(now.speed_x4, speed);
-    ESP_LOGI(TAG, "power=%d rail=%d mode=%s bright=%u speed=%s probe=%s/%u setting=%u leds=%u off=%u",
+    ESP_LOGI(TAG, "power=%d rail=%d mode=%s bright=%u speed=%s probe=%s setting=%u leds=%u off=%u",
              now.power_requested, now.rail_on, catalog_id(now.effect).c_str(), now.brightness_percent,
-             speed, probe_name(now.probe), now.led_estimate,
-             now.led_setting, now.led_count, now.off_seconds);
+             speed, probe_name(now.probe), now.led_setting, now.led_count, now.off_seconds);
 }
 
 esp_err_t start_screen(State& state) {

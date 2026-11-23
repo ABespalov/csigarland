@@ -45,7 +45,7 @@ const char* settings_ap_password();
 
 // The LED count, power budget, favourites and screen settings, in settings_looks.cpp. Each read tells none saved, Missing,
 // from one there and not read, Unreadable, which a save would write over: see looks.h.
-// The saved LED count setting into out, kLedCountAuto if there is none or it is out of range.
+// The saved LED count setting into out, kLedCountUnset if there is none or it is out of range.
 StoredRead settings_read_led_count(uint16_t& out);
 esp_err_t settings_save_led_count(uint16_t setting);
 

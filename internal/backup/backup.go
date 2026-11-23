@@ -250,6 +250,10 @@ func collectOnce(ctx context.Context, client *api.Client, now time.Time) (Backup
 	backup.Display.ClockModule = nil
 	// As the playlist: 404 only from a release before the power settings.
 	switch budget, err := client.PowerBudget(ctx); {
+	case err == nil && budget.InvalidRecord:
+		// The garland goes by cautious figures of its own while its saved ones cannot be read: kept, they would
+		// stand in for the owner's at a restore, and hide that anything was wrong.
+		return Backup{}, picture{}, nil, errors.New("the garland could not read its saved power settings, and uses cautious ones meanwhile: restart it, and back it up once the Device page shows them again")
 	case err == nil:
 		backup.Power = &api.PowerBudget{SupplyMilliamps: budget.SupplyMilliamps, WhiteMilliamps: budget.WhiteMilliamps, IdleMilliamps: budget.IdleMilliamps, MarginPercent: budget.MarginPercent}
 	case errors.As(err, &failure) && failure.Status == http.StatusNotFound && !api.HasRoute(firmware.Version, "leds/power"):

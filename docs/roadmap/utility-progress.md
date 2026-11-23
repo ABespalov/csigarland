@@ -30,12 +30,12 @@ Where the public API and the Go + Gio utility stand, and what is planned. The AP
 
 The 1.0.0 utility against the owner's garland: pairing, the pages, updates and the log; 1.1.0's, seen with its firmware on the garland. On macOS, 1.3.0 on Apple silicon: connecting and pairing, the effects, an upload, an update file chosen in the panel, a second start connecting at once by the token in the keychain, a new build asking once for it, then no more, a backup saved and restored through the panels, and a bundle downloaded and opened past Gatekeeper.
 
-- **Push updates:** `Events` reads the garland's stream on a connection of its own, and the window asks for no state while it is open.
-- **Notices for the `.exe`:** Go's own library and the C++ runtime it links statically are in `THIRD_PARTY_NOTICES.md`, and `deploy/build-utility.ps1` fails on a library of the compiler's that has no notice.
+
+Done, and seen in use with the releases since: **push updates**, `Events` reading the garland's stream on a connection of its own, with the window asking for no state while it is open; and **notices for the `.exe`**, Go's own library and the C++ runtime it links statically in `THIRD_PARTY_NOTICES.md`, with `deploy/build-utility.ps1` failing on a library of the compiler's that has no notice.
 
 ## Planned
 
 - **Ubuntu:** released in 1.2.0; still to see against a garland.
 - **macOS:** the Intel build seen running.
-- **Next release, 1.4.0:** the power settings on the Device page and in a backup, the Scheduler24 screensaver offered with the clock module, and the preview and Tune on the garland's own LED count, tested on the host; to see against the garland. Coming with them: the warning on the Device page when the garland's saved power settings were not valid, and the Info page shown after an update, the utility's requests while it waits being what confirms the new firmware.
+- **Next release, 1.4.1:** the LED count as a number only, a page that loads what it can when one of the garland's answers is a moment late, Lab builds compared by their number in the release catalog, and no backup of the cautious power settings a garland uses while its own cannot be read; tested on the host. 1.4.0, released on 2026-11-09, brought the power settings on the Device page and in a backup, the Scheduler24 screensaver and the preview and Tune on the garland's own LED count.
 - **Android and iOS:** the same code, with cgo on phones still to be tried.

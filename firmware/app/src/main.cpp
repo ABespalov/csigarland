@@ -16,6 +16,7 @@
 #include "firmware_version.h"
 #include "garland_output.h"
 #include "garland_state.h"
+#include "lab.h"
 #include "lighting_task.h"
 #include "looks.h"
 #include "nvs.h"
@@ -27,6 +28,7 @@
 #include "rtc.h"
 #include "scheduler.h"
 #include "settings.h"
+#include "tls_pool.h"
 #include "trial_log.h"
 
 static const char* TAG = "csiGarland";
@@ -39,6 +41,10 @@ static garland::Remembered s_saved_at_start;
 
 extern "C" void app_main(void) {
     garland::trial_log_start();
+    // mbedTLS's own pool, before the first TLS or Wi-Fi allocation: an update's record buffer must not hunt for a
+    // block in a heap the Wi-Fi buffers have cut up. Then the Lab build's count on top of it, nothing otherwise.
+    garland::tls_pool_start();
+    garland::lab_count_tls();
     // First of all, at the longest supported chain: the configured count is not known
     // yet, and data past the end of a shorter chain goes nowhere.
     garland::GarlandOutput(static_cast<gpio_num_t>(CSIGARLAND_GARLAND_GPIO),
@@ -130,4 +136,6 @@ extern "C" void app_main(void) {
     // on as far as it can.
     garland::ota_start_trial(err == ESP_OK && portal_running && lighting_running && scheduler_running && display_running &&
                              buttons_running);
+    // After the clock module, whose temperature it reads. Nothing outside the Lab build.
+    garland::lab_start(s_state);
 }

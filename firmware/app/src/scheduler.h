@@ -45,7 +45,9 @@ RtcStatus time_rtc_status();
 // Set the module and the garland's own clock. False when the time is out of range or the
 // module did not take it. The next NTP answer overrules a time set here.
 bool time_set_rtc(int64_t epoch, ClockSource source);
-bool time_set_rtc_local(const LocalDateTime& local, ClockSource source);
+// A date and time in the garland's zone as an epoch. False when it is not one the module can hold, as the first
+// hours of 2026 east of UTC are not.
+bool time_local_to_epoch(const LocalDateTime& local, int64_t& epoch);
 
 // Asks NTP again now. The answer arrives in a few seconds, if the network has one.
 void time_sync_now();

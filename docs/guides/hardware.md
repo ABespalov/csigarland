@@ -51,7 +51,7 @@ To use other pins, change the `CSIGARLAND_*_GPIO` flags in [`platformio.ini`](..
 | U2 | 1 | Hi-Link HLK-10M05B | 90-264 V AC in, 5 V 2 A out, isolated 3000 V AC | 47 × 28 × 22 mm | |
 | Q1 | 1 | YZ_CTL_V1 high-side MOSFET module | 20 V, 4.3 A, active-high `EN` | 13.2 × 6 × 2 mm | |
 | F1 | 1 | Fast-blow fuse with an enclosed holder | 1 A, 250 V AC, 5 × 20 mm | Holder cradle 30 × 11 mm by default | Set `fuse_holder` in the CAD to your holder |
-| RV1 | 1 | Varistor 10D471K | 470 V clamping | Ø11.5 × 4.5 mm | |
+| RV1 | 1 | Varistor 10D471K, such as Bourns MOV-10D471K | 470 V varistor voltage at 1 mA; 775 V clamping at most, at 25 A | Ø11.5 × 4.5 mm | |
 | C1 | 1 | Electrolytic capacitor, 105 °C | 100 µF 50 V in the prototype. 470-1000 µF, at least 10 V, low ESR gives more reserve | Ø8 × 12 mm fits the saddle | A larger one does not fit it unchanged |
 | R1 | 1 | Resistor, 1 %, 0.25 W | 330 Ω | Axial or 0805 | In the data line |
 | R2 | 1 | Resistor, 0.25 W | 10 kΩ | Axial or 0805 | From `EN` to `GND`. Keeps the LEDs off while GPIO 1 floats during a reset. **Not optional** |
@@ -59,7 +59,7 @@ To use other pins, change the `CSIGARLAND_*_GPIO` flags in [`platformio.ini`](..
 | S2 | 1 | Tactile switch with a round cap, white | EFFECT | As S1 | |
 | S3 | 1 | Tactile switch with a round cap, blue or black | SPEED | As S1 | |
 | J1 | 1 | Mains inlet made for the purpose: IEC C14 or C8, with its cord | 250 V AC | Per your part | The enclosure needs a small rework for it. **Not the XT60H-F** (24 × 16.4 × 9.2 mm) that the enclosure is designed around: it has no approval for mains |
-| J2 | 1 | JST-XH header, 3 pins, B3B-XH-A | 2.50 mm pitch | 9.9 × 5.75 × 7 mm | |
+| J2 | 1 | JST-XH header, 3 pins, B3B-XH-A | 2.50 mm pitch | 9.9 × 5.75 × 7 mm | **Rated 3 A with 22 AWG wire:** keep the LED limit at 3000 mA or below with it, or fit a connector rated for more. See [the garland outlet](../hardware/control-unit.md#2-garland-outlet-jst-xh-3a-b3b-xh-a-right-wall) |
 | U3 | 0-1 | DS3231 clock module, such as ZS-042 | Optional. 3.3 V supply | | Keeps time with no network. With a non-rechargeable CR2032, remove the charging resistor |
 
 ### Enclosure
@@ -71,14 +71,15 @@ To use other pins, change the `CSIGARLAND_*_GPIO` flags in [`platformio.ini`](..
 | 4 | M3 × 6 button-head hex screws | From the bottom |
 | 4 | M2 × 10 screws | Hold U1 to its posts |
 | 4 | Rubber feet, Ø8 mm | |
-| 1 set | Hook-up wire, heat-shrink, hot glue | Mains wire rated for at least 300 V, such as 0.5-0.75 mm². 22-24 AWG for the 5 V rail. It carries the owner's limit, 1.4 A by default and at most about 3.9 A, plus the board, so the wire, J2 and the supply must be rated for that limit |
+| 1 set | Hook-up wire, heat-shrink, hot glue | Mains wire rated for at least 300 V, such as 0.5-0.75 mm². 22-24 AWG for the 5 V rail. It carries the owner's limit, 1.4 A by default and at most about 3.9 A, plus the board, so the wire, J2 and the supply must be rated for that limit. J2, a JST-XH, takes 3 A |
 
 ### Garland
 
 | Qty | Part | Notes |
 |---|---|---|
-| 32 | WS2812B on a 9 × 9 × 2.5 mm breakout board | Boards with their own decoupling capacitor. The firmware's LED count estimate relies on it |
-| 32 | Printed base mounts, opaque PETG | |
+| 32 | WS2812B on a 9 × 9 × 2.5 mm breakout board | Boards with their own decoupling capacitor. Set their number on the Device page: the firmware cannot count them |
+| 32 | Printed base mounts, opaque PETG, such as PETG Basic Green | Each a cup and a plug, `base_cup.stl` and `base_plug.stl` |
+| As needed | Potting compound or hot glue | Holds each board and its joints in its cup |
 | 32 | Printed figurine caps, translucent PETG | 8 designs × 4 copies. See [Diffusers](../hardware/diffusers.md) |
 | 1 | JST-XH 3-pin plug with crimp contacts | Mates with J2 |
 | As needed | 3 flexible stranded wires, 20 to 26 AWG | See [Garland cable](#garland-cable) |
@@ -106,18 +107,26 @@ Leave the board out of its posts until step 3 of the checks below has passed.
 2. Solder the chain on the bench: `+5V` to `+5V`, `GND` to `GND`, and each board's `DOUT` to the next one's `DIN`. Follow the arrows on the boards.
 3. Solder the JST plug to the first board: pin 1 `+5V`, pin 2 `DIN`, pin 3 `GND`. Leave the last board's `DOUT` open.
 4. Test the whole chain now, on the unit or on a 5 V bench supply limited to 2 A with a data source. A cap cannot be fitted around a fault later.
-5. Snap each board into a base mount, lay the wires through the side channel and pot them with hot glue, so that pulling on the garland never reaches the solder pads.
+5. Close a base mount round each board. Nothing is threaded through it and nothing is soldered inside it:
+   1. Bend each side's three wires down at the board's edge, so that they leave the board pointing away from the LED.
+   2. Lower the cup over the board from above, its flats on the board's flats, until the board meets the lip at the neck top. The wires lie in the two wells beside the board and out along the channel; a chopstick tucks them in.
+   3. Turn the cup over, press the board onto the lip and pot the board's back and its joints with compound or hot glue, so that pulling on the garland never reaches the solder pads. Keep it below the channel, and let none run past the board's rim onto the LED.
+   4. Snap the plug in from below, its lugs beside the cable. It closes the channel under the wires.
 6. Fit the caps last. They come off again without touching the electronics.
+
+![The base mount exploded: the plug, the board on its wires and the cup](../images/diffusers/base_mount_exploded.png)
+
+![The base mount cut open: the board under the lip, the wires in their wells, a lug in its pocket](../images/diffusers/base_mount_cutaway.png)
 
 ### Garland cable
 
-Use flexible stranded wire, 20 to 26 AWG, silicone-insulated if you can get it, as the garland is handled and hung every year. Solid wire breaks at the pads. Three colours make the wiring hard to get wrong: red `+5V`, black `GND`, any other for data.
+Use flexible stranded wire, 20 to 26 AWG, silicone-insulated if you can get it, as the garland is handled and hung every year. Solid wire breaks at the pads. Three colours make the wiring hard to get wrong: red `+5V`, black `GND`, any other for data. Or match the cable to the mounts: the author's garland has green 22 AWG silicone wire, about 1.7 mm across, between the figurines, close to the PETG Basic Green of its mounts, and a black 20 AWG lead from the control unit to the first figurine. With wires of one colour, mark `+5V` and `GND` at each end before soldering.
 
 **Cutting and stripping.** The author's garland has 12.5 cm of wire between neighbouring figurines and a 3 m lead, so it took 93 pieces of 22 AWG, three for each of the 31 gaps, and three 3 m runs of 20 AWG: 186 short ends to strip and tin before the first joint. Get an automatic wire stripper before you start; by hand it is an evening of fiddly work.
 
-There is a shorter way, not yet built on a garland of this design. `+5V` and `GND` are shared by every LED, so each can be one continuous run, flat 3-core LED cable being the easiest to keep in order, with a window stripped where each board sits. Data cannot be continuous: every LED reads `DIN` and sends on from its own `DOUT`, so the line must break at every board. Keep it in short pieces, or solder a continuous data wire to both pads and cut it between them, and then check every board with a meter for no connection between `DIN` and `DOUT`: a cut forgotten shorts that LED's output to its own input, and every LED after it shows garbage. Continuous power and ground with short data pieces take about a third fewer strips, and the pull on the garland is then taken by unbroken wire rather than by solder joints. Two cautions: a window in silicone insulation is no easier by hand than an end, and the wires leave the board on both sides, so in the base mount a continuous run has to pass from one side of the board to the other. Try it on one mount first.
+There is a shorter way, not yet built on a garland of this design. `+5V` and `GND` are shared by every LED, so each can be one continuous run, flat 3-core LED cable being the easiest to keep in order, with a window stripped where each board sits. Data cannot be continuous: every LED reads `DIN` and sends on from its own `DOUT`, so the line must break at every board. Keep it in short pieces, or solder a continuous data wire to both pads and cut it between them, and then check every board with a meter for no connection between `DIN` and `DOUT`: a cut forgotten shorts that LED's output to its own input, and every LED after it shows garbage. Continuous power and ground with short data pieces take about a third fewer strips, and the pull on the garland is then taken by unbroken wire rather than by solder joints. A window in silicone insulation is no easier by hand than an end, though.
 
-**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated, not measured, for the current spread evenly along the chain, counting both `+5V` and `GND`. 1400 mA is the most the firmware allows with the 2000 mA supply at its default margin, and typical effects draw about half of that. A larger supply set on the Device page raises the limit, and the drop with it, up to about 3.9 A: the wire, J2 and the supply must be rated for the limit set.
+**Choosing the gauge.** Thicker wire loses less voltage on the way to the last LED, and thinner wire is lighter and easier to solder to a 9 mm board. These figures are calculated for the wire alone, for the current spread evenly along the chain, counting both `+5V` and `GND`; the joints add to them, see the measurement below. 1400 mA is the most the firmware allows with the 2000 mA supply at its default margin, and typical effects draw about half of that. A larger supply set on the Device page raises the limit, and the drop with it, up to about 3.9 A: the wire, J2 and the supply must be rated for the limit set.
 
 | Wire | Section | Resistance of one wire | Drop per metre of garland, at 1400 mA | The same, at 700 mA | Longest garland, for 1 V at 1400 mA |
 |---|---|---|---|---|---|
@@ -130,9 +139,9 @@ The last column is a rule of thumb: keep the drop at the last LED within about 1
 
 * **Too much drop shows** as the far LEDs turning dim and warm on white. For a longer garland, run a second pair of wires from J2 to the far end, joined to `+5V` and `GND` there. Data stays one line through the chain.
 * **Keep neighbouring LEDs within about a metre,** as the data signal is rebuilt at each one and has to get there clean. The same goes from J2 to the first LED.
-* **Check your own garland:** measure between `+5V` and `GND` at the last LED, with a white effect at 100 %.
+* **Check your own garland:** measure between `+5V` and `GND` at the last LED, with a white effect at 100 %. The author's garland, 32 LEDs on a 3 m lead of 20 AWG and 12.5 cm of 22 AWG between figurines, drew about 1 A and measured 4.80 V at the plug and 3.99 V at the last LED: 0.81 V, about twice what the table gives for its wire alone. The copper of the LED boards, which the rail crosses at every figurine, took 0.08 V of it, 2.5 mV across the first board, and the lead kept to its figure: the rest was the wire between the figurines, sold as 22 AWG, which drops what 26 AWG would. Wire is not always what its label says, so expect more than the table, and leave room for it, or measure a piece first: a 12.5 cm length of true 22 AWG drops about 6 mV at 1 A.
 
-**Fitting the mount.** The channel in the models under `3d-model/` (`cable_slot_w`) is 6.00 × 2.00 mm, with three wires side by side, so each wire can be up to 2.0 mm outside. That is meant for 20 AWG silicone wire, but its insulation varies by maker, so measure yours. Try a wire on one printed mount before buying it all.
+**Fitting the mount.** The channel in `3d-model/base_mount.scad` (`cable_slot_w`, `cable_slot_h`) is 6.00 × 2.00 mm, with three wires side by side, so each wire can be up to 2.0 mm outside, and so can the wires in the wells beside the board. That is meant for 20 AWG silicone wire, but its insulation varies by maker, so measure yours. Try a wire on one printed mount before buying it all.
 
 **At the plug.** JST-XH crimp contacts commonly take up to 22 AWG. With 20 AWG, check yours, or join a short tail of 22 AWG for the plug.
 
@@ -161,6 +170,4 @@ The last column is a rule of thumb: keep the drop at the last LED within about 1
 
 ## 6. What Is Not Settled
 
-* **LED count estimate:** it has not been run on a MOSFET-gated garland, so the screen may show `?` or a rough figure. Set the count on the Device page if so.
-
-The [roadmap](../stubs/ROADMAP.md) tracks these.
+What is left to measure on an assembled garland, the board's own draw, the Hi-Link under load in the closed box and the module's behaviour at boot among it, is in the [to-do list](../stubs/TODO.md), and the milestones in the [roadmap](../stubs/ROADMAP.md).

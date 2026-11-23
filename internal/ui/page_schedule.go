@@ -9,6 +9,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -75,26 +76,24 @@ func (p *schedulePage) init() {
 func (p *schedulePage) load(a *App) {
 	p.loadTimeline(a)
 	a.work(func(ctx context.Context, client *api.Client) (func(), error) {
-		schedule, err := client.Schedule(ctx)
-		if err != nil {
-			return nil, err
-		}
-		clock, err := client.Clock(ctx)
-		if err != nil {
-			return nil, err
-		}
-		effects, err := client.Effects(ctx)
-		if err != nil {
-			return nil, err
-		}
+		// Each part apart: one route that answers 503 for a moment leaves the others to fill what is theirs.
+		schedule, scheduleErr := client.Schedule(ctx)
+		clock, clockErr := client.Clock(ctx)
+		effects, effectsErr := client.Effects(ctx)
 		return func() {
-			p.take(schedule)
-			p.clock = clock
-			p.effects = effects
-			for _, effect := range effects {
-				p.names[effect.ID] = effect.Name
+			if scheduleErr == nil {
+				p.take(schedule)
 			}
-		}, nil
+			if clockErr == nil {
+				p.clock = clock
+			}
+			if effectsErr == nil {
+				p.effects = effects
+				for _, effect := range effects {
+					p.names[effect.ID] = effect.Name
+				}
+			}
+		}, errors.Join(scheduleErr, clockErr, effectsErr)
 	})
 }
 

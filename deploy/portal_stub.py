@@ -97,7 +97,7 @@ if os.environ.get("CSIGARLAND_STUB_UPLOADS"):
     ALL_EFFECTS.append(dict(ALL_EFFECTS[0], id="my-snow", name="My Snow", group="Uploaded", favorite=False, active=False, uploaded=True, built_in=False))
 PLAYING_NAME = next(effect["name"] for effect in ALL_EFFECTS if effect["id"] == PLAYING)
 FAVORITES = sum(effect["favorite"] for effect in ALL_EFFECTS)
-LEDS = {"count": 32, "setting": 0, "probe": "present", "estimate": 32, "kept": 0, "max": 256}
+LEDS = {"count": 32, "setting": 32, "probe": "present", "estimate": 0, "kept": 0, "max": 256}
 STATE = {"power": True, "brightness": 75, "effect": PLAYING, "effect_name": PLAYING_NAME, "speed": 1, "playlist": True, "playlist_at": 1, "playlist_size": 3, "leds": LEDS}
 # One moment for everything the pages show of time: Friday 25 December 2026, 18:42, as this computer's
 # clock would read it, so that the garland's time, the next action and the next 24 hours agree.

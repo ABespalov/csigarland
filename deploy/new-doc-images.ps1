@@ -131,6 +131,10 @@ function Invoke-Browser {
         [Parameter(Mandatory = $true)][int]$Height
     )
 
+    # A picture left from before, or from the first pass, would pass for this one if the browser made none.
+    if (Test-Path -LiteralPath $Picture) {
+        Remove-Item -LiteralPath $Picture -Force
+    }
     $arguments = @('--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--lang=en-US',
         "--user-data-dir=$(Join-Path $ScratchDir 'browser')", '--force-device-scale-factor=2',
         "--window-size=$PortalWidth,$Height", '--virtual-time-budget=4000', "--screenshot=$Picture", $Url)

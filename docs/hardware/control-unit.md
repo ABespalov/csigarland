@@ -13,7 +13,7 @@ flowchart TD
     end
 
     subgraph DC_Section ["Low-Voltage DC Bay (5V / 3.3V)"]
-        HiLink -->|"5V DC / GND"| Cap["1000 uF Low-ESR Filter"]
+        HiLink -->|"5V DC / GND"| Cap["Filter capacitor: 100 uF in the prototype, 470-1000 uF if it fits"]
         Cap -->|"5V Permanent"| ESP["Waveshare ESP32-C6-LCD-1.3"]
         Cap -->|"5V IN+"| Mosfet["High-Side P-MOSFET Switch (13.2x6mm)"]
         
@@ -59,7 +59,7 @@ stateDiagram-v2
     Active --> Countdown: POWER long press
     Countdown --> Active: Any button
     Countdown --> Standby: 5 s pass
-    Active --> Standby: Portal or schedule
+    Active --> Standby: Utility, public API or schedule
     Active --> Active: Clicks and long presses of EFFECT and SPEED, POWER click
 ```
 
@@ -130,7 +130,7 @@ flowchart LR
 The web interface is six responsive, touch-friendly pages, described one by one in the [User Guide](../guides/user-guide.md#8-portal-pages):
 * **Effects:** what is playing, its brightness and speed on sliders, playing any ready effect, the favourites the EFFECT button cycles through, the playlist with how long each effect plays and the cross-fade between them, and uploading effects.
 * **Schedule:** the next 24 hours on a timeline, and up to 32 actions with a time, days of the week and steps (on, on rising from dark over a minute, or off, brightness, speed, an effect or the playlist), the time zone and the clock module.
-* **Device:** the LED count, automatic or set by hand, 1-256; the power supply, an LED's draw at full white and dark, and the margin, which give the current limit; and the screen: brightness in normal use and during a screensaver, the screensaver's type and delay.
+* **Device:** the LED count, set by hand, 1-256; the power supply, an LED's draw at full white and dark, and the margin, which give the current limit; and the screen: brightness in normal use and during a screensaver, the screensaver's type and delay.
 * **Network:** finding, joining and forgetting the home network, the mDNS name, and the HTTPS certificate.
 * **Firmware:** the running version, and installing a signed update file.
 * **Info:** the board, memory, addresses, and the browsers that have access.
@@ -148,7 +148,7 @@ Over HTTPS. All but those marked open want a paired browser, and answer 401 othe
 | Method | Endpoint | Description | Payload Example |
 |---|---|---|---|
 | `GET`, `POST` | `/api/state` | Power, brightness, effect, speed and LED count; set the brightness, 1-100, or the speed, 0.25-5 by 0.25, which turns nothing on | `{"brightness": 40, "speed": 1.5}` |
-| `POST` | `/api/leds` | LED count, 0 for automatic | `{"count": 32}` |
+| `POST` | `/api/leds` | LED count, 1-256; 0 takes the firmware's own | `{"count": 32}` |
 | `GET`, `POST` | `/api/leds/power` | The current limit's settings, and the limit, the chain's draw at full white and the LEDs left undimmed they come to | `{"supply_ma": 2000, "led_white_ma": 40, "led_idle_ma": 1, "margin_percent": 20}` |
 | `GET` | `/api/effects` | Ready effects, with favourite and active flags | |
 | `GET` | `/api/effects/planned` | Effects marked `todo` in the catalog | |
@@ -344,6 +344,7 @@ The 13.2 × 6.0 mm module lies flat in a 13.8 × 6.6 mm cradle next to the parti
 
 #### 2. Garland Outlet: JST-XH-3A (B3B-XH-A), right wall
 * **Pinout:** Pin 1 `+5V_SW` (MOSFET `OUT+`), Pin 2 `DIN` (GPIO 2 via 330 Ω), Pin 3 `GND`.
+* **Rated 3 A.** JST's [specification](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) rates the XH series for 3 A with 22 AWG wire, and all of the LED current goes through pins 1 and 3. The default limit, 1400 mA, is well within that, but the power settings allow up to about 3.9 A. **With this header, keep the limit the Device page shows at 3000 mA or below, and use 22 AWG wire or thicker to the garland.** The firmware cannot tell which connector is fitted. For a higher limit, use a connector and wire rated for it, which takes a small rework of the enclosure's window.
 * **Mounting:** the header sits in a flush 10.2 × 6.0 mm window/sleeve, 7.0 mm deep. Solder the three wires first, feed them through the window from the outside and push the header in until it stops against the backstop rib (the rib has a slot for the pins and wires). A drop of hot glue from inside keeps it from being pulled out; a 16.4 mm lid post above it keeps it in the sleeve.
 * **Polarity:** the shrouded header only accepts the plug one way round.
 * **Check Before Printing:** print the `test_jst` coupon to verify the fit.

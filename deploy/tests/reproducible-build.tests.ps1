@@ -112,8 +112,11 @@ for ($i = 0; $i -lt $Made.Count; $i++) {
 }
 if ($differ -gt 0) {
     # Where the first image's bytes part, for a start at finding why.
-    $first = [System.IO.File]::ReadAllBytes((Join-Path $copies[0] "firmware\app\$($Made[1])"))
-    $second = [System.IO.File]::ReadAllBytes((Join-Path $copies[1] "firmware\app\$($Made[1])"))
+    $firstPath = Join-Path $copies[0] "firmware\app\$($Made[1])"
+    $secondPath = Join-Path $copies[1] "firmware\app\$($Made[1])"
+    # A copy that made no image says so in the summary below, rather than end here.
+    $first = if (Test-Path -LiteralPath $firstPath) { [System.IO.File]::ReadAllBytes($firstPath) } else { [byte[]]@() }
+    $second = if (Test-Path -LiteralPath $secondPath) { [System.IO.File]::ReadAllBytes($secondPath) } else { [byte[]]@() }
     for ($at = 0; $at -lt [Math]::Min($first.Length, $second.Length); $at++) {
         if ($first[$at] -ne $second[$at]) {
             Write-Host ('firmware.bin first differs at 0x{0:X} of {1} and {2} bytes.' -f $at, $first.Length, $second.Length)

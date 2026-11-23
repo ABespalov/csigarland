@@ -121,7 +121,8 @@ if ($FirmwareManifest) {
     $saved = @{ Root = $env:CSIGARLAND_RELEASE_ROOT; Number = $env:CSIGARLAND_BUILD_NUMBER; Throwaway = $env:CSIGARLAND_THROWAWAY_SIGNING }
     $environment = Get-csiGarlandFirmwareEnvironment -BuildProfile $version.Profile
     try {
-        $env:CSIGARLAND_RELEASE_ROOT = [System.IO.Path]::GetFullPath($Root)
+        # Against PowerShell's own folder, which .NET's current directory need not be.
+        $env:CSIGARLAND_RELEASE_ROOT = [System.IO.Path]::GetFullPath($Root, (Get-Location -PSProvider FileSystem).ProviderPath)
         $env:CSIGARLAND_BUILD_NUMBER = "$($version.Number)"
         Remove-Item Env:CSIGARLAND_THROWAWAY_SIGNING -ErrorAction SilentlyContinue
         Write-Host "Building firmware $($release.version) again."
@@ -148,7 +149,6 @@ if ($FirmwareManifest) {
 if ($UtilityManifest) {
     $release = Get-Content -Raw -LiteralPath $UtilityManifest | ConvertFrom-Json
     $version = Split-Version -Version $release.version
-    $go = "$(& go version)".Trim()
     $compiler = "$((& gcc --version 2>$null) | Select-Object -First 1)".Trim()
     if ($compiler -ne $release.compiler) {
         Write-Warning "The C++ compiler here is $compiler, the release's $($release.compiler): expect the files to differ."

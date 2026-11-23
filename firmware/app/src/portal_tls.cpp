@@ -381,6 +381,9 @@ void maker_task(void*) {
 // is over, made or failed, so that a renewal is weighed on what came of it: a time sync while the maker
 // still runs would weigh the certificate it is about to replace, and restart for it.
 std::atomic<bool> s_configured{false};
+// Set once s_identity is whole and serves, and before that never read by another task: plain HTTP is up while
+// it is still read from flash and made, and an identity whose check ran out of memory is not one that serves.
+std::atomic<bool> s_published{false};
 // When this start's making of certificates failed, in microseconds of uptime, or -1: a renewal that the
 // time sync asks for would restart into the same failure, and every restart cuts short the time plain
 // HTTP has to take an update in. One is let through only every kRenewAfterFailureUs.
@@ -395,7 +398,7 @@ int64_t soonest_start(int64_t now_epoch) {
 }  // namespace
 
 const TlsIdentity* portal_tls_identity_loaded() {
-    return s_identity.certificate[0] != '\0' ? &s_identity : nullptr;
+    return s_published.load(std::memory_order_acquire) ? &s_identity : nullptr;
 }
 
 bool portal_tls_renewal_due(int64_t now_epoch) {
@@ -405,7 +408,9 @@ bool portal_tls_renewal_due(int64_t now_epoch) {
     if (failed_at >= 0 && esp_timer_get_time() - failed_at < kRenewAfterFailureUs) {
         return false;
     }
-    return s_configured.load() && portal_tls_identity_loaded() != nullptr && rtc_epoch_is_valid(now_epoch) &&
+    // After s_configured, s_identity is no longer written: one kept unchecked, out of memory, counts too, so that
+    // a renewal can still come for it once the failure's wait is over.
+    return s_configured.load() && s_identity.certificate[0] != '\0' && rtc_epoch_is_valid(now_epoch) &&
            (tls_root_is_stale(s_identity, s_domain, now_epoch) || tls_certificate_is_stale(s_identity, s_wanted_names, now_epoch) ||
             tls_starts_after(s_starts, soonest_start(now_epoch)));
 }
@@ -421,6 +426,7 @@ bool portal_tls_prepare_renewal(int64_t now_epoch) {
 }
 
 const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
+    s_published.store(false, std::memory_order_release);
     s_configured.store(false);
     StoredRead read = settings_load_tls(s_identity);
     for (int attempt = 1; attempt < kReadAttempts && read == StoredRead::Unreadable; ++attempt) {
@@ -464,6 +470,7 @@ const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
     }
     if (s_identity.root_key[0] != '\0' && s_identity.key[0] != '\0' && s_identity.certificate[0] != '\0' &&
         !tls_root_is_stale(s_identity, s_domain, s_now_epoch) && !tls_certificate_is_stale(s_identity, s_wanted_names, s_now_epoch)) {
+        s_published.store(true, std::memory_order_release);
         s_configured.store(true);
         return &s_identity;
     }
@@ -480,6 +487,7 @@ const TlsIdentity* portal_tls_identity(const char* hostname, State& state) {
         s_configured.store(true);
         return nullptr;
     }
+    s_published.store(true, std::memory_order_release);
     s_configured.store(true);
     return &s_identity;
 }

@@ -169,8 +169,8 @@ struct EffectSpec {
 };
 
 // Fills out from one effect file. A file is accepted whole or not at all: on
-// failure returns false and points error at a static description. Unknown fields
-// are ignored, so a newer file can load on older firmware.
+// failure returns false and points error at a static description, and out holds a part of it, which the
+// caller throws away. Unknown fields are ignored, so a newer file can load on older firmware.
 bool parse_effect(const char* json, const char* id, EffectSpec& out, const char*& error);
 
 }  // namespace garland

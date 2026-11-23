@@ -16,10 +16,11 @@
 #   -NewBuild
 #       Spend a build number even though the last build is usable.
 #
-#   -BuildProfile Release|Dev
+#   -BuildProfile Release|Dev|Lab
 #       Release, the default, is what goes into a release: no debug information, and the plain
-#       version, such as 1.0.0.102. Dev keeps the debug information and is staged as 1.0.0.102-dev.
-#       Each profile builds in its own folder, so the last build of the other is never taken.
+#       version, such as 1.0.0.102. Dev keeps the debug information and is staged as 1.0.0.102-dev,
+#       and Lab, Dev with what measuring a garland needs (docs/guides/lab.md), as 1.0.0.102-lab.
+#       Each profile builds in its own folder, so the last build of another is never taken.
 #
 # Writes assets/firmware/csigarland-<version>.ota and a .sha256 beside it. The file is
 # what the portal's Firmware update and ota-update.ps1 send to the garland. Its
@@ -34,7 +35,7 @@
 [CmdletBinding()]
 param(
     [switch]$NewBuild,
-    [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release'
+    [ValidateSet('Release', 'Dev', 'Lab')][string]$BuildProfile = 'Release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -127,6 +128,8 @@ function Get-BuildProblem {
 $before = -1
 $staged = $false
 $destination = $null
+# The set staged from, removed in finally whatever happens, as stage-assets.sh removes its own.
+$set = $null
 # The firmware build lock of this checkout, held from the look at the last build, through a build of its
 # own, to the set it stages: another build would replace the files staged, or take the number given back.
 # flash-device.ps1 runs under it, told so.
@@ -179,12 +182,23 @@ try {
 
     # A binary passed on owes the notices of what it holds, and the file cannot be judged with no Go. The
     # notices read the licences of the Go modules from Go's cache, which a clean clone has yet to fill.
-    if (Get-Command go -ErrorAction SilentlyContinue) {
+    # A Lab build links the chip's temperature driver too, so its own link maps give another file than the
+    # releases': it is held to the last of the Release and Dev builds, and with neither here it is not checked,
+    # as a Lab build is never published.
+    $releaseMaps = @('Release', 'Dev' | Where-Object {
+            $folder = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $_)"
+            (Test-Path -LiteralPath $folder) -and @(Get-ChildItem -LiteralPath $folder -Filter *.map -File).Count -gt 0
+        })
+    if ($BuildProfile -eq 'Lab' -and $releaseMaps.Count -eq 0) {
+        Write-Warning 'No Release or Dev build here to hold THIRD_PARTY_NOTICES.md to, so it was not checked: a Lab build is never published.'
+        $noticesChecked = $false
+    } elseif (Get-Command go -ErrorAction SilentlyContinue) {
         & go -C $RepoRoot mod download
         if ($LASTEXITCODE -ne 0) {
             throw "Go could not fetch the utility's modules, whose licences the notices hold (exit code $LASTEXITCODE). Nothing was staged."
         }
-        & pwsh -File (Join-Path $PSScriptRoot 'new-third-party-notices.ps1') -Check -BuildProfile $BuildProfile
+        $noticesProfile = if ($BuildProfile -eq 'Lab') { @() } else { @('-BuildProfile', $BuildProfile) }
+        & pwsh -File (Join-Path $PSScriptRoot 'new-third-party-notices.ps1') -Check @noticesProfile
         if ($LASTEXITCODE -ne 0) {
             throw 'THIRD_PARTY_NOTICES.md is not what this build linked. Nothing was staged.'
         }
@@ -229,9 +243,11 @@ try {
     $manifest | Add-Member effects @((Get-Content -Raw -LiteralPath (Join-Path $FirmwareDir 'effects\catalog.json') | ConvertFrom-Json).effects).Count
     [System.IO.File]::WriteAllText("$destination.manifest.json", (($manifest | ConvertTo-Json) + "`n"), [System.Text.UTF8Encoding]::new($false))
 
-    [System.IO.Directory]::Delete($set, $true)
     $staged = $true
 } finally {
+    if ($set -and (Test-Path -LiteralPath $set)) {
+        [System.IO.Directory]::Delete($set, $true)
+    }
     if (-not $staged) {
         # Nothing half staged is left under the name of a version built here, which no staging held before.
         if ($destination -and $before -ge 0) {

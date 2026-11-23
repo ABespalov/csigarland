@@ -63,10 +63,14 @@ csg_wait_device_port() {
     done
     # "Not found" alone cannot tell a missing board from one on another port.
     csg_say "No ${requested:+$requested with }VID_${CSG_BOARD_VID}&PID_${CSG_BOARD_PID} appeared. USB serial ports seen:"
-    if [ -z "$boards" ]; then csg_say '  (none)'; fi
-    printf '%s\n' "$boards" | while IFS="$(printf '\t')" read -r port vid pid _; do
-        [ -n "$port" ] && csg_say "  $port  VID_$vid&PID_$pid"
-    done
+    # An if, not a list ending in &&, whose false would end the loop, and the function under set -e, with 1.
+    if [ -z "$boards" ]; then
+        csg_say '  (none)'
+    else
+        printf '%s\n' "$boards" | while IFS="$(printf '\t')" read -r port vid pid _; do
+            if [ -n "$port" ]; then csg_say "  $port  VID_$vid&PID_$pid"; fi
+        done
+    fi
     return 0
 }
 

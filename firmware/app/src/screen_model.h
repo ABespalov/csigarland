@@ -115,7 +115,7 @@ constexpr ScreenId choose_screen(const Snapshot& s) {
     if (s.setup_network) {
         return ScreenId::SetupNetwork;
     }
-    if (s.led_setting == kLedCountAuto && s.probe == ProbeStatus::Absent) {
+    if (s.led_setting == kLedCountUnset && s.probe == ProbeStatus::Absent) {
         return ScreenId::NoLeds;
     }
     return s.power_requested ? ScreenId::Playing : ScreenId::Standby;
@@ -201,22 +201,16 @@ inline void fill_screen_stats(const Snapshot& s, ScreenModel& out) {
     speed_to_text(s.speed_x4, speed);
     std::snprintf(out.stats[1], sizeof(out.stats[1]), "%sx", speed);
 
-    // A plain number is the owner's setting; the tilde marks the probe's estimate.
+    // The count the LEDs are sent to, set by hand or the build's own; 0 with none set and nothing on the pin.
     char* const leds = out.stats[2];
     const size_t room = sizeof(out.stats[2]);
     if (s.led_kept != 0) {
         // What the LEDs are getting, and the mark says it is not what was asked for.
         std::snprintf(leds, room, "!%u", s.led_kept);
-    } else if (s.led_setting != kLedCountAuto) {
-        std::snprintf(leds, room, "%u", s.led_count);
-    } else if (s.probe == ProbeStatus::NotChecked) {
-        std::snprintf(leds, room, "...");
-    } else if (s.probe == ProbeStatus::Absent) {
+    } else if (s.led_setting == kLedCountUnset && s.probe == ProbeStatus::Absent) {
         std::snprintf(leds, room, "0");
-    } else if (s.led_estimate == 0) {
-        std::snprintf(leds, room, "?");
     } else {
-        std::snprintf(leds, room, "~%u", s.led_estimate);
+        std::snprintf(leds, room, "%u", s.led_count);
     }
 }
 

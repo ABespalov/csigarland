@@ -95,5 +95,6 @@
   const choice = asked === 'ru' || asked === 'en' ? asked : saved();
   if (choice === 'en' || (choice === null && !prefersRussian())) return;
   const page = location.pathname.split('/').pop();
-  location.replace('ru/' + (page === 'index.html' ? '' : page) + location.search + location.hash);
+  // From the site's root, whatever address the English page was reached by.
+  location.replace('/ru/' + (page === 'index.html' ? '' : page) + location.search + location.hash);
 })();

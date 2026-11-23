@@ -50,7 +50,7 @@ Run these as well when the change touches them:
 
 | Changed | Also |
 |---|---|
-| The signing tool | `firmware/app/scripts/test_ota_sign_tool.py`, under ESP-IDF's Python |
+| The signing tool | `firmware/app/scripts/test_ota_sign_tool.py`, under the Python `Get-csiGarlandSigningPython` in `deploy/SigningPython.psm1` picks |
 | Device detection | `pwsh -File deploy\tests\partition-entry.tests.ps1` |
 | A portal page | The real page in a browser with the server stubbed, as host tests do not run its script |
 | A dependency, or a setting that links more | `pwsh -File deploy\new-third-party-notices.ps1` after a build |

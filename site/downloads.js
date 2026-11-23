@@ -31,6 +31,7 @@ const DOWNLOADS_RU = {
   notes: 'Описание изменений',
   download: 'Скачать',
   notYet: 'В разработке',
+  older: 'Предыдущие сборки',
   same: (releases) => `Тот же файл ${releases.length > 1 ? 'в релизах' : 'в релизе'} ${releases.join(', ')}.`,
   updated: (day) => `Обновлено ${day}.`,
   macHelp: {
@@ -145,7 +146,8 @@ function distinctFiles(released) {
   return rows;
 }
 
-// A platform of a product, with its releases newest first, or "Not yet" when it has none.
+// A platform of a product, with its newest release in sight and the ones before folded under "Previous builds",
+// opened in place, each with its own Download; or "Not yet" when it has none.
 function platformBlock(platform, builds, ru) {
   const released = builds.filter((build) => build.available).sort(newerFirst);
   const block = element('div', 'platform' + (released.length ? '' : ' unavailable'));
@@ -155,7 +157,14 @@ function platformBlock(platform, builds, ru) {
     block.append(element('p', 'meta', ru ? DOWNLOADS_RU.notYet : 'Not yet'));
     return block;
   }
-  block.append(...distinctFiles(released).map((row) => releaseRow(row.build, ru, row.same)));
+  const [newest, ...older] = distinctFiles(released);
+  block.append(releaseRow(newest.build, ru, newest.same));
+  if (older.length > 0) {
+    const folded = element('details', 'older');
+    folded.append(element('summary', '', ru ? DOWNLOADS_RU.older : 'Previous builds'));
+    folded.append(...older.map((row) => releaseRow(row.build, ru, row.same)));
+    block.append(folded);
+  }
   return block;
 }
 

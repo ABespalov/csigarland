@@ -67,7 +67,7 @@ Pairing s_pairing;
 esp_timer_handle_t s_clear_timer = nullptr;
 constexpr size_t kMaxOriginBytes = 96;  // A portal's own is far shorter.
 char s_pending_label[kAuthLabelBytes] = "";
-bool s_secure_cookies = false;
+std::atomic<bool> s_secure_cookies{false};
 // Under s_lock: TLS can recover its domain read after plain HTTP has started.
 AuthDomain s_domain;
 
@@ -497,7 +497,9 @@ esp_err_t auth_handle_request(httpd_req_t* req) {
         retry_ms = started ? 0 : s_pairing.retry_after_ms(now_ms());
         if (started) {
             const cJSON* label = cJSON_GetObjectItemCaseSensitive(root.get(), "label");
-            auth_clean_label(cJSON_IsString(label) ? label->valuestring : "Browser", s_pending_label);
+            // An empty label names nothing in the list of paired clients: the same as none.
+            const bool named = cJSON_IsString(label) && label->valuestring[0] != '\0';
+            auth_clean_label(named ? label->valuestring : "Browser", s_pending_label);
             s_state->set_pair_display(pair_display_for_code(code));
         }
     }
@@ -572,9 +574,9 @@ esp_err_t handle_wait(httpd_req_t* req, bool token_in_answer) {
         ESP_LOGI(TAG, "a program was paired");
         return send_json(req, reply.get());
     }
-    // Secure where the request came over TLS, which is all but the setup network, or everything
-    // when HTTPS has failed. Here until the reply is sent below, as long as the header needs it.
-    const bool secure = s_secure_cookies && !auth_on_setup_network(req);
+    // Secure where the request came over TLS, the setup network's HTTPS too, whose next request would clear a
+    // plain one. Here until the reply is sent below, as long as the header needs it.
+    const bool secure = portal_request_is_secure(req);
     char cookie[sizeof(kPlainCookieName) + kAuthTokenBytes * 2 + 80];
     std::snprintf(cookie, sizeof(cookie), "%s=%s; Max-Age=%lld; Path=/; HttpOnly; SameSite=Strict%s", secure ? kCookieName : kPlainCookieName,
                   token_text, static_cast<long long>(kAuthValiditySeconds), secure ? "; Secure" : "");
@@ -594,6 +596,10 @@ esp_err_t auth_handle_wait_for_token(httpd_req_t* req) {
 }
 
 esp_err_t auth_handle_devices(httpd_req_t* req) {
+    // Unread, the list would say no browser is paired, as the setup network lets this through without one.
+    if (s_unread.load()) {
+        return portal_send_status(req, "503 Service Unavailable", "the paired browsers cannot be read now, so try again");
+    }
     const JsonPtr root(cJSON_CreateObject());
     cJSON* list = root != nullptr ? cJSON_AddArrayToObject(root.get(), "devices") : nullptr;
     if (list == nullptr) {
@@ -638,7 +644,7 @@ esp_err_t auth_handle_forget(httpd_req_t* req) {
         Guard saving(s_save_lock);
         // Read first: the list that could not be read is the one this browser is in.
         if (!list_is_read()) {
-            return portal_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "the paired browsers cannot be read now, so try again");
+            return portal_send_status(req, "503 Service Unavailable", "the paired browsers cannot be read now, so try again");
         }
         {
             Guard guard;

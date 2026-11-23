@@ -12,7 +12,7 @@
 #
 #   -NoBuild
 #       Send the update file from the last build instead of spending a build number: the last of
-#       the profile -BuildProfile names. Without -BuildProfile, the one profile built here; with both
+#       the profile -BuildProfile names. Without -BuildProfile, the one profile built here; with more
 #       built, it asks for -BuildProfile rather than guess which was meant. A build whose firmware is
 #       not of that profile and of this checkout's base version, as one left from 1.0.0 in the folder
 #       Dev now has, is refused: -File sends it if it is meant.
@@ -26,8 +26,9 @@
 #   -File <path>
 #       Send this update file as it is, with no build.
 #
-#   -BuildProfile Release|Dev
-#       What to build: Release, the default, or Dev, with debug information and a -dev version.
+#   -BuildProfile Release|Dev|Lab
+#       What to build: Release, the default, Dev, with debug information and a -dev version, or Lab,
+#       Dev with what measuring a garland needs and a -lab version (docs/guides/lab.md).
 #
 #   -Insecure
 #       For recovery, or reaching the garland by its address: do not check who answers, and fall
@@ -67,7 +68,7 @@ param(
     [switch]$EffectsOnly,
     [string]$File = '',
     [switch]$Insecure,
-    [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release'
+    [ValidateSet('Release', 'Dev', 'Lab')][string]$BuildProfile = 'Release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -145,6 +146,10 @@ function Get-UpdateContents {
     if ($bytes.Length -ne $HeaderBytes + $certificate + $pack + $image -or ($pack + $image) -eq 0) {
         throw "$Path is incomplete. Nothing was sent."
     }
+    # An effects part shorter than its own 12-byte header is no pack: read on, it would run past the file.
+    if ($pack -gt 0 -and $pack -lt 12) {
+        throw "$Path holds an effects part too short to be one. Nothing was sent."
+    }
     $packStart = $HeaderBytes + $certificate
     $parts = @()
     $imageId = $null
@@ -186,7 +191,7 @@ function Get-UpdateContents {
 # folder may hold a build from before each profile had its own, such as a Release of 1.0.0 left in
 # esp32c6, which is now Dev's.
 # By the grammar the build spells versions with, see Get-csiGarlandFirmwareIdentity: the build number
-# comes before the base's own suffix, as 1.1.0.123-rc.1, and -dev after it for Dev.
+# comes before the base's own suffix, as 1.1.0.123-rc.1, and -dev after it for Dev, -lab for Lab.
 function Get-BuildVersionProblem {
     param([string]$Version, [Parameter(Mandatory = $true)][string]$BuildProfile)
     $ini = Join-Path $FirmwareDir 'platformio.ini'
@@ -219,10 +224,10 @@ try {
                 throw "Build failed with exit code $LASTEXITCODE. Nothing was sent."
             }
         } elseif (-not $PSBoundParameters.ContainsKey('BuildProfile')) {
-            # Each profile builds in its own folder, so "the last build" may be either: a Release left from
+            # Each profile builds in its own folder, so "the last build" may be any: a Release left from
             # long ago is no answer for a Dev built since. Only a file of the kind asked for, whose firmware is
             # of its folder's profile and this checkout's base, counts.
-            $built = @('Release', 'Dev' | Where-Object {
+            $built = @('Release', 'Dev', 'Lab' | Where-Object {
                     $candidate = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $_)\$UpdateName"
                     if (-not (Test-Path -LiteralPath $candidate)) {
                         return $false
@@ -237,7 +242,7 @@ try {
                     (Test-csiGarlandOwnSignature -RepoRoot $RepoRoot -UpdatePath $candidate)
                 })
             if ($built.Count -gt 1) {
-                throw 'Both a Release and a Dev build of this version are here: name the one to send with -BuildProfile Release or -BuildProfile Dev. Nothing was sent.'
+                throw "Builds of more than one profile of this version are here, $($built -join ' and '): name the one to send with -BuildProfile $($built -join ' or -BuildProfile '). Nothing was sent."
             }
             if ($built.Count -eq 1) {
                 $BuildDir = Join-Path $FirmwareDir ".pio\build\$(Get-csiGarlandFirmwareEnvironment -BuildProfile $built[0])"
@@ -267,7 +272,7 @@ $contents = Get-UpdateContents -Bytes $UpdateBytes -Path $UpdatePath
 # A file from a build folder is held to its folder's profile and to this checkout's base, by the version
 # the image itself holds. A file meant all the same goes by -File.
 if (-not $File -and -not $EffectsOnly) {
-    $folderProfile = if ((Split-Path -Leaf $BuildDir) -eq (Get-csiGarlandFirmwareEnvironment -BuildProfile 'Release')) { 'Release' } else { 'Dev' }
+    $folderProfile = Get-csiGarlandFirmwareProfileOf -Folder (Split-Path -Leaf $BuildDir)
     $problem = Get-BuildVersionProblem -Version $contents.Version -BuildProfile $folderProfile
     if ($problem) {
         throw "$UpdatePath holds $($problem): a build left from before, it seems. Build again, or send it with -File if it is meant. Nothing was sent."

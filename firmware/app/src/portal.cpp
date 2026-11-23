@@ -89,8 +89,10 @@ public:
 private:
     httpd_req_t* req_;
 };
-const TlsIdentity* s_identity = nullptr;
-bool s_secure_running = false;
+// HTTPS from the start: plain HTTP is up first, for the trial's log and the setup network, and serves the rest
+// only once HTTPS has failed, not while it is still starting. Read by both servers' tasks, so one word.
+enum class Https : uint8_t { Starting, Running, Failed };
+std::atomic<Https> s_https{Https::Starting};
 constexpr uint32_t kTrialNetworkWaitMs = 20000;
 constexpr uint32_t kTrialStepMs = 200;
 constexpr uint32_t kTrialLogWindowMs = 3000;
@@ -141,7 +143,7 @@ esp_err_t handle_ota_set(httpd_req_t* req) {
 }
 
 esp_err_t handle_trial_log(httpd_req_t* req) {
-    return trial_log_handle(req, s_secure_running);
+    return trial_log_handle(req, s_https.load() == Https::Running);
 }
 
 // What a program asks first: what it is talking to, and whether it can. Open, holding nothing private.
@@ -258,14 +260,21 @@ constexpr httpd_method_t kPublicMethods[] = {HTTP_GET, HTTP_POST, HTTP_DELETE, H
 static_assert(std::size(kPortalFiles) + std::size(kRoutes) + std::size(kPublicMethods) <= kMaxRoutes, "a route past the limit stops the server");
 
 // Plain HTTP serves the setup network alone: its phone windows refuse our certificate. Anyone
-// else is sent to HTTPS before anything they sent is read.
+// else is sent to HTTPS before anything they sent is read, or told to wait while HTTPS starts: plain HTTP
+// serves them only once HTTPS has failed.
 bool must_use_https(httpd_req_t* req) {
-    return s_secure_running && req->handle == s_plain_server && !auth_on_setup_network(req);
+    return s_https.load() != Https::Failed && req->handle == s_plain_server && !auth_on_setup_network(req);
 }
 
 esp_err_t redirect_to_https(httpd_req_t* req) {
     // Nothing it sent is read here, whatever the answer: a body is the client's to send again, to HTTPS.
     portal_mark_body_unread(req);
+    if (s_https.load() == Https::Starting) {
+        // Seconds, or a minute or two while a first key is made: no page and no cookie over plain HTTP meanwhile.
+        httpd_resp_set_hdr(req, "Retry-After", "5");
+        httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+        return portal_end_of_request(req, portal_send_status(req, "503 Service Unavailable", "HTTPS is starting: try again in a few seconds"));
+    }
     char host[80] = "";
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
         return portal_end_of_request(req, portal_send_err(req, HTTPD_400_BAD_REQUEST, "no host"));
@@ -493,7 +502,6 @@ esp_err_t start_plain_server() {
 esp_err_t start_secure_server(State& state) {
     const TlsIdentity* const identity = portal_tls_identity(network_hostname(), state);
     ESP_RETURN_ON_FALSE(identity != nullptr, ESP_FAIL, TAG, "no certificate to serve with");
-    s_identity = identity;
     httpd_ssl_config_t secure = HTTPD_SSL_CONFIG_DEFAULT();
     secure.servercert = reinterpret_cast<const uint8_t*>(identity->certificate);
     secure.servercert_len = std::strlen(identity->certificate) + 1;
@@ -549,9 +557,10 @@ esp_err_t start_all(State& state) {
     }
     const esp_err_t secure = start_secure_server(state);
     if (secure == ESP_OK) {
-        s_secure_running = true;
         auth_set_secure_cookies(true);
+        s_https.store(Https::Running);
     } else {
+        s_https.store(Https::Failed);
         ESP_LOGE(TAG, "no HTTPS, the portal stays on plain HTTP: %s", esp_err_to_name(secure));
     }
     // Either one can take the next update, which is what matters.
@@ -718,7 +727,7 @@ JsonPtr portal_read_json(httpd_req_t* req) {
 }
 
 bool portal_https_running() {
-    return s_secure_running;
+    return s_https.load() == Https::Running;
 }
 
 bool portal_request_is_secure(httpd_req_t* req) {

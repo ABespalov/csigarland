@@ -2,8 +2,9 @@
 # Licensed under the terms specified by the MIT License
 # Part of the csiGarland project https://github.com/ABespalov/csigarland
 #
-# Purpose: Renders the figurines from their OpenSCAD models: each one on its mount, and the eight on the
-#          cable in the order of the firmware's layout, for docs/images/diffusers; and the control unit's
+# Purpose: Renders the figurines from their OpenSCAD models: each one on its mount, the eight on the
+#          cable in the order of the firmware's layout, and the two-part mount exploded and cut open,
+#          for docs/images/diffusers; and the control unit's
 #          enclosure, exploded and as its parts print, for docs/images/hardware.
 # Contributors: None
 
@@ -42,6 +43,12 @@ ENCLOSURE = {
     "enclosure_exploded_preview.png": ("exploded", "0,0,0,60,0,25,500", "1400,1000"),
     "enclosure_base_internal.png": ("base", "0,0,0,50,0,30,500", "1400,1000"),
     "enclosure_parts.png": ("parts", "0,0,0,50,0,20,500", "1600,900"),
+}
+# The base mount's views of base_mount.scad: its cup lifted off the LED board and its plug below,
+# as it goes together; and cut open, from the side the cut faces.
+BASE = {
+    "base_mount_exploded.png": ("exploded", "0,0,4,65,0,30,120"),
+    "base_mount_cutaway.png": ("cutaway", "0,0,4,70,0,135,80"),
 }
 
 
@@ -147,7 +154,7 @@ def main() -> None:
         print(f"diffuser_{name}.png")
 
     order = layout(root)
-    uses = "".join(f"use <{model(name)}>\n" for name in CAPS)
+    uses = "".join(f"use <{model(name)}>\n" for name in CAPS) + f"use <{(models / 'base_mount.scad').as_posix()}>\n"
     places = "".join(
         f"translate([{(i - 3.5) * PITCH}, 0, 0]) rotate([0, 180, 0]) figurine() {CAPS[name]}();\n"
         for i, name in enumerate(order)
@@ -158,11 +165,15 @@ def main() -> None:
         + f"""
 // A figurine on its mount, with its LED board, hanging from the cable.
 module figurine() {{
-    base_mount();
-    translate([0, 0, 4.40 + 5.00 - 1.40]) led_pcb_dummy();
+    base_assembly(wires = false);
     translate([0, 0, 4.40]) children();
 }}
-rotate([0, 180, 0]) translate([0, 0, 1.20 + 2.00 / 2]) wire_harness_dummy(len = 7 * {PITCH} + 36);
+// The first eight from the control unit: its black lead ends in the first figurine's base, and
+// the green cable runs on from there. The turn over mirrors x, so the first one's side is +x here.
+rotate([0, 180, 0]) translate([0, 0, base_wire_z()]) {{
+    translate([-9, 0, 0]) wire_harness_dummy(len = 7 * {PITCH} + 18);
+    translate([3.5 * {PITCH} + 9, 0, 0]) wire_harness_dummy(len = 18, lead = true);
+}}
 """
         + places,
         encoding="utf-8",
@@ -171,6 +182,13 @@ rotate([0, 180, 0]) translate([0, 0, 1.20 + 2.00 / 2]) wire_harness_dummy(len = 
     render(openscad, scad, raw, "1660,900", ["--autocenter", "--viewall"])
     crop(raw, target / "garland_octet_hanging.png")
     print("garland_octet_hanging.png: " + ", ".join(order))
+
+    base = models / "base_mount.scad"
+    for picture, (mode, camera) in BASE.items():
+        raw = scratch / f"base-{mode}-raw.png"
+        render(openscad, base, raw, "1000,900", [f"--camera={camera}", "--autocenter", "--viewall", "-D", f'view_mode="{mode}"'])
+        crop(raw, target / picture)
+        print(picture)
 
     enclosure = models / "control_enclosure.scad"
     for picture, (mode, camera, size) in ENCLOSURE.items():

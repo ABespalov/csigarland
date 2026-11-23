@@ -258,6 +258,11 @@ func TestThePowerSettingsAreKept(t *testing.T) {
 	if _, err := Restore(ctx, kept.serve(t), old, func(string) {}); err != nil || kept.power.SupplyMilliamps != 3000 {
 		t.Fatalf("%v %+v", err, kept.power)
 	}
+	// Cautious figures the garland goes by while its saved ones cannot be read are no settings to back up.
+	from.power = &api.PowerBudget{SupplyMilliamps: 500, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20, InvalidRecord: true}
+	if _, err := Collect(ctx, from.serve(t), time.Now()); err == nil || !strings.Contains(err.Error(), "power") {
+		t.Fatalf("a garland with its power settings unread: %v", err)
+	}
 	from.power = nil
 	if _, err := Collect(ctx, from.serve(t), time.Now()); err == nil || !strings.Contains(err.Error(), "power") {
 		t.Fatalf("a 1.4.0 garland without power settings: %v", err)

@@ -160,6 +160,10 @@ main img.previewable:focus-visible {
 .download .button { grid-row: 1 / span 2; grid-column: 2; }
 .platform .meta { color: var(--muted); font-size: 14px; }
 .download .same { color: var(--muted); font-size: 14px; grid-column: 1 / -1; margin: 0; }
+/* The builds before the newest, folded under it, each with its own Download. */
+.older { margin-top: 4px; }
+.older summary { cursor: pointer; color: var(--link); font-weight: 600; font-size: 15px; padding: 6px 0; }
+.older summary:hover { color: var(--strong); }
 /* How to open a download, folded under the platforms but plain to see. */
 .howto { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 12px; font-size: 15px; }
 .howto summary { cursor: pointer; color: var(--link); font-weight: 600; }

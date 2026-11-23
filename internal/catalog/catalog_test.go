@@ -118,6 +118,9 @@ func TestADevBuildIsItsNumberWhereverVersionsAreCompared(t *testing.T) {
 	if Newer("1.0.0.27", "1.0.0.27-dev") || !Newer("1.0.0.28", "1.0.0.27-dev") || Newer("1.0.0.26", "1.0.0.27-dev") {
 		t.Fatal("a Dev build was not taken as its number")
 	}
+	if Newer("1.4.0.120", "1.4.1.125-lab") || !Newer("1.4.1.126", "1.4.1.125-lab") || Newer("1.4.1.125", "1.4.1.125-lab") {
+		t.Fatal("a Lab build was not taken as its number")
+	}
 }
 
 func TestOnlyANewerReleaseIsOffered(t *testing.T) {
@@ -131,6 +134,8 @@ func TestOnlyANewerReleaseIsOffered(t *testing.T) {
 		{"1.0.0.101-dev", true},
 		{"1.0.0.102", false},
 		{"1.0.0.102-dev", false},
+		{"1.0.0.101-lab", true},
+		{"1.0.0.102-lab", false},
 		{"1.0.0.103", false},
 		{"", false},
 		{"junk", false},

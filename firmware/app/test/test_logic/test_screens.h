@@ -12,9 +12,9 @@
 static Snapshot standby_snapshot() {
     Snapshot s{};
     s.update_percent = kNoUpdate;
-    s.led_setting = kLedCountAuto;
+    s.led_setting = kLedCountUnset;
     s.probe = ProbeStatus::Present;
-    s.led_estimate = 32;
+    s.led_count = 32;
     s.brightness_percent = 50;
     s.speed_x4 = 4;
     s.led_kept = 0;
@@ -74,7 +74,7 @@ static void test_screens_that_keep_the_saver_away() {
 static void test_the_clock_glyph_follows_the_state() {
     State state(32);
     state.set_effect_count(3);
-    state.set_probe(ProbeStatus::Present, 32);
+    state.set_presence(ProbeStatus::Present);
     const ScreenInputs inputs = {"Effect", "Ssid", "Pass", "192.168.4.1"};
     TEST_ASSERT_FALSE(build_screen_model(state.snapshot(), inputs).clock_glyph_lit);
     state.set_action_soon(true);
@@ -114,8 +114,15 @@ static void test_screen_model_holds_what_is_drawn() {
     TEST_ASSERT_EQUAL_STRING("192.168.101.88", model.footer);
     TEST_ASSERT_EQUAL_STRING("50%", model.stats[0]);
     TEST_ASSERT_EQUAL_STRING("1x", model.stats[1]);
-    TEST_ASSERT_EQUAL_STRING("~32", model.stats[2]);
+    TEST_ASSERT_EQUAL_STRING("32", model.stats[2]);
     TEST_ASSERT_FALSE(model.shows_clock_glyph);
+
+    // Nothing on the data line: 0 with no count set, the owner's number with one.
+    Snapshot none = s;
+    none.probe = ProbeStatus::Absent;
+    TEST_ASSERT_EQUAL_STRING("0", build_screen_model(none, kTestInputs).stats[2]);
+    none.led_setting = 32;
+    TEST_ASSERT_EQUAL_STRING("32", build_screen_model(none, kTestInputs).stats[2]);
 
     // A length the output refused: the number the LEDs are getting, marked.
     Snapshot kept = s;

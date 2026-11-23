@@ -72,12 +72,13 @@ func (c *Client) WaitPairing(ctx context.Context, request string) (PairAnswer, e
 
 // Leds is the LED chain as the garland sees it.
 type Leds struct {
-	Setting  int    `json:"setting"`
-	Count    int    `json:"count"`
-	Kept     int    `json:"kept"`
-	Max      int    `json:"max"`
-	Probe    string `json:"probe"`
-	Estimate int    `json:"estimate"`
+	Setting int    `json:"setting"`
+	Count   int    `json:"count"`
+	Kept    int    `json:"kept"`
+	Max     int    `json:"max"`
+	Probe   string `json:"probe"` // Whether anything is on the data line: present, absent or unchecked.
+	// Estimate is always 0 from a firmware after 1.4.0, which counts the LEDs by hand only.
+	Estimate int `json:"estimate"`
 }
 
 // State is what the garland is doing.
@@ -121,7 +122,8 @@ func (c *Client) SetPower(ctx context.Context, on bool) (State, error) {
 	return state, c.post(ctx, "power", map[string]bool{"on": on}, &state)
 }
 
-// SetLeds sets the LED count, 0 to detect it. It answers with the state.
+// SetLeds sets the LED count, from 1. 0 asks a firmware after 1.4.0 for its own count, and one of 1.4.0 or
+// before to estimate it. It answers with the state.
 func (c *Client) SetLeds(ctx context.Context, count int) (State, error) {
 	var state State
 	return state, c.post(ctx, "leds", map[string]int{"count": count}, &state)
@@ -540,7 +542,7 @@ func (c *Client) Install(ctx context.Context, file []byte, progress func(sent, t
 	if c.token != "" {
 		request.Header.Set("Authorization", bearerScheme+c.token)
 	}
-	long := &http.Client{Transport: c.http.Transport}
+	long := &http.Client{Transport: c.http.Transport, CheckRedirect: noRedirects}
 	response, err := long.Do(request)
 	if err != nil {
 		if cause := context.Cause(ctx); errors.Is(cause, ErrInstallStalled) {

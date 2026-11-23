@@ -34,9 +34,10 @@
 #   --log-file <path>   Write the log here instead.
 #   --lock-held         For deploy/stage-assets.sh and deploy/ota-update.sh alone, which hold the firmware
 #                       build lock of this checkout and run this under it. Never given by hand.
-#   --build-profile Release|Dev
+#   --build-profile Release|Dev|Lab
 #                       Release, the default, as the environment esp32c6-release; Dev, as esp32c6, keeps
-#                       the debug information and marks the version -dev.
+#                       the debug information and marks the version -dev; Lab, as esp32c6-lab, is Dev with
+#                       what measuring a garland needs, docs/guides/lab.md, and marks it -lab.
 #   --what-if           Report what would be flashed and stop.
 #   --yes               Flash the board found without asking, as PowerShell's -Confirm:$false.
 #
@@ -73,7 +74,7 @@ while [ "$#" -gt 0 ]; do
         --no-monitor) no_monitor=1 ;;
         --log-file) csg_need_value "$1" "$#"; log_file="$2"; shift ;;
         --lock-held) lock_held=1 ;;
-        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_profile "$2")"; shift ;;
+        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_firmware_profile "$2")"; shift ;;
         --what-if) what_if=1 ;;
         --yes) yes=1 ;;
         *) csg_die "flash-device.sh does not take $1." ;;
@@ -212,7 +213,8 @@ numbered_build() {
     zlib="$(csg_trim "$(cat "$firmware_dir/generated/portal_zlib.txt")")"
     [ -n "$zlib" ] || csg_die 'The build recorded no zlib in generated/portal_zlib.txt. Nothing was written to the device.'
     stamp="$(printf '%s' "$source" | csg_tool json-build --base - --str version "$image_version" --str image "$(csg_image_id "$bin_path")" --str zlib "$zlib")"
-    printf '%s' "$stamp" >"$build_root/firmware.source.json"
+    # With a line end, as flash-device.ps1 writes it.
+    printf '%s\n' "$stamp" >"$build_root/firmware.source.json"
     image_sha="$(csg_tool sha256 "$bin_path")"
     pack_sha="$(csg_tool sha256 "$pack_slot")"
     build_state=built

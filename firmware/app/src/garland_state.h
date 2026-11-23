@@ -29,8 +29,7 @@ struct Snapshot {
     uint16_t effect;
     EffectMask favorites;
     uint8_t speed_x4;
-    ProbeStatus probe;
-    uint16_t led_estimate;
+    ProbeStatus probe;  // Whether anything is on the data pin, by the presence check.
     uint16_t led_setting;
     uint16_t led_count;
     uint32_t station_ip;  // Network byte order, 0 when not on the home network.
@@ -245,8 +244,11 @@ public:
         return restored;
     }
     // The remembered effect, found late, in place of expected, played for it meanwhile: unless what plays was
-    // chosen since, by the owner or a step, or the playlist plays. See PendingEffect. True when put on.
+    // chosen since, by the owner or a step, or the playlist plays. See PendingEffect. True when put on. Under the
+    // lock every choice of what plays takes, as resume_playlist_unless_chosen: a choice of the same effect as
+    // expected would else leave the play word as it was, and the change below would take it over.
     bool restore_effect_unless_chosen(uint16_t expected, uint16_t effect) {
+        const std::lock_guard<std::mutex> guard(playlist_lock_);
         bool restored = false;
         change_play([&](Play& play) {
             restored = !owner_play_.load() && !scheduled_play_.load() && !play.playlist && play.effect == expected;
@@ -560,13 +562,7 @@ public:
     // without waiting. Must return at once: buttons and the lighting task call it.
     void set_power_listener(void (*listener)()) { power_listener_.store(listener); }
 
-    void set_probe(ProbeStatus status, uint16_t led_estimate) {
-        led_estimate_.store(led_estimate);
-        probe_.store(status);
-    }
-
-    // From a presence check, which cannot count. The estimate stands for when the garland is back,
-    // as one reading that found none must not cost its count until the next turn on.
+    // From a presence check, every few seconds: whether anything is on the data pin. It cannot count.
     void set_presence(ProbeStatus status) {
         probe_.store(status);
     }
@@ -592,7 +588,6 @@ public:
 
     Snapshot snapshot() const {
         const ProbeStatus probe = probe_.load();
-        const uint16_t estimate = probe == ProbeStatus::Present ? led_estimate_.load() : 0;
         const uint16_t setting = led_setting_.load();
         const Play now = play();
         return Snapshot{
@@ -603,9 +598,8 @@ public:
             favorites(),
             now.speed,
             probe,
-            estimate,
             setting,
-            effective_led_count(setting, probe, estimate, fallback_led_count_),
+            effective_led_count(setting, fallback_led_count_),
             station_ip_.load(),
             now.off_seconds,
             setup_network_.load(),
@@ -760,7 +754,7 @@ private:
     std::atomic<bool> lighting_paused_{false};
     std::atomic<bool> making_key_{false};
     std::atomic<uint16_t> pair_display_{kPairDisplayNone};
-    std::atomic<uint16_t> led_setting_{kLedCountAuto};
+    std::atomic<uint16_t> led_setting_{kLedCountUnset};
     std::atomic<bool> rail_on_{false};
     std::atomic<bool> output_failed_{false};
     std::atomic<uint16_t> led_kept_{0};
@@ -776,7 +770,6 @@ private:
     std::atomic<uint16_t> cross_fade_ms_{1000};
     std::array<std::atomic<uint32_t>, EffectMask::kWords * 2> favorites_{};
     std::atomic<ProbeStatus> probe_{ProbeStatus::NotChecked};
-    std::atomic<uint16_t> led_estimate_{0};
     std::atomic<uint32_t> station_ip_{0};
 };
 

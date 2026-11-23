@@ -20,6 +20,7 @@
 #include "effect_store_keys.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "json_limits.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
@@ -152,7 +153,7 @@ const char* parse_body(const char* id, EffectSpec& spec) {
     if (std::strlen(effect_store_body()) == 0) {
         return "the file is empty";
     }
-    cJSON_Minify(effect_store_body());
+    json_minify_in_place(effect_store_body());
     const char* error = nullptr;
     return parse_effect(effect_store_body(), id, spec, error) ? nullptr : error;
 }
@@ -388,7 +389,7 @@ const char* effect_store_preview() {
     return nullptr;
 }
 
-const char* effect_store_delete(const char* id) {
+const char* effect_store_delete(const char* id, void (*after)(size_t position, void* context), void* context) {
     const std::lock_guard<std::mutex> guard(s_store_lock);
     const int position = catalog_find(id);
     if (position < 0 || !catalog_is_uploaded(static_cast<size_t>(position))) {
@@ -415,6 +416,9 @@ const char* effect_store_delete(const char* id) {
     s_keys.remove(id);
     catalog_remove(static_cast<size_t>(position));
     ESP_LOGI(TAG, "effect %s deleted", id);
+    if (after != nullptr) {
+        after(static_cast<size_t>(position), context);
+    }
     return nullptr;
 }
 

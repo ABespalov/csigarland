@@ -306,6 +306,7 @@ $Files = @($FirmwareNames | ForEach-Object { Join-Path $FirmwareDir $_ }) + @($U
 
 Import-Module (Join-Path $PSScriptRoot 'SigningPython.psm1') -Force
 # A look ahead, -WhatIf, installs nothing into PlatformIO's Python: it says what is missing instead.
+$NoInstallBefore = $env:CSIGARLAND_NO_INSTALL
 if ($WhatIfPreference) {
     $env:CSIGARLAND_NO_INSTALL = '1'
 }
@@ -856,7 +857,12 @@ ${signedSaid}Each file builds again to the byte from this tag's sources: see [Bu
             # between, of the files it held before this one's came, is written over with all of them.
             $whole = $false
             for ($try = 0; $try -lt 3 -and -not $whole; $try++) {
-                & $writeNotes (& $readRelease)
+                # Unread, the notes would be written without the files of other runs: tried again.
+                $held = & $readRelease
+                if (-not $held) {
+                    continue
+                }
+                & $writeNotes $held
                 & gh release edit $Tag --repo $Repository --notes-file $notes
                 if ($LASTEXITCODE -ne 0) {
                     throw "gh release edit failed with exit code ${LASTEXITCODE}: the files are added, the notes are as they were. Run this again to write them."
@@ -886,4 +892,7 @@ ${signedSaid}Each file builds again to the byte from this tag's sources: see [Bu
             [System.IO.Directory]::Delete($scratch, $true)
         }
     }
+    # Given back here as well as when the process ends, for a session that runs the script in itself.
+    $env:CSIGARLAND_NO_INSTALL = $NoInstallBefore
+    $PublishLock.Dispose()
 }

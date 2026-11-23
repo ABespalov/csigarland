@@ -81,7 +81,7 @@ esp_err_t write_with(Write write) {
 }  // namespace
 
 StoredRead settings_read_led_count(uint16_t& out) {
-    out = kLedCountAuto;
+    out = kLedCountUnset;
     return read_into(Reading(), nvs_get_u16, kLedCountKey, out,
                      [](uint16_t setting) { return led_setting_is_valid(setting, CSIGARLAND_MAX_LEDS); });
 }

@@ -184,6 +184,12 @@ jobs:
         run: pio test -e native
         working-directory: firmware/app
 
+      # The Lab profile compiles what CSIGARLAND_LAB adds, which no other build does. Its own folder, so the
+      # Dev objects above stay.
+      - name: Lab firmware image
+        run: pio run -e esp32c6-lab
+        working-directory: firmware/app
+
       # Under the Python the build signs with, chosen as deploy/SigningPython.psm1 chooses it.
       - name: Signing tool
         shell: pwsh

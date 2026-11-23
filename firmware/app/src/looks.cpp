@@ -55,7 +55,7 @@ bool read_led(State& state) {
     if (!s_led_unread.load()) {
         return true;
     }
-    uint16_t setting = kLedCountAuto;
+    uint16_t setting = kLedCountUnset;
     if (settings_read_led_count(setting) == StoredRead::Unreadable) {
         return false;
     }
@@ -129,7 +129,9 @@ bool read_power(State& state) {
 bool read_all(State& state) {
     const Guard guard;
     const bool led = read_led(state);
-    const bool power = read_power(state);
+    // The power settings count as known only with the LED count read too: the rail's check weighs the chain's
+    // idle draw, and the build's own count in place of a longer saved one would understate it.
+    const bool power = led && read_power(state);
     const bool favorites = read_favorites(state);
     return read_display(state) && led && power && favorites;
 }
@@ -187,7 +189,8 @@ bool looks_display_read(State& state) {
 
 bool looks_power_read(State& state) {
     const Guard guard;
-    return read_power(state);
+    // With the LED count first, as read_all has them: see there.
+    return read_led(state) && read_power(state);
 }
 
 esp_err_t looks_save_power(State& state, const PowerSettings& settings) {

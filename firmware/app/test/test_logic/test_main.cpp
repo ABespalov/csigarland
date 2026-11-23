@@ -33,6 +33,7 @@
 #include "event_stream.h"
 #include "garland_probe_math.h"
 #include "garland_state.h"
+#include "lab_logic.h"
 #include "light_fade.h"
 #include "network_logic.h"
 #include "ota_logic.h"
@@ -241,14 +242,10 @@ static void test_portal_mode_changes_only_what_it_names() {
 /* LED count */
 
 static void test_led_count_priority() {
-    // The owner's number beats everything, including a probe that found nothing.
-    TEST_ASSERT_EQUAL_UINT16(32, effective_led_count(32, ProbeStatus::Absent, 0, 50));
-    TEST_ASSERT_EQUAL_UINT16(7, effective_led_count(7, ProbeStatus::Present, 30, 50));
-    // Automatic: the estimate, then the configured length.
-    TEST_ASSERT_EQUAL_UINT16(30, effective_led_count(kLedCountAuto, ProbeStatus::Present, 30, 50));
-    TEST_ASSERT_EQUAL_UINT16(50, effective_led_count(kLedCountAuto, ProbeStatus::Present, 0, 50));
-    TEST_ASSERT_EQUAL_UINT16(50, effective_led_count(kLedCountAuto, ProbeStatus::Absent, 0, 50));
-    TEST_ASSERT_EQUAL_UINT16(50, effective_led_count(kLedCountAuto, ProbeStatus::NotChecked, 0, 50));
+    // The owner's number, or with none set the build's own: never counted from the data line.
+    TEST_ASSERT_EQUAL_UINT16(32, effective_led_count(32, 50));
+    TEST_ASSERT_EQUAL_UINT16(7, effective_led_count(7, 50));
+    TEST_ASSERT_EQUAL_UINT16(50, effective_led_count(kLedCountUnset, 50));
 }
 
 static void test_led_setting_range() {
@@ -263,10 +260,11 @@ static void test_state_applies_led_setting() {
     TEST_ASSERT_EQUAL_UINT16(32, state.snapshot().led_count);
     state.set_led_setting(12);
     TEST_ASSERT_EQUAL_UINT16(12, state.snapshot().led_count);
-    state.set_probe(ProbeStatus::Present, 30);
+    state.set_presence(ProbeStatus::Present);
     TEST_ASSERT_EQUAL_UINT16(12, state.snapshot().led_count);
-    state.set_led_setting(kLedCountAuto);
-    TEST_ASSERT_EQUAL_UINT16(30, state.snapshot().led_count);
+    // 0, as a setting saved for automatic detection reads, goes back to the build's own.
+    state.set_led_setting(kLedCountUnset);
+    TEST_ASSERT_EQUAL_UINT16(32, state.snapshot().led_count);
 }
 
 /* Limiter and brightness */
@@ -643,17 +641,6 @@ static void test_probe_presence() {
     TEST_ASSERT_TRUE(probe_says_present(1937));
 }
 
-static void test_probe_estimate() {
-    // Ideal 32 x 100 nF: (3300 - 650) mV / 45 kOhm = 58 uA across 300 mV takes 16.6 ms.
-    TEST_ASSERT_UINT8_WITHIN(1, 32, probe_estimate_leds(500, 800, 16'600));
-    TEST_ASSERT_UINT8_WITHIN(1, 1, probe_estimate_leds(500, 800, 480));
-    TEST_ASSERT_EQUAL_UINT8(0, probe_estimate_leds(500, 500, 1000));
-    TEST_ASSERT_EQUAL_UINT8(0, probe_estimate_leds(500, 800, 0));
-    // Up to the longest supported chain, not a two-digit ceiling.
-    TEST_ASSERT_UINT16_WITHIN(5, 150, probe_estimate_leds(500, 800, 77'800));
-    TEST_ASSERT_EQUAL_UINT16(CSIGARLAND_MAX_LEDS, probe_estimate_leds(500, 800, 1'000'000));
-}
-
 #include "test_schedule.h"
 
 static void test_brightness_button_from_any_level() {
@@ -705,6 +692,7 @@ static void test_wordmark_colours_and_size() {
 #include "test_auth.h"
 #include "test_api.h"
 #include "test_light.h"
+#include "test_lab.h"
 
 int main() {
     UNITY_BEGIN();
@@ -829,11 +817,11 @@ int main() {
     RUN_TEST(test_reverse_mirror_and_bri);
     RUN_TEST(test_out_of_range_layer_is_harmless);
     RUN_TEST(test_probe_presence);
-    RUN_TEST(test_probe_estimate);
     RUN_TEST(test_brightness_button_from_any_level);
     run_schedule_tests();
     RUN_TEST(test_wordmark_colours_and_size);
     run_network_tests();
     run_light_tests();
+    run_lab_tests();
     return UNITY_END();
 }

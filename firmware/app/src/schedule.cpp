@@ -52,12 +52,13 @@ bool parse_time(const char* text, ScheduleEntry& entry) {
 
 // Whether the list held names the effect id, as one of its steps: an effect the catalog lacks may be kept.
 bool held_names(const ScheduleEntry* held, size_t held_count, const char* id) {
-    // A step with no effect names none, and an empty id is no effect kept.
-    if (id[0] == '\0') {
+    // A step with no effect names none, and an empty id is no effect kept. A playlist step's mark is no effect:
+    // it comes only from "playlist": true, never as an effect's name.
+    if (id[0] == '\0' || std::strcmp(id, kPlaylistStep) == 0) {
         return false;
     }
     for (size_t i = 0; held != nullptr && i < held_count; ++i) {
-        if (std::strcmp(held[i].effect, id) == 0) {
+        if (!starts_playlist(held[i]) && std::strcmp(held[i].effect, id) == 0) {
             return true;
         }
     }
@@ -434,7 +435,8 @@ bool schedule_from_json(const cJSON* array, ScheduleEntry* out, size_t& out_coun
 cJSON* schedule_missing_json(const ScheduleEntry* entries, size_t count) {
     cJSON* missing = cJSON_CreateArray();
     for (size_t i = 0; missing != nullptr && i < count; ++i) {
-        if (!has_effect(entries[i]) || catalog_find(entries[i].effect) >= 0 || held_names(entries, i, entries[i].effect)) {
+        if (!has_effect(entries[i]) || starts_playlist(entries[i]) || catalog_find(entries[i].effect) >= 0 ||
+            held_names(entries, i, entries[i].effect)) {
             continue;
         }
         cJSON* id = cJSON_CreateString(entries[i].effect);

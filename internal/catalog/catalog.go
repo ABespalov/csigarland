@@ -195,21 +195,30 @@ func HoldsVersion(entry Entry, hasFirmware bool, version string) error {
 	return nil
 }
 
-// Newer says whether version a is newer than b. A Dev build counts as its number, as Offer has it, and a
-// version that is not four numbers is older than any.
+// Newer says whether version a is newer than b. A Dev or Lab build counts as its number, as Offer has it,
+// and a version that is not four numbers is older than any.
 func Newer(a, b string) bool {
-	a, b = strings.TrimSuffix(a, DevSuffix), strings.TrimSuffix(b, DevSuffix)
+	a, b = buildNumber(a), buildNumber(b)
 	return versionParts(a) != nil && compareVersions(a, b) > 0
 }
 
-// DevSuffix marks a Dev build's version, such as 1.0.0.27-dev. Releases never carry it.
-const DevSuffix = "-dev"
+// DevSuffix marks a Dev build's version, such as 1.0.0.27-dev, and LabSuffix a Lab build's, such as
+// 1.0.0.27-lab, which is Dev with what measuring a garland needs. Releases never carry either.
+const (
+	DevSuffix = "-dev"
+	LabSuffix = "-lab"
+)
 
-// Offer is the newest release in the catalog, when it is newer than the version a garland runs. A Dev
-// build counts as its number, so the release of that number is not offered to it. A version that is
+// buildNumber is a version without the mark of a Dev or Lab build.
+func buildNumber(version string) string {
+	return strings.TrimSuffix(strings.TrimSuffix(version, DevSuffix), LabSuffix)
+}
+
+// Offer is the newest release in the catalog, when it is newer than the version a garland runs. A Dev or
+// Lab build counts as its number, so the release of that number is not offered to it. A version that is
 // not one of ours is offered nothing, as nothing can be said of it.
 func Offer(read Catalog, running string) (Entry, bool) {
-	running = strings.TrimSuffix(running, DevSuffix)
+	running = buildNumber(running)
 	if versionParts(running) == nil || len(read.Firmware) == 0 || !Newer(read.Firmware[0].Version, running) {
 		return Entry{}, false
 	}

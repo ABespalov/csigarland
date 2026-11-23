@@ -17,6 +17,7 @@ idf_component_register(
         "effects.cpp"
         "garland_output.cpp"
         "garland_probe.cpp"
+        "lab.cpp"
         "lighting_task.cpp"
         "looks.cpp"
         "network.cpp"
@@ -39,6 +40,7 @@ idf_component_register(
         "screensaver.cpp"
         "settings.cpp"
         "settings_looks.cpp"
+        "tls_pool.cpp"
         "trial_log.cpp"
     INCLUDE_DIRS "." "../generated"
     PRIV_REQUIRES
@@ -50,9 +52,11 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_ledc
         esp_driver_spi
+        esp_driver_tsens
         esp_event
         esp_http_server
         esp_https_server
+        heap
         esp_lcd
         esp_netif
         esp_partition

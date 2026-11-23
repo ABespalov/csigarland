@@ -59,7 +59,7 @@ func sceneEffects() []api.Effect {
 func sceneState() api.State {
 	return api.State{
 		Power: true, Brightness: 60, Effect: sceneEffect, EffectName: "Aurora", Speed: 1.25,
-		Leds: api.Leds{Count: 32, Max: 256, Probe: "present", Estimate: 32},
+		Leds: api.Leds{Setting: 32, Count: 32, Max: 256, Probe: "present"},
 	}
 }
 
@@ -140,7 +140,6 @@ func sceneApp(t *testing.T, page Page) *App {
 		a.schedule.clock = api.Clock{Synced: true, Now: "2026-11-02 15:04", Zone: "CET-1CEST,M3.5.0,M10.5.0/3",
 			Module: api.ClockModule{Present: true, Trusted: true, Now: "2026-11-02 15:04:00", Source: "ntp"}}
 	case PageDevice:
-		a.device.mode.Value = "auto"
 		a.device.count.SetText("32")
 		a.device.takeDisplay(api.Display{Saver: "starfield", Delay: 60, ScreenBrightness: 100, SaverBrightness: 30})
 		a.device.power.take(api.PowerBudget{SupplyMilliamps: 2000, WhiteMilliamps: 40, IdleMilliamps: 1, MarginPercent: 20, BoardMilliamps: 250, LimitMilliamps: 1400, Leds: 32, PeakMilliamps: 1312, UndimmedLeds: 34}, true)

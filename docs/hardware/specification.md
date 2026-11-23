@@ -16,7 +16,7 @@ csiGarland is an autonomous holiday garland system featuring:
 flowchart LR
     AC["220V AC Mains"] --> Fuse["Fuse (1A) + Varistor (10D471K)"]
     Fuse --> HiLink["Hi-Link HLK-10M05B (5V 2A, 47x28x22 mm)"]
-    HiLink -->|"5V DC (Continuous)"| Rail5V["5V Power Rail (Cap 1000uF)"]
+    HiLink -->|"5V DC (Continuous)"| Rail5V["5V Power Rail (Cap 100uF, up to 1000uF)"]
     Rail5V -->|"5V / GND"| ESP["ESP32-C6-LCD-1.3 Board"]
     Rail5V -->|"IN+ / GND"| Mosfet["High-Side P-MOSFET Module<br/>(13.2x6mm, 20V 4.3A)"]
     ESP -->|"GPIO1 (EN 3.3V High-Active)"| Mosfet
@@ -36,19 +36,19 @@ flowchart LR
 * **Hi-Link 5V 2A:** Rated output power is **10 W** continuous (2000 mA @ 5V).
 
 ### 2.2 System Consumption Breakdown
-Estimates from the datasheets, but for one LED: a WS2812B of the owner's garland, measured on its own on the garland's plug, draws 0.51 mA dark and 36.6 mA at full white, 12.3, 11.5 and 12.2 mA above dark for red, green and blue. The firmware's default allows 40 mA above 1 mA dark, for a batch's spread. The rest has not been measured on an assembled garland yet: see the [roadmap](../stubs/ROADMAP.md).
+Estimates from the datasheets, but for the LEDs. A WS2812B of the owner's garland, measured on its own on the garland's plug, draws 0.51 mA dark and 36.6 mA at full white, 12.3, 11.5 and 12.2 mA above dark for red, green and blue. The assembled garland of 32 draws 16 mA dark and 1012 mA at full white, 399, 373 and 394 mA for red, green and blue: at about 1 A the rail sags and white comes to 89 % of the channels' sum, 31.1 mA an LED. The firmware's default allows 40 mA above 1 mA dark, for a batch's spread, so its model stays above what flows. The board and typical effects have not been measured yet: see the [to-do list](../stubs/TODO.md).
 
 | Subsystem | Typical Current | Peak Current | Power (5V) |
 |---|---|---|---|
 | **ESP32 + Display** | 120–180 mA | ~250 mA (Wi-Fi active) | ~0.9 W |
 | **32x WS2812B (Holiday Effects)** | 480–700 mA | ~960 mA | ~3.5 W |
 | **32x WS2812B (Standby via MOSFET)** | The module's off current, not yet measured | | ~0 W |
-| **32x WS2812B (100% White)**| — | ~1170 mA as measured on one LED, 1312 mA by the firmware's default model | ~6.6 W |
+| **32x WS2812B (100% White)**| — | 1012 mA as measured, 1312 mA by the firmware's default model | ~5.1 W |
 
 ### 2.3 Operating Margins & Software Current Limiting
 * In typical holiday dynamic modes (Fireplace, Twinkle, Aurora, Snowfall, Candy Cane), 32 LEDs consume around **600–700 mA**.
 * Together with the ESP32 and display (~200 mA), total system draw is **~850 mA** (only **42%** of the Hi-Link capacity).
-* **Firmware Safety Clamp:** The firmware incorporates a strict software current limiter, which scales the final frame down before it is sent. Its limit is worked out from the Device page's settings: what the supply gives beyond 250 mA kept for the ESP32 and display, its peak, less a margin of 5-20 % of that, so **1400 mA** with the Hi-Link's 2000 mA and the default 20 %. It covers the LEDs alone, by its model, and the ESP32 and display come on top: at their ~250 mA peak that is ~1650 mA, which leaves ~350 mA (about 17%) of the Hi-Link's 2000 mA. At the smallest margin, 5 %, the limit is 1662 mA and ~88 mA is left at the board's peak: as the margin is taken after the board, it is always 5 % of what the LEDs may have, never eaten by the board. Until the current is measured on an assembled garland, this margin is a calculation.
+* **Firmware Safety Clamp:** The firmware incorporates a strict software current limiter, which scales the final frame down before it is sent. Its limit is worked out from the Device page's settings: what the supply gives beyond 250 mA kept for the ESP32 and display, its peak, less a margin of 5-20 % of that, so **1400 mA** with the Hi-Link's 2000 mA and the default 20 %. It covers the LEDs alone, by its model, and the ESP32 and display come on top: at their ~250 mA peak that is ~1650 mA, which leaves ~350 mA (about 17%) of the Hi-Link's 2000 mA. At the smallest margin, 5 %, the limit is 1662 mA and ~88 mA is left at the board's peak: as the margin is taken after the board, it is always 5 % of what the LEDs may have, never eaten by the board. The LEDs have been measured on the assembled garland, within the model; until the board's own draw is measured at the supply's output, this margin is a calculation.
 
 ---
 
@@ -61,7 +61,7 @@ The system utilizes an ultra-compact High-Side MOSFET power switch module:
 * **Electrical Ratings:**
   - Maximum Controlled Voltage: **20 V** (operates at 5 V).
   - Maximum Continuous Current: **4.3 A** (operates at the owner's limit, 1.4 A by default and at most about 3.9 A, under this rating).
-  - Maximum Power: **31 W** (operates at max 7.0 W).
+  - Maximum Power: **31 W** (operates at 7.0 W at the default limit of 1.4 A, and about 19.7 W at the highest, 3.9 A; the garland outlet, J2, takes 3 A, 15 W).
   - Switching Response Time: **2 ms**.
   - Standby Quiescent Draw: expected to be very low, which removes the 25–30 mA quiescent drain of idle WS2812B chips. The real off current has not been measured.
 
@@ -131,6 +131,8 @@ The system utilizes an ultra-compact High-Side MOSFET power switch module:
 | **White Button** | GPIO 20 | Effect cycle (internal pull-up) |
 | **Speed Button** | GPIO 23 | Effect Speed Cycle: 0.25x, 0.5x, 0.75x, 1x, 1.5x, 2x, 3x (internal pull-up) |
 | **Garland Power Gate** | GPIO 1 | High-Side MOSFET EN control (High-Active) |
+| **Clock SDA** | GPIO 17 | DS3231 clock module, I2C data (optional) |
+| **Clock SCL** | GPIO 16 | DS3231 clock module, I2C clock (optional) |
 
 ### 4.3 Control Enclosure Dimensions Envelope
 The controller enclosure (122.0 × 68.0 × 35.0 mm, base tub + lid control panel) integrates:
@@ -139,7 +141,7 @@ The controller enclosure (122.0 × 68.0 × 35.0 mm, base tub + lid control panel
 * **High-Side MOSFET Module:** 13.2 mm (L) × 6.0 mm (W) × 2.0 mm (H) in a latch cradle next to the partition.
 * **Three Tactile Buttons:** 3x 12 × 12 mm switches on solid pedestals with factory snap-on round caps (head Ø11.5 mm, total height 12.0 mm) on single-rib pedestals with free leg/solder wells — Red (`POWER`), White (`EFFECT`), Blue/Black (`SPEED`).
 * **AC Bay:** enclosed 5×20 mm 1 A fuse holder, 10D471K MOV, XT60H-F inlet, Hi-Link; separated from the DC bay by a solid 2.0 mm partition.
-* **Connectors & Cable Access:** detachable 220 V AC inlet (Amass XT60H-F with rear sheath in the prototype, which the enclosure is designed around; [do not buy it for this, as it has no approval for mains](control-unit.md#1-power-inlet-amass-xt60h-f-female-with-sheath-left-wall)) and detachable 3-pin garland output header (JST-XH-3A: +5V_SW, DIN, GND). The shell has no vents or service holes; firmware updates are performed wirelessly via OTA.
+* **Connectors & Cable Access:** detachable 220 V AC inlet (Amass XT60H-F with rear sheath in the prototype, which the enclosure is designed around; [do not buy it for this, as it has no approval for mains](control-unit.md#1-power-inlet-amass-xt60h-f-female-with-sheath-left-wall)) and detachable 3-pin garland output header (JST-XH-3A: +5V_SW, DIN, GND; [rated 3 A, so the LED limit stays at 3000 mA or below with it](control-unit.md#2-garland-outlet-jst-xh-3a-b3b-xh-a-right-wall)). The shell has no vents or service holes; firmware updates are performed wirelessly via OTA.
 * **Labels:** all connectors and buttons are labelled on the enclosure: two-colour flush inlays on the panel (logo `csi` white + `Garland` sky blue, `POWER`/`SPEED` white, `EFFECT` sky blue), engraved `220V~ INSIDE`, raised `AC 220V~` / `LED OUT` on the side walls.
 * **Fasteners:** M3 heat-set inserts in four lid corner posts, 4× M3 × 6 button-head screws from the bottom (no screw holes in the panel).
 * Full mechanical description: [`control-unit.md`](control-unit.md), sections 7–8.

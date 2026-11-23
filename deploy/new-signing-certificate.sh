@@ -44,7 +44,11 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --country)
             csg_need_value "$1" "$#"
-            case "$2" in [A-Z][A-Z] | '') country="$2" ;; *) csg_die "--country is two capital letters, not $2." ;; esac
+            # Spelled out, as [A-Z] takes lowercase letters too under some locales of bash 3.2.
+            case "$2" in
+                [ABCDEFGHIJKLMNOPQRSTUVWXYZ][ABCDEFGHIJKLMNOPQRSTUVWXYZ] | '') country="$2" ;;
+                *) csg_die "--country is two capital letters, not $2." ;;
+            esac
             shift
             ;;
         --organization) csg_need_value "$1" "$#"; organization="$2"; shift ;;
@@ -70,21 +74,24 @@ if [ "$renew" -eq 1 ]; then
 elif [ "$force" -eq 0 ] && { [ -f "$root_key" ] || [ -f "$signing_key" ]; }; then
     csg_die 'Certificates exist already, and a new root would lock out every board that trusts this one. --renew-signing replaces the signing key only, --force replaces everything.'
 fi
+# Before the question below, whose read would end the script with no word at the end of its input.
+[ -t 0 ] || csg_die 'The passphrase is asked at a terminal, and this one has none.'
 if [ "$force" -eq 1 ] && { [ -f "$root_key" ] || [ -f "$signing_key" ]; }; then
     printf '%s\n' 'Type REPLACE to replace the root. Firmware trusts one root, and nothing here builds one that trusts two, so a sealed garland on the old root takes no update signed under the new one.' >&2
-    read -r typed
+    typed=''
+    read -r typed || true
     [ "$typed" = REPLACE ] || csg_die 'The root was not replaced.'
 fi
-[ -t 0 ] || csg_die 'The passphrase is asked at a terminal, and this one has none.'
 
 python="$(csg_signing_python)"
 csg_say 'Nothing recovers the root key or its passphrase. Keep both, apart from each other.'
 # Read with no echo, and never put on a command line, where others could read it.
-read -r -s -p 'Passphrase for the root key: ' passphrase
+# IFS empty: a passphrase keeps its spaces at either end, as PowerShell's Read-Host keeps them.
+IFS= read -r -s -p 'Passphrase for the root key: ' passphrase
 printf '\n' >&2
 [ "${#passphrase}" -ge 12 ] || csg_die 'The passphrase needs at least 12 characters.'
 if [ "$renew" -eq 0 ]; then
-    read -r -s -p 'Once more: ' again
+    IFS= read -r -s -p 'Once more: ' again
     printf '\n' >&2
     [ "$passphrase" = "$again" ] || csg_die 'The passphrases differ.'
     unset again

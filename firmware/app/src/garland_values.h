@@ -189,21 +189,18 @@ constexpr uint16_t next_favorite(uint16_t active, const EffectMask& favorites, u
     return active;
 }
 
-// The LED count setting: 0 follows the probe, anything else is the owner's number.
-constexpr uint16_t kLedCountAuto = 0;
+// The LED count setting: the owner's number, or 0 where none was set, which takes the build's own
+// CSIGARLAND_LED_COUNT. 0 once asked for the probe's estimate of the chain, which is gone: it could not count
+// the LEDs of the owner's garland, see docs/architecture.md, Garland detection.
+constexpr uint16_t kLedCountUnset = 0;
 
 constexpr bool led_setting_is_valid(int setting, int max_leds) {
-    return setting >= kLedCountAuto && setting <= max_leds;
+    return setting >= kLedCountUnset && setting <= max_leds;
 }
 
-// A number the owner typed wins. The probe's estimate comes next; with neither,
-// the configured length keeps the garland lit.
-constexpr uint16_t effective_led_count(uint16_t setting, ProbeStatus probe, uint16_t estimate,
-                                       uint16_t fallback) {
-    if (setting != kLedCountAuto) {
-        return setting;
-    }
-    return (probe == ProbeStatus::Present && estimate > 0) ? estimate : fallback;
+// A number the owner typed wins; with none, the build's own length keeps the garland lit.
+constexpr uint16_t effective_led_count(uint16_t setting, uint16_t fallback) {
+    return setting != kLedCountUnset ? setting : fallback;
 }
 
 // A firmware update's progress in one byte: 0-100 is the percent received, then these.

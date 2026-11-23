@@ -19,7 +19,7 @@
 
 namespace garland {
 
-// First thing at startup. Does nothing unless the running firmware is on trial.
+// First thing at startup. Does nothing unless the running firmware is on trial, or is the Lab build.
 void trial_log_start();
 
 // Answers with the first line "version=... on_trial=0|1 https=0|1 boot=... image=... pack=...", and,

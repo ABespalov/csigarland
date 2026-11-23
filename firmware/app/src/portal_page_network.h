@@ -125,7 +125,6 @@ inline constexpr char kPageNetwork[] = R"html(
     $('networks').replaceChildren(...networks.map((network) => {
       const row = document.createElement('li');
       const pick = document.createElement('button');
-      pick.title = 'Use this network';
       const level = signalLevel(network.rssi);
       pick.type = 'button';
       pick.className = 'q k';

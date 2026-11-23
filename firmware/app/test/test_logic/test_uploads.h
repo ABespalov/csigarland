@@ -286,6 +286,20 @@ static void test_uploads_stop_at_the_limit_and_replacing_still_works() {
     load_shipped_catalog();
 }
 
+// Whitespace goes, and a string stays as it was: a final backslash ends no string early, and a comment is
+// left for the parser to refuse.
+static void test_an_upload_is_minified_without_touching_its_strings() {
+    char text[] = "{ \"name\" : \"a \\\\\" ,\n \"x\": [1, 2] }";
+    json_minify_in_place(text);
+    TEST_ASSERT_EQUAL_STRING("{\"name\":\"a \\\\\",\"x\":[1,2]}", text);
+    char spaced[] = "{\"name\":\"  two  words \\\" here \"}";
+    json_minify_in_place(spaced);
+    TEST_ASSERT_EQUAL_STRING("{\"name\":\"  two  words \\\" here \"}", spaced);
+    char commented[] = "{ /* no */ \"a\": 1 }";
+    json_minify_in_place(commented);
+    TEST_ASSERT_EQUAL_STRING("{/*no*/\"a\":1}", commented);
+}
+
 static void test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack() {
     TEST_ASSERT_TRUE(json_depth_is_safe("[[[[[[[[1]]]]]]]]"));
     TEST_ASSERT_FALSE(json_depth_is_safe("[[[[[[[[[1]]]]]]]]]"));
@@ -295,6 +309,8 @@ static void test_json_nested_too_deep_is_refused_before_it_can_overflow_a_stack(
     TEST_ASSERT_TRUE(json_depth_is_safe("{\"name\":\"\\\"[[[[[[[[[[[[\"}"));
     TEST_ASSERT_FALSE(json_depth_is_safe("{\"name\":\"\\\"\",\"a\":[[[[[[[[["));
     TEST_ASSERT_TRUE(json_depth_is_safe("]]]]]]]]]]"));
+    // Closings with nothing open do not make room for deeper openings after them.
+    TEST_ASSERT_FALSE(json_depth_is_safe("]]]][[[[[[[[[1"));
     TEST_ASSERT_NULL(json_parse_shallow("[[[[[[[[[1]]]]]]]]]"));
     TEST_ASSERT_TRUE(json_values_are_bounded("{\"brightness\":25}"));
     TEST_ASSERT_TRUE(json_values_are_bounded("\"[[[{{\""));
@@ -411,6 +427,7 @@ static void test_favourites_follow_uploads_by_id() {
 
 static void run_upload_tests() {
     RUN_TEST(test_uploaded_ids_are_checked);
+    RUN_TEST(test_an_upload_is_minified_without_touching_its_strings);
     RUN_TEST(test_an_upload_gets_a_position_that_does_not_move);
     RUN_TEST(test_a_replacement_is_in_the_uploaded_group_until_restored);
     RUN_TEST(test_replacing_never_touches_what_is_playing);

@@ -303,3 +303,21 @@ func TestAKeyWithAnEscapedNulHasNoControls(t *testing.T) {
 		}
 	}
 }
+
+// Several changes of an [r, g, b] colour in one frame, as a drag brings, each find the colour where the one
+// before left it, so the file stays whole.
+func TestAPickedColourChangesTwiceInOneFrame(t *testing.T) {
+	var p tunePage
+	p.init()
+	p.setFile(laidOut)
+	colors, err := FileColors([]byte(laidOut))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.colors.at = colors[1]
+	p.setChosenColor(RGB{1, 2, 3})
+	p.setChosenColor(RGB{200, 201, 202})
+	if got, want := p.file.Text(), strings.Replace(laidOut, "[255, 64, 0]", "[200, 201, 202]", 1); got != want {
+		t.Fatalf("%s", got)
+	}
+}

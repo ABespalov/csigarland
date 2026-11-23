@@ -20,13 +20,14 @@
 #
 #   --address <host>      The garland, as its certificate has it: csigarland.local, or your domain or address.
 #   --no-build            Send the update file from the last build of the profile --build-profile names;
-#                         without it, the one profile built here, or a refusal when both are.
+#                         without it, the one profile built here, or a refusal when more are.
 #   --firmware-only       Build and send only the firmware. The effects on the garland stay.
 #   --effects-only        Send only the effects of firmware/app/effects, with no build.
 #   --file <path>         Send this update file as it is, with no build.
-#   --build-profile Release|Dev
-#                         What to build: Release, the default, or Dev.
-#   --ca-file <path>      Trust HTTPS signed under this root, as the garland's own from its portal's Info page.
+#   --build-profile Release|Dev|Lab
+#                         What to build: Release, the default, Dev, or Lab, Dev with what measuring a
+#                         garland needs and a -lab version (docs/guides/lab.md).
+#   --ca-file <path>      Trust HTTPS signed under this root, as the garland's own from its portal's Network page.
 #   --insecure            For recovery: do not check who answers, and fall back to plain HTTP if HTTPS does
 #                         not answer, before the update or after it, when the new firmware's HTTPS has
 #                         failed: its paired route is then asked over plain HTTP with the token, as a
@@ -59,7 +60,7 @@ while [ "$#" -gt 0 ]; do
         --file) csg_need_value "$1" "$#"; file="$2"; shift ;;
         --ca-file) csg_need_value "$1" "$#"; ca_file="$2"; shift ;;
         --insecure) insecure=1 ;;
-        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_profile "$2")"; profile_given=1; shift ;;
+        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_firmware_profile "$2")"; profile_given=1; shift ;;
         --what-if) what_if=1 ;;
         *) csg_die "ota-update.sh does not take $1." ;;
     esac
@@ -123,20 +124,22 @@ else
     if [ "$no_build" -eq 0 ]; then
         bash "$CSG_DEPLOY_DIR/flash-device.sh" --build-only --build-profile "$profile" --lock-held >&2 || csg_die 'Build failed. Nothing was sent.'
     elif [ "$profile_given" -eq 0 ]; then
-        # Each profile builds in its own folder, so the last build may be either: only a file of the kind
+        # Each profile builds in its own folder, so the last build may be any: only a file of the kind
         # asked for, whose firmware is of its folder's profile and this checkout's base, counts.
         built=''
         count=0
-        for kind in Release Dev; do
+        for kind in Release Dev Lab; do
             candidate="$firmware_dir/.pio/build/$(csg_firmware_environment "$kind")/$update_name"
             [ -f "$candidate" ] || continue
             held="$(csg_tool ota-contents "$candidate" 2>/dev/null)" || continue
             if [ -z "$(build_version_problem "$(printf '%s' "$held" | csg_tool json-get - version '')" "$kind")" ] && csg_test_own_signature "$candidate"; then
-                built="$kind"
+                built="${built:+$built }$kind"
                 count=$((count + 1))
             fi
         done
-        [ "$count" -le 1 ] || csg_die 'Both a Release and a Dev build of this version are here: name the one to send with --build-profile Release or --build-profile Dev. Nothing was sent.'
+        if [ "$count" -gt 1 ]; then
+            csg_die "Builds of more than one profile of this version are here, ${built// / and }: name the one to send with --build-profile ${built// / or --build-profile }. Nothing was sent."
+        fi
         if [ "$count" -eq 1 ]; then
             build_dir="$firmware_dir/.pio/build/$(csg_firmware_environment "$built")"
             csg_say "Sending the last $built build, the only one of this version here."
@@ -153,8 +156,7 @@ csg_unlock firmware
 contents="$(csg_tool ota-contents "$sending" "$update_path")"
 field_of() { printf '%s' "$2" | csg_tool json-get - "$1" ''; }
 if [ -z "$file" ] && [ "$effects_only" -eq 0 ]; then
-    folder_profile=Dev
-    if [ "$(basename "$build_dir")" = "$(csg_firmware_environment Release)" ]; then folder_profile=Release; fi
+    folder_profile="$(csg_firmware_profile_of "$(basename "$build_dir")")"
     problem="$(build_version_problem "$(field_of version "$contents")" "$folder_profile")"
     [ -z "$problem" ] || csg_die "$update_path holds $problem: a build left from before, it seems. Build again, or send it with --file if it is meant. Nothing was sent."
 fi
@@ -309,7 +311,8 @@ pack_before="$(field_of pack_digest "$before")"
 want_image="$(field_of image "$contents")"
 want_pack="$(field_of pack_digest "$contents")"
 # In a variable, as bash 3.2 and later read a pattern written inline differently.
-plain_pattern='^version=([^ ]+) on_trial=([0-9]) https=0 boot=([^ ]*) image=([^ ]*) pack=([^ ]*)'
+# The same test as ota-update.ps1's: the paired route asked after it holds the boot, image and effects to theirs.
+plain_pattern='^version=[^ ]+ on_trial=[0-9] https=0 '
 deadline=$(($(date +%s) + 720))
 while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 0.5

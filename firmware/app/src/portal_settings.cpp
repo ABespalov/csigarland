@@ -303,7 +303,11 @@ esp_err_t portal_handle_rtc_set(httpd_req_t* req) {
         if (!time_zone_ready()) {
             return portal_send_status(req, "503 Service Unavailable", "The time zone saved could not be read yet: try again in a few seconds");
         }
-        done = time_set_rtc_local(parsed, ClockSource::Manual);
+        int64_t seconds = 0;
+        if (!time_local_to_epoch(parsed, seconds)) {
+            return portal_send_err(req, HTTPD_400_BAD_REQUEST, "not a time this clock can hold");
+        }
+        done = time_set_rtc(seconds, ClockSource::Manual);
     } else {
         return portal_send_err(req, HTTPD_400_BAD_REQUEST, "unknown source");
     }

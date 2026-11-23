@@ -353,25 +353,22 @@ static void test_presence_readings_from_this_board() {
     TEST_ASSERT_FALSE(probe_says_present(2660));
 }
 
-static void test_presence_check_keeps_the_estimate_only_while_present() {
+static void test_presence_check_never_changes_the_count() {
     State state;
-    state.set_probe(ProbeStatus::Present, 40);
-    state.set_presence(ProbeStatus::Present);
-    TEST_ASSERT_EQUAL_UINT16(40, state.snapshot().led_estimate);
-
-    state.set_presence(ProbeStatus::Absent);
-    TEST_ASSERT_TRUE(state.snapshot().probe == ProbeStatus::Absent);
-    TEST_ASSERT_EQUAL_UINT16(0, state.snapshot().led_estimate);
-
-    // Back while lit, as after one reading that found none: the count it had still stands.
     state.set_presence(ProbeStatus::Present);
     TEST_ASSERT_TRUE(state.snapshot().probe == ProbeStatus::Present);
-    TEST_ASSERT_EQUAL_UINT16(40, state.snapshot().led_estimate);
-    TEST_ASSERT_EQUAL_UINT16(40, state.snapshot().led_count);
-
-    // A full count finding none does replace it.
-    state.set_probe(ProbeStatus::Present, 0);
     TEST_ASSERT_EQUAL_UINT16(32, state.snapshot().led_count);
+
+    // Nothing on the pin: it says so, and the count it sends to stays.
+    state.set_presence(ProbeStatus::Absent);
+    TEST_ASSERT_TRUE(state.snapshot().probe == ProbeStatus::Absent);
+    TEST_ASSERT_EQUAL_UINT16(32, state.snapshot().led_count);
+
+    // The owner's number, whatever is on the pin.
+    state.set_led_setting(12);
+    TEST_ASSERT_EQUAL_UINT16(12, state.snapshot().led_count);
+    state.set_presence(ProbeStatus::Present);
+    TEST_ASSERT_EQUAL_UINT16(12, state.snapshot().led_count);
 }
 
 /* Network search */
@@ -797,7 +794,7 @@ static void run_device_tests() {
     RUN_TEST(test_a_certificate_ruled_out_stays_so_until_replaced);
     RUN_TEST(test_a_certificate_starting_in_the_future_is_told);
     RUN_TEST(test_presence_readings_from_this_board);
-    RUN_TEST(test_presence_check_keeps_the_estimate_only_while_present);
+    RUN_TEST(test_presence_check_never_changes_the_count);
     RUN_TEST(test_scan_retries_before_saying_there_is_nothing);
     RUN_TEST(test_scan_list_is_one_entry_per_name_strongest_first);
     RUN_TEST(test_ota_header_reads_a_good_file);

@@ -212,8 +212,9 @@ func Get(name string) (string, error) {
 		defer C.free(bytes)
 	}
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return "", err
+		// With no keychain in this session nothing was ever kept here, as Linux has it with no Secret Service.
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnsupported) {
+			return "", ErrNotFound
 		}
 		return "", fmt.Errorf("read the token from the keychain: %w", err)
 	}
@@ -225,7 +226,8 @@ func Delete(name string) error {
 	storeLock.Lock()
 	defer storeLock.Unlock()
 	err := withNames(name, func(service, account *C.char) C.OSStatus { return C.csg_delete(service, account) })
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	// With no keychain in this session, nothing is kept to forget.
+	if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrUnsupported) {
 		return fmt.Errorf("forget the token in the keychain: %w", err)
 	}
 	return nil

@@ -288,7 +288,7 @@ func probe(ctx context.Context, address string) (About, string, error) {
 		TLSHandshakeTimeout: confirmConnect,
 		MaxConnsPerHost:     maxConnections,
 	}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{Transport: transport, CheckRedirect: noRedirects}
 	defer client.CloseIdleConnections()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+prefix+"about", nil)
 	if err != nil {

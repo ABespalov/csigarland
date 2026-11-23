@@ -23,6 +23,10 @@ bool rtc_present();
 // it holds can be believed, see rtc_is_trusted.
 bool rtc_read(int64_t& epoch, bool& trusted);
 
+// The part's own temperature, in hundredths of a degree, a quarter degree at a time: the air in the box, for
+// the Lab build. False without the part.
+bool rtc_read_temperature_centi(int32_t& centi);
+
 // Sets the time, and clears the part's word that it had lost it.
 bool rtc_write(int64_t epoch);
 

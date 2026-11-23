@@ -101,6 +101,15 @@ static void test_the_name_constraints_are_those_the_client_was_tried_with() {
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, der, sizeof(expected));
 }
 
+// An address is four numbers with no leading zero, which some would read as octal.
+static void test_an_address_has_no_leading_zero() {
+    uint8_t out[4] = {};
+    TEST_ASSERT_TRUE(tls_is_ipv4_text("192.168.1.10", out));
+    TEST_ASSERT_TRUE(tls_is_ipv4_text("10.0.0.1", out));
+    TEST_ASSERT_FALSE(tls_is_ipv4_text("192.168.001.1", out));
+    TEST_ASSERT_FALSE(tls_is_ipv4_text("010.0.0.1", out));
+}
+
 static void test_a_trial_ends_only_on_what_the_flash_says() {
     TEST_ASSERT_TRUE(ota_record_means_trial(OtaRecord::Pending));
     TEST_ASSERT_TRUE(ota_record_means_trial(OtaRecord::Unreadable));
@@ -210,6 +219,7 @@ static void run_api_tests() {
     RUN_TEST(test_an_empty_password_keeps_the_saved_one);
     RUN_TEST(test_a_refused_update_says_whose_problem_it_is);
     RUN_TEST(test_a_trial_ends_only_on_what_the_flash_says);
+    RUN_TEST(test_an_address_has_no_leading_zero);
     RUN_TEST(test_a_trial_says_how_long_it_has_left);
     RUN_TEST(test_an_unreadable_identity_is_not_made_again);
     RUN_TEST(test_only_a_broken_key_is_replaced);

@@ -66,11 +66,11 @@ bool write_frame(const std::string& path) {
     return std::fclose(file) == 0 && written;
 }
 
-// A garland playing, on the home network, with its 32 LEDs detected. Each picture starts from this.
+// A garland playing, on the home network, its 32 LEDs set on the Device page. Each picture starts from this.
 void set_up(State& state) {
     state.set_effect_count(3);
-    state.set_led_setting(kLedCountAuto);
-    state.set_probe(ProbeStatus::Present, 32);
+    state.set_led_setting(32);
+    state.set_presence(ProbeStatus::Present);
     state.set_station_ip(kSampleAddress);
     state.set_brightness(75);
     state.set_speed(kNormalSpeed);
@@ -108,7 +108,10 @@ const Picture kPictures[] = {
          state.set_station_ip(0);
          state.set_setup_network(true);
      }},
-    {"no-leds", ScreenId::NoLeds, [](State& state) { state.set_probe(ProbeStatus::Absent, 0); }},
+    {"no-leds", ScreenId::NoLeds, [](State& state) {
+         state.set_led_setting(kLedCountUnset);
+         state.set_presence(ProbeStatus::Absent);
+     }},
     {"access", ScreenId::Access, [](State& state) { state.set_pair_display(pair_display_for_code(4827)); }},
     {"power-off", ScreenId::PowerOff, [](State& state) {
          state.button_down(ButtonId::Power);

@@ -129,7 +129,7 @@ function Get-csiGarlandFirmwareIdentity {
     param(
         [Parameter(Mandatory = $true)][string]$IniPath,
         [Parameter(Mandatory = $true)][int]$BuildNumber,
-        [ValidateSet('Release', 'Dev')][string]$BuildProfile = 'Release'
+        [ValidateSet('Release', 'Dev', 'Lab')][string]$BuildProfile = 'Release'
     )
 
     $line = Select-String -LiteralPath $IniPath `
@@ -145,6 +145,8 @@ function Get-csiGarlandFirmwareIdentity {
     }
     if ($BuildProfile -eq 'Dev') {
         $version += '-dev'
+    } elseif ($BuildProfile -eq 'Lab') {
+        $version += '-lab'
     }
     return $version
 }
@@ -380,10 +382,25 @@ function Split-csiGarlandCommand {
     return @([regex]::Matches($Command, '"[^"]*"|''[^'']*''|\S+') | ForEach-Object { $_.Value.Trim('"', "'") })
 }
 
-# The PlatformIO environment of a profile, which is also its folder under firmware/app/.pio/build.
+# The PlatformIO environment of a profile, which is also its folder under firmware/app/.pio/build. Lab is Dev
+# with what measuring a garland needs, see docs/guides/lab.md, and never a release.
 function Get-csiGarlandFirmwareEnvironment {
-    param([Parameter(Mandatory = $true)][ValidateSet('Release', 'Dev')][string]$BuildProfile)
-    return ($BuildProfile -eq 'Release') ? 'esp32c6-release' : 'esp32c6'
+    param([Parameter(Mandatory = $true)][ValidateSet('Release', 'Dev', 'Lab')][string]$BuildProfile)
+    switch ($BuildProfile) {
+        'Release' { return 'esp32c6-release' }
+        'Lab' { return 'esp32c6-lab' }
+        default { return 'esp32c6' }
+    }
+}
+
+# The profile whose folder under firmware/app/.pio/build is named folder, the other way round.
+function Get-csiGarlandFirmwareProfileOf {
+    param([Parameter(Mandatory = $true)][string]$Folder)
+    switch ($Folder) {
+        'esp32c6-release' { return 'Release' }
+        'esp32c6-lab' { return 'Lab' }
+        default { return 'Dev' }
+    }
 }
 
 # Everything that goes into the utility, the firmware's engine and effects among it: the paths git would
@@ -519,6 +536,7 @@ Export-ModuleMember -Function `
     Get-csiGarlandPlatformIOPackages, `
     Lock-csiGarlandBuild, `
     Get-csiGarlandFirmwareEnvironment, `
+    Get-csiGarlandFirmwareProfileOf, `
     Get-csiGarlandFirmwareIdentity, `
     Get-csiGarlandReleaseCompiler, `
     Get-csiGarlandUtilityPlatforms, `

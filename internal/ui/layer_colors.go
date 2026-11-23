@@ -144,11 +144,17 @@ func (p *tunePage) pickerWindow(a *App) layout.Widget {
 				)
 			},
 			func(gtx C) D {
-				return a.colorPicker(gtx, &p.colors, current.Color, func(next RGB) {
-					p.write(SetFileColor([]byte(p.file.Text()), current, next))
-				})
+				return a.colorPicker(gtx, &p.colors, current.Color, p.setChosenColor)
 			},
 		)
+	}
+}
+
+// setChosenColor writes the colour chosen in the picker, found again for each change: a drag brings several in
+// one frame, and an [r, g, b] colour changes length with its digits, which moves where it is in the file.
+func (p *tunePage) setChosenColor(next RGB) {
+	if now, ok := p.colorNow(); ok {
+		p.write(SetFileColor([]byte(p.file.Text()), now, next))
 	}
 }
 

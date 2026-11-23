@@ -472,6 +472,20 @@ esp_err_t settings_save_schedule(const ScheduleEntry* entries, size_t count) {
         nvs_close(handle);
         return err;
     }
+    // A change of a step between on and rising alone saves the same bytes: the list stays, and only its marks
+    // change, in one write. Two marks of the same bytes, with the list written after, would let a start match the
+    // new one even when that second write failed and the change was refused.
+    if (before_bytes == saved_bytes && std::memcmp(s_before.data(), s_saved.data(), saved_bytes) == 0) {
+        uint8_t own[kRiseMarksBytes];
+        schedule_rise_marks(schedule_rise_mask(entries, count), reinterpret_cast<const uint8_t*>(s_saved.data()), saved_bytes,
+                            schedule_rise_mask(entries, count), reinterpret_cast<const uint8_t*>(s_saved.data()), saved_bytes, own);
+        err = nvs_set_blob(handle, kScheduleRiseKey, own, sizeof(own));
+        if (err == ESP_OK) {
+            err = nvs_commit(handle);
+        }
+        nvs_close(handle);
+        return err;
+    }
     const uint32_t before_mask = schedule_rises_of(s_before.data(), before_bytes / sizeof(ScheduleEntry), s_rises.data(), rises_bytes);
     uint8_t marks[kRiseMarksBytes];
     schedule_rise_marks(schedule_rise_mask(entries, count), reinterpret_cast<const uint8_t*>(s_saved.data()), saved_bytes, before_mask,

@@ -16,8 +16,10 @@
 #   --check
 #       Write nothing, and fail if the file is not what this would write.
 #
-#   --build-profile Release|Dev
-#       Take the link maps of that profile's last build. Without it, the profile built last.
+#   --build-profile Release|Dev|Lab
+#       Take the link maps of that profile's last build. Without it, the one of Release and Dev built last,
+#       which link the same components: Lab links the chip's temperature driver too, and the file is the
+#       releases'.
 #
 #   --utility-only
 #       Check the utility's part alone, with no firmware build: each of its components is named in the
@@ -39,7 +41,7 @@ while [ "$#" -gt 0 ]; do
         --utility-only) utility_only=1 ;;
         --build-profile)
             csg_need_value "$1" "$#"
-            profiles=("$(csg_profile "$2")")
+            profiles=("$(csg_firmware_profile "$2")")
             shift
             ;;
         *) csg_die "new-third-party-notices.sh does not take $1." ;;
@@ -66,4 +68,4 @@ if [ "$mode" != utility-only ]; then
     done
     [ "$build_root" != - ] || csg_die 'No firmware build to take the link maps of: run pio run -d firmware/app -e esp32c6 first.'
 fi
-csg_python "$CSG_LIB_DIR/csg_notices.py" "$CSG_REPO_ROOT" "$(csg_platformio_packages)" "$(go env GOMODCACHE)" "$(go env GOROOT)" "$build_root" "$mode"
+csg_python "$CSG_LIB_DIR/csg_notices.py" "$CSG_REPO_ROOT" "$(csg_platformio_packages)" "$(go -C "$CSG_REPO_ROOT" env GOMODCACHE)" "$(go -C "$CSG_REPO_ROOT" env GOROOT)" "$build_root" "$mode"

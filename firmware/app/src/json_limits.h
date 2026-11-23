@@ -42,7 +42,8 @@ inline bool json_depth_is_safe(const char* text) {
             if (++depth > kMaxJsonDepth) {
                 return false;
             }
-        } else if (*c == ']' || *c == '}') {
+        } else if ((*c == ']' || *c == '}') && depth > 0) {
+            // Never below the top: closings with nothing open would else count against openings after them.
             --depth;
         }
     }
@@ -53,6 +54,28 @@ inline bool json_depth_is_safe(const char* text) {
 // four JSON names. A byte this did not skip, cJSON did, would leave the rest of the text uncounted.
 constexpr bool json_skips(unsigned char ch) {
     return ch != 0 && ch <= 32;
+}
+
+// Takes out in place what cJSON skips between tokens, and nothing in a string, whose escapes are followed
+// whole, an escaped backslash at its end among them. Comments and stray slashes stay, for the parser to refuse:
+// cJSON_Minify took them out, and missed a string ending in an escaped backslash, turning the rest inside out.
+inline void json_minify_in_place(char* text) {
+    char* into = text;
+    bool in_string = false;
+    for (const char* c = text; *c != '\0'; ++c) {
+        if (in_string) {
+            *into++ = *c;
+            if (*c == '\\' && c[1] != '\0') {
+                *into++ = *++c;
+            } else if (*c == '"') {
+                in_string = false;
+            }
+        } else if (!json_skips(static_cast<unsigned char>(*c))) {
+            in_string = *c == '"';
+            *into++ = *c;
+        }
+    }
+    *into = '\0';
 }
 
 // How many values text holds, keys apart, and whether that stays under kMaxJsonValues. It follows what cJSON

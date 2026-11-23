@@ -66,7 +66,7 @@ The portal's Effects page and this API take a file in the format of section 6 wi
 | Request | Does |
 |---|---|
 | `POST /api/effects/file?id=my-effect` with the file as body | Saves it. An id of a built-in effect replaces that effect |
-| `DELETE /api/effects/file?id=my-effect` | Removes it, or gives a built-in effect its own definition back. Refused while the schedule uses an effect that would be gone |
+| `DELETE /api/effects/file?id=my-effect` | Removes it, or gives a built-in effect its own definition back. Refused while the schedule or the playlist uses an effect that would be gone |
 | `POST /api/effects/preview` with the file as body | Plays it without saving, until another effect is chosen |
 | `GET /api/effects/store` | How many are kept, the limits, and free memory |
 
@@ -451,7 +451,7 @@ The modes of the classic 8-function garland controller, written for this project
 
 * **Global brightness (POWER) and speed (SPEED):** runtime state. SPEED scales the effect's clock, so every algorithm follows it and `sx` keeps its meaning. An algorithm that moves in steps of its own, such as `fire`, `candle`, `drift` and `dynamic`, takes every step that has come since its last frame, up to 8 in one frame (`kMaxCatchUpSteps`): a fast SPEED or a late frame moves it on as far as the time that passed, and a long stall costs no frame more than that.
 * **The current limiter:** applied to the final frame, at 1400 mA up to firmware 1.1.1, and from 1.4.0 at the limit the Device page's power settings give, 1400 mA by default. No file can bypass it.
-* **LED count:** from the portal or the probe.
+* **LED count:** set on the Device page of the portal or the utility.
 
 ## 10. Bad Input
 

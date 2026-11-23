@@ -13,6 +13,7 @@
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "lab_logic.h"
 #include "rtc_logic.h"
 
 namespace garland {
@@ -26,6 +27,8 @@ constexpr int kTimeoutMs = 50;
 constexpr uint8_t kRegSeconds = 0x00;
 constexpr uint8_t kRegControl = 0x0E;
 constexpr uint8_t kRegStatus = 0x0F;
+// Whole degrees, then the quarters in the top two bits, as the part measures itself every 64 s.
+constexpr uint8_t kRegTemperature = 0x11;
 // Set, the oscillator stops on battery: perfect time while powered, none after unplugging.
 constexpr uint8_t kControlOscillatorOffOnBattery = 0x80;
 constexpr uint8_t kStatusOscillatorStopped = 0x80;
@@ -111,6 +114,15 @@ bool rtc_read(int64_t& epoch, bool& trusted) {
         return false;
     }
     trusted = rtc_is_trusted((status & kStatusOscillatorStopped) != 0, epoch);
+    return true;
+}
+
+bool rtc_read_temperature_centi(int32_t& centi) {
+    uint8_t registers[2] = {};
+    if (!read_registers(kRegTemperature, registers, sizeof(registers))) {
+        return false;
+    }
+    centi = rtc_temperature_centi(registers[0], registers[1]);
     return true;
 }
 

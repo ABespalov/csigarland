@@ -102,7 +102,7 @@ The colour says what is going on:
 
 The header shows the firmware version. The wordmark is white and blue on any coloured frame, and on a grey one it and the version go grey too. With a clock module fitted, a small clock glyph sits at the end of the wordmark, and turns white when a scheduled action comes within a day.
 
-The footer shows the portal's address. In the LED count, `N` is set by hand, `~N` is estimated, `0` means none are detected, and `?` means present but not measurable.
+The footer shows the portal's address. The LED count is the number in use, set on the Device page or the firmware's own 32; `0` means none is set and nothing is on the data line, and `!N` that the LEDs still get an earlier count.
 
 | | | |
 |---|---|---|
@@ -136,7 +136,7 @@ Every page has the same header, with the firmware version on the right. Colours 
 * **Now** shows on or off and the effect, and follows the buttons at once, as the garland pushes each change; if it cannot, with two pages or programs following it already, it asks every few seconds. Its sliders set the brightness, from 1 to 100 %, and the speed, from 0.25x to 5x in steps of 0.25, and the garland follows as you move them. While the garland is off they do not turn it on: it shows them at the next turn on. From a speed the slider set, the SPEED button goes to its next step up, or to 0.25x from 3x or more. The choice is saved once it has stayed unchanged for 10 seconds.
 * **Effects** lists all of them in eight groups, then **Uploaded**, which holds what you added from files, a file replacing a built-in effect among them, and is there even while empty. A group opens by itself if it holds a favourite or what is playing, and Uploaded whenever it holds anything. A title such as `Classic Garland (8 of 16)` says how many of its effects are favourites.
 * **The tick** puts an effect in the EFFECT button's cycle. At least one must stay ticked.
-* **Play** starts any effect, ticked or not, and turns the garland on. **Active** marks what plays. After a non-favourite, the button goes on with the next favourite.
+* **Play** starts any effect, ticked or not, and turns the garland on. **Playing now** marks what plays. After a non-favourite, the button goes on with the next favourite.
 * **Playlist** plays up to 16 effects in turn, each for 10 s to an hour, with a fade from one to the next of 0 to 5 s. Add effects from the list under it, remove one with its bin, and **Save playlist**; **Play the playlist** turns the garland on at its first effect, and **Stop the playlist** keeps what plays. Choosing a single effect, here, by the EFFECT button or by a scheduled action, stops it too. The fade holds for every change of effect, not the playlist's alone. An uploaded effect in the playlist cannot be deleted until it is taken out. One the garland lacks, as after an update of the effects, stays in the list marked "not on this garland", and plays again once it is back.
 * **Add an effect from a file** takes a file in [the effect format](effects.md#6-effect-file). **Preview** plays it without saving, until another effect is chosen. **Save** keeps it, up to 32, and the file's name is its id, in lowercase and with `_` as `-`, so `My_Effect.json` makes `my-effect`. A file named as a built-in effect replaces it until you press **Restore**; one of your own has **Delete**.
 
@@ -160,10 +160,10 @@ The garland comes back from a power cut as it was left. Then, at the first time 
 
 <img src="../images/portal/device.png" width="360" alt="The Device page">
 
-* **LED count:** detected automatically, or set by hand, 1 to 256. An exact count cannot be detected, so if the figure is wrong, set it.
+* **LED count:** set by hand, 1 to 256. With none set, the firmware's own, 32. The garland cannot count its LEDs from the data line, so set yours if the chain is not 32; a garland left on automatic detection by 1.4.0 or before takes 32 after an update.
 * **Power,** new in firmware 1.4.0: the garland dims a frame that would draw more than its limit, as a whole. Up to 1.1.1 the limit is a fixed 1400 mA, and the page has no power settings.
   * **The limit** is what your power supply gives beyond 250 mA for the board, the screen and Wi-Fi, less a margin of that: (2000 - 250) * 80 % = 1400 mA with the 2000 mA supply and the 20 % it comes with. At most it is (4400 - 250) * 95 % = 3942 mA, about 3.9 A.
-  * **Power supply:** 500 to 4400 mA, 2000 mA by default. A larger supply, or a smaller margin, lets more of the chain show full white. **Set only what your supply, the garland's wire and its connector are all rated for:** the limit goes by these figures alone, and cannot know what the parts can take.
+  * **Power supply:** 500 to 4400 mA, 2000 mA by default. A larger supply, or a smaller margin, lets more of the chain show full white. **Set only what your supply, the garland's wire and its connector are all rated for:** the limit goes by these figures alone, and cannot know what the parts can take. The control unit's garland outlet, a JST-XH, is rated 3 A: with it, keep the limit at 3000 mA or below.
   * **One LED at full white,** above what it draws dark: 5 to 100 mA, 40 mA by default.
   * **One LED dark:** 0 to 5 mA, 1 mA by default. Keep both defaults unless your LEDs were measured otherwise.
   * **Margin:** 5 to 20 %, 20 % by default.
@@ -207,7 +207,7 @@ Shows the running version. Choose an `.ota` file, and the page says what it hold
 
 * **Device:** model, chip, MAC.
 * **Memory:** free RAM, the lowest it has been since the start, and the firmware's room in flash.
-* **Network:** the addresses, the mDNS name, the certificate's names and end date. A line **HTTPS: Not working** means the portal is on plain HTTP; install a new firmware. A line **LED output: Not working** means frames are not reaching the garland, and the firmware keeps trying to start the output again.
+* **Network:** the addresses, the mDNS name, the root's SHA-256 fingerprint, which the utility and your browser check the garland by, and the portal certificate's end date. Its names are on the Network page. A line **HTTPS: Not working** means the portal is on plain HTTP; install a new firmware. A line **LED output: Not working** means frames are not reaching the garland, and the firmware keeps trying to start the output again.
 * **Effects and mode,** and the **next scheduled action.**
 * **Browsers with access,** each with **Forget**. The one you are on says so.
 

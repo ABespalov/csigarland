@@ -31,9 +31,21 @@ type releaseCatalog struct {
 
 func (c *releaseCatalog) client() *http.Client {
 	if c.http == nil {
-		c.http = &http.Client{Timeout: catalog.Timeout}
+		c.http = &http.Client{Timeout: catalog.Timeout, CheckRedirect: httpsRedirectsOnly}
 	}
 	return c.http
+}
+
+// httpsRedirectsOnly lets the catalog follow a release's download to where it is kept, as GitHub sends it, but
+// never from HTTPS to plain HTTP, where the file could be changed on its way.
+func httpsRedirectsOnly(request *http.Request, via []*http.Request) error {
+	if request.URL.Scheme != "https" {
+		return fmt.Errorf("refused a redirect to %s: the catalog is read over HTTPS only", request.URL.Redacted())
+	}
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after %d redirects", len(via))
+	}
+	return nil
 }
 
 // releasesAddress is the catalog's, unless a page names another. Empty, nothing is looked for by

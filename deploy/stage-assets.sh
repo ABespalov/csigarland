@@ -17,9 +17,10 @@
 #   --new-build
 #       Spend a build number even though the last build is usable.
 #
-#   --build-profile Release|Dev
+#   --build-profile Release|Dev|Lab
 #       Release, the default, is what goes into a release. Dev keeps the debug information and is staged
-#       as 1.0.0.102-dev. Each profile builds in its own folder, so the last build of the other is never taken.
+#       as 1.0.0.102-dev, and Lab, Dev with what measuring a garland needs (docs/guides/lab.md), as
+#       1.0.0.102-lab. Each profile builds in its own folder, so the last build of another is never taken.
 #
 # Writes assets/firmware/csigarland-<version>.ota, a .sha256 and a .manifest.json beside it, and says each
 # file it staged on stdout as "Staged <path>".
@@ -38,7 +39,7 @@ profile=Release
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --new-build) new_build=1 ;;
-        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_profile "$2")"; shift ;;
+        --build-profile) csg_need_value "$1" "$#"; profile="$(csg_firmware_profile "$2")"; shift ;;
         *) csg_die "stage-assets.sh does not take $1." ;;
     esac
     shift
@@ -140,9 +141,23 @@ checked="$(csg_own_signature "$ota_path" "$root_path")" ||
 printf '%s' "$checked" >"$set/checked.json"
 
 # A binary passed on owes the notices of what it holds, and the file cannot be judged with no Go.
-if command -v go >/dev/null 2>&1; then
+# A Lab build links the chip's temperature driver too, so its own link maps give another file than the
+# releases': it is held to the last of the Release and Dev builds, and with neither here it is not checked,
+# as a Lab build is never published.
+release_maps=0
+for kind in Release Dev; do
+    for map in "$firmware_dir/.pio/build/$(csg_firmware_environment "$kind")"/*.map; do
+        if [ -f "$map" ]; then release_maps=1; fi
+    done
+done
+if [ "$profile" = Lab ] && [ "$release_maps" -eq 0 ]; then
+    csg_warn 'No Release or Dev build here to hold THIRD_PARTY_NOTICES.md to, so it was not checked: a Lab build is never published.'
+    notices_checked=false
+elif command -v go >/dev/null 2>&1; then
     go -C "$repo" mod download || csg_die "Go could not fetch the utility's modules, whose licences the notices hold. Nothing was staged."
-    bash "$CSG_DEPLOY_DIR/new-third-party-notices.sh" --check --build-profile "$profile" ||
+    notices_profile=(--build-profile "$profile")
+    if [ "$profile" = Lab ]; then notices_profile=(); fi
+    bash "$CSG_DEPLOY_DIR/new-third-party-notices.sh" --check ${notices_profile[@]+"${notices_profile[@]}"} ||
         csg_die 'THIRD_PARTY_NOTICES.md is not what this build linked. Nothing was staged.'
     notices_checked=true
 else

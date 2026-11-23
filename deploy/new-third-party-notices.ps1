@@ -14,8 +14,9 @@
 #
 # -Check writes nothing, and fails if the file is not what this would write.
 #
-# -BuildProfile Release|Dev takes the link maps of that profile's last build. Without it, the
-# profile built last: both link the same components.
+# -BuildProfile Release|Dev|Lab takes the link maps of that profile's last build. Without it, the
+# one of Release and Dev built last, which link the same components: Lab links the chip's temperature
+# driver too, and the file is the releases'.
 #
 # -UtilityOnly checks the utility's part alone, with no firmware build: each of its components is named
 # in the file under its own licence, and the file names none it no longer holds. It writes nothing.
@@ -24,7 +25,7 @@
 param(
     [switch]$Check,
     [switch]$UtilityOnly,
-    [ValidateSet('', 'Release', 'Dev')][string]$BuildProfile = ''
+    [ValidateSet('', 'Release', 'Dev', 'Lab')][string]$BuildProfile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,7 +50,8 @@ $Toolchain = Join-Path (Get-csiGarlandPlatformIOPackages) 'toolchain-riscv32-esp
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     throw 'Go is not on PATH, and the notices read the licences of its modules from its cache.'
 }
-$GoCache = (& go env GOMODCACHE)
+# From the module, as its go.mod's toolchain may hold settings of its own.
+$GoCache = (& go -C $RepoRoot env GOMODCACHE)
 $OutputPath = Join-Path $RepoRoot 'THIRD_PARTY_NOTICES.md'
 
 function Get-LicenceText {
@@ -249,7 +251,7 @@ foreach ($match in [regex]::Matches($goMod, '(?m)^\s*(?:require\s+)?([a-z0-9.-]+
 # link statically, by the groups of deploy/BuildVersion.psm1. Their texts are kept in deploy\licences,
 # as the compiler comes with none.
 $goToolchain = [regex]::Match($goMod, '(?m)^toolchain go(\S+)').Groups[1].Value
-Add-Licence "Go $goToolchain standard library and runtime, in the utility" (Read-Licence (Join-Path (& go env GOROOT) 'LICENSE'))
+Add-Licence "Go $goToolchain standard library and runtime, in the utility" (Read-Licence (Join-Path (& go -C $RepoRoot env GOROOT) 'LICENSE'))
 # GCC's are kept here too, as the firmware's toolchain has them, so that the utility's part needs no firmware
 # package: a full run holds the two to be the same texts.
 $Licences = Join-Path $PSScriptRoot 'licences'

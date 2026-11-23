@@ -3,7 +3,7 @@
  * Licensed under the terms specified by the MIT License
  * Part of the csiGarland project https://github.com/ABespalov/csigarland
  *
- * Purpose: High-priority task that owns the LED rail, the probe and the frames
+ * Purpose: High-priority task that owns the LED rail, the presence check and the frames
  * Contributors: None
  */
 
@@ -23,6 +23,7 @@
 #include "freertos/task.h"
 #include "garland_output.h"
 #include "garland_probe.h"
+#include "lab.h"
 #include "light_fade.h"
 #include "output_health.h"
 
@@ -41,11 +42,6 @@ constexpr int64_t kPresenceCheckUs = 3'000'000;
 constexpr uint32_t kStackBytes = 6144;
 constexpr UBaseType_t kPriority = configMAX_PRIORITIES - 5;
 constexpr int64_t kParseRetryUs = 1'000'000;
-
-void run_probe(State& state) {
-    const ProbeResult result = probe_garland(static_cast<gpio_num_t>(CSIGARLAND_GARLAND_GPIO));
-    state.set_probe(result.status, result.led_estimate);
-}
 
 // Returns false if the LED output could not be started again afterwards.
 bool check_presence(State& state, GarlandOutput& output, bool rail_on, ProbeStatus previous) {
@@ -99,7 +95,9 @@ void lighting_task(void* arg) {
     GarlandOutput output(static_cast<gpio_num_t>(CSIGARLAND_GARLAND_GPIO),
                          static_cast<gpio_num_t>(CSIGARLAND_POWER_GATE_GPIO),
                          state.snapshot().led_count);
-    run_probe(state);
+    // Whether a garland is there, before the first button or the remembered state can turn it on: the screen
+    // says so from the start. The rail is off, so nothing needs starting again after it.
+    check_presence(state, output, false, ProbeStatus::NotChecked);
 
     // Static: the longest chain would take a large part of this task's stack.
     static std::array<Rgb, CSIGARLAND_MAX_LEDS> s_frame;
@@ -127,7 +125,6 @@ void lighting_task(void* arg) {
     bool rail_on = false;
     bool clamp_reported = false;
     bool power_allowed = true;  // What the log last said of rail_may_be_on.
-    bool recounted = false;     // Counted again for the turn on now asked for, held off by its count.
     OutputHealth health;
     static EffectRenderer s_renderer(static_cast<uint32_t>(esp_random()));
     // The effect's own clock: the SPEED button scales it, so every algorithm
@@ -141,7 +138,6 @@ void lighting_task(void* arg) {
     int64_t next_parse_us = 0;
     int64_t last_frame_us = esp_timer_get_time();
     int64_t last_presence_check_us = last_frame_us;
-    bool probed = false;  // For the turn on now asked for, whose rail comes on in the next turn.
 
     while (true) {
         ulTaskNotifyTake(pdTRUE, rail_on ? kWaitLitTicks : kWaitDarkTicks);
@@ -160,6 +156,7 @@ void lighting_task(void* arg) {
             state.refuse_power();
             rail_on = false;
             state.set_rail_on(false);
+            lab_note_current(0);
             set_dither_timer(dither_timer, false);
             continue;
         }
@@ -183,6 +180,7 @@ void lighting_task(void* arg) {
                 output.power_off();
                 rail_on = false;
                 state.set_rail_on(false);
+                lab_note_current(0);
                 set_dither_timer(dither_timer, false);
                 continue;
             }
@@ -197,7 +195,7 @@ void lighting_task(void* arg) {
         if (may_power != power_allowed) {
             power_allowed = may_power;
             if (!may_power) {
-                ESP_LOGW(TAG, "the rail stays off: %s", !power.known ? "the power settings are not read yet"
+                ESP_LOGW(TAG, "the rail stays off: %s", !power.known ? "the power settings or the LED count are not read yet"
                                                                      : "the LEDs' idle draw alone is over the limit");
             }
         }
@@ -205,41 +203,15 @@ void lighting_task(void* arg) {
             output.power_off();
             rail_on = false;
             state.set_rail_on(false);
+            lab_note_current(0);
             set_dither_timer(dither_timer, false);
             continue;
         }
 
-        if (!now.power_requested) {
-            recounted = false;
-        }
-        if (!now.power_requested || !may_power) {
-            probed = false;
-        }
         const int64_t turn_us = esp_timer_get_time();
         if (now.power_requested && !rail_on && !may_power) {
-            // Held off: the light comes in a later turn, once the settings allow it. A count found by the probe
-            // may be one of a chain since replaced, which no presence check counts again: so, once for each
-            // turn on asked for, it is counted again, the rail off, and the turn that reads the new count
-            // decides, at once.
-            if (power.known && now.led_setting == kLedCountAuto && !recounted) {
-                run_probe(state);
-                recounted = true;
-                probed = true;
-                xTaskNotifyGive(xTaskGetCurrentTaskHandle());
-                continue;
-            }
+            // Held off: the light comes in a later turn, once the settings or the count allow it.
         } else if (now.power_requested && !rail_on) {
-            if (!probed) {
-                // The rail must be off to measure, so this is the only moment to count. Most of a
-                // second goes by, in which the garland may be turned off, an update begin, or the
-                // count or effect change: so the rail comes on only in a turn that reads all of it
-                // again, and that turn starts at once.
-                run_probe(state);
-                probed = true;
-                xTaskNotifyGive(xTaskGetCurrentTaskHandle());
-                continue;
-            }
-            probed = false;
             rail_on = output.power_on();
             if (!rail_on) {
                 state.refuse_power();
@@ -270,6 +242,7 @@ void lighting_task(void* arg) {
                 output.power_off();
                 rail_on = false;
                 state.set_rail_on(false);
+                lab_note_current(0);
                 set_dither_timer(dither_timer, false);
             }
         }
@@ -353,6 +326,7 @@ void lighting_task(void* arg) {
                 // The owner's settings in one word, so a save is taken whole, at the next frame.
                 const CurrentModel model = current_model(power.settings);
                 const uint32_t current_ma = limit_current(targets, model);
+                lab_note_current(current_ma);
                 limited_count = led_count;
                 if (current_ma > model.limit_ma && !clamp_reported) {
                     ESP_LOGW(TAG, "clamped %lu mA to %lu mA", static_cast<unsigned long>(current_ma),

@@ -333,6 +333,23 @@ static void test_a_schedule_keeps_an_effect_its_catalog_lacks() {
     TEST_ASSERT_EQUAL_STRING("gone-effect", cJSON_GetArrayItem(missing.get(), 0)->valuestring);
 }
 
+// A playlist step is no missing effect, and its mark cannot be sent as an effect's name, even with a playlist
+// step held.
+static void test_a_playlist_step_is_no_missing_effect() {
+    const JsonPtrForTest json(cJSON_Parse(R"([{"enabled":true,"time":"07:00","days":127,"power":"on","playlist":true}])"));
+    ScheduleEntry out[kMaxScheduleEntries];
+    size_t count = 0;
+    const char* error = nullptr;
+    TEST_ASSERT_TRUE(schedule_from_json(json.get(), out, count, error));
+    TEST_ASSERT_EQUAL_UINT32(1, count);
+    const JsonPtrForTest missing(schedule_missing_json(out, count));
+    TEST_ASSERT_EQUAL_INT(0, cJSON_GetArraySize(missing.get()));
+
+    const JsonPtrForTest named(cJSON_Parse(R"([{"enabled":true,"time":"07:00","days":127,"power":"on","effect":"@playlist"}])"));
+    ScheduleEntry again[kMaxScheduleEntries];
+    TEST_ASSERT_FALSE(schedule_from_json(named.get(), again, count, error, out, 1));
+}
+
 // A save cut after its first write, or whose third failed, leaves two marks. The start after it keeps only
 // the mark of the list in force, whichever that is, so no list 1.0.0 saves later can match the other.
 static void test_a_start_keeps_only_the_mark_of_the_list_in_force() {
@@ -596,7 +613,7 @@ static void test_the_screen_says_where_the_playlist_stands() {
         list[i] = i;
     }
     state.set_playlist(list, kMaxPlaylistEffects, 30);
-    state.set_probe(ProbeStatus::Present, 32);
+    state.set_presence(ProbeStatus::Present);
     const ScreenInputs inputs = {"Aurora", "csiGarland-Setup", "PASS", "192.168.4.1"};
     state.set_power(true);
     TEST_ASSERT_EQUAL_STRING("Playing", build_screen_model(state.snapshot(), inputs).title);
@@ -691,6 +708,7 @@ static void run_light_tests() {
     RUN_TEST(test_a_list_refused_keeps_the_rises_before_it);
     RUN_TEST(test_a_start_keeps_only_the_mark_of_the_list_in_force);
     RUN_TEST(test_a_schedule_keeps_an_effect_its_catalog_lacks);
+    RUN_TEST(test_a_playlist_step_is_no_missing_effect);
     RUN_TEST(test_an_empty_list_names_no_effects);
     RUN_TEST(test_the_next_step_passes_over_an_empty_start);
     RUN_TEST(test_a_new_chain_length_is_rendered_before_it_is_sent);

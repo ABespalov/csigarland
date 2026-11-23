@@ -193,6 +193,8 @@ def firmware_identity(ini: str, build: int, profile: str) -> str:
                 version += f"-{found.group(2)}"
             if profile == "Dev":
                 version += "-dev"
+            elif profile == "Lab":
+                version += "-lab"
             return version
     raise Refusal(f"CSIGARLAND_FIRMWARE_BASE not found in {ini}")
 
@@ -237,6 +239,9 @@ def ota_contents(data: bytes, path: str) -> OrderedDict:
     certificate, pack, image = (int.from_bytes(data[at:at + 4], "little") for at in (8, 12, 16))
     if len(data) != OTA_HEADER_BYTES + certificate + pack + image or pack + image == 0:
         raise Refusal(f"{path} is incomplete. Nothing was sent.")
+    # An effects part shorter than its own 12-byte header is no pack, as ota-update.ps1 refuses it.
+    if 0 < pack < 12:
+        raise Refusal(f"{path} holds an effects part too short to be one. Nothing was sent.")
     pack_start = OTA_HEADER_BYTES + certificate
     parts, image_hash, image_version = [], None, None
     if image > 0:

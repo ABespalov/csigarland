@@ -38,7 +38,7 @@ pwsh -File deploy\site-pages.ps1
 
 ## Versions of the files
 
-Every file a page names, its stylesheet, scripts and pictures, carries the start of its SHA-256 in its address, as `styles.css?v=0123456789`, so a browser that kept the one before, as `_headers` lets it for an hour or more, asks for the new one as soon as it changes. `deploy/site-pages.ps1` writes them into the English pages, and the Russian ones take them from there; the source rules fail while one is not current. Run it after any file of the site changes, a picture from `site-assets.ps1` among them.
+Every file a page names, its stylesheet, scripts and pictures, carries the start of its SHA-256 in its address, as `styles.css?v=0123456789`, so a browser or a cache that kept the one before, as `_headers` lets the pictures be kept, asks for the new one as soon as it changes; the pages, the stylesheet and the scripts are asked again at every visit anyway. `deploy/site-pages.ps1` writes them into the English pages, and the Russian ones take them from there; the source rules fail while one is not current. Run it after any file of the site changes, a picture from `site-assets.ps1` among them.
 
 ## Russian pages
 
