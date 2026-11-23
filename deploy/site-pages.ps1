@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2026 Anton Bespalov. All rights reserved.
+# Copyright (c) 2026 Anton Bespalov. All rights reserved.
 # Licensed under the terms specified by the MIT License
 # Part of the csiGarland project https://github.com/ABespalov/csigarland
 #
@@ -33,7 +33,7 @@ Set-StrictMode -Version Latest
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $Site = Join-Path $RepoRoot 'site'
 $Target = Join-Path $Site 'ru'
-$Pages = @('index.html', 'roadmap.html', 'documents.html', 'downloads.html')
+$Pages = @('index.html', 'gallery.html', 'roadmap.html', 'documents.html', 'downloads.html')
 $Origin = 'https://garland.csilab.am/'
 $Utf8 = [System.Text.UTF8Encoding]::new($false)
 

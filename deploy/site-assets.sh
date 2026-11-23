@@ -8,7 +8,9 @@
 #
 # The bash twin of deploy/site-assets.ps1, for Linux and macOS. The site shows what the documents show:
 # the renders of the 3D models, and the pictures of the screen, portal and utility that
-# deploy/new-doc-images.sh makes from the real code. Run this after either changes.
+# deploy/new-doc-images.sh makes from the real code. Run this after either changes. The photographs of
+# the built garland come from docs/images/photos. The effect animations of the Gallery,
+# site/assets/effect-*.gif, are the site's own and this leaves them as they are: see site/README.md.
 #
 # Example:
 #   bash deploy/site-assets.sh
@@ -43,6 +45,10 @@ pictures=(
     utility-tune.png=utility/tune.png
     utility-firmware.png=utility/firmware.png
     schematic.svg=schematic.svg
+    photo-harness-tinned.jpg=photos/harness-tinned.jpg
+    photo-garland-current.jpg=photos/garland-current.jpg
+    photo-controller-closed.jpg=photos/controller-closed.jpg
+    photo-controller-inside.jpg=photos/controller-inside.jpg
 )
 mkdir -p "$target"
 for picture in "${pictures[@]}"; do

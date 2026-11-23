@@ -88,6 +88,8 @@ To use other pins, change the `CSIGARLAND_*_GPIO` flags in [`platformio.ini`](..
 
 The order follows [Assembly Order](../hardware/control-unit.md#87-assembly-order) and assumes the parts are in their cradles. Flash the board **before** the lid goes on: USB is not reachable afterwards, see [First Flash](build-and-flash.md).
 
+![The author's prototype with its lid off: the mains bay with the Hi-Link supply behind its wall, the board with the screen and the three buttons. Its yellow XT60H mains inlet is the one not to copy](../images/photos/controller-inside.jpg)
+
 1. **Print the test coupons** `test_jst` and `test_lcd`, and check your parts against them. Do the same for your inlet's reworked opening.
 2. **Mains bay.** Wire J1 `L` to F1, then F1 to U2's AC `L` pin. Wire J1 `N` to U2's AC `N` pin. Solder RV1 across U2's AC pins. Cover every joint with heat-shrink. Nothing but the two DC wires leaves this bay.
 3. **Through the partition.** Run U2 `+5V` and `GND` through the pass-through at the foot of the partition, the only opening in it.
@@ -123,6 +125,8 @@ Leave the board out of its posts until step 3 of the checks below has passed.
 Use flexible stranded wire, 20 to 26 AWG, silicone-insulated if you can get it, as the garland is handled and hung every year. Solid wire breaks at the pads. Three colours make the wiring hard to get wrong: red `+5V`, black `GND`, any other for data. Or match the cable to the mounts: the author's garland has green 22 AWG silicone wire, about 1.7 mm across, between the figurines, close to the PETG Basic Green of its mounts, and a black 20 AWG lead from the control unit to the first figurine. With wires of one colour, mark `+5V` and `GND` at each end before soldering.
 
 **Cutting and stripping.** The author's garland has 12.5 cm of wire between neighbouring figurines and a 3 m lead, so it took 93 pieces of 22 AWG, three for each of the 31 gaps, and three 3 m runs of 20 AWG: 186 short ends to strip and tin before the first joint. Get an automatic wire stripper before you start; by hand it is an evening of fiddly work.
+
+![The author's harness: 93 pieces of wire, stripped and tinned at both ends, beside the soldering iron and a panel of the LED boards](../images/photos/harness-tinned.jpg)
 
 There is a shorter way, not yet built on a garland of this design. `+5V` and `GND` are shared by every LED, so each can be one continuous run, flat 3-core LED cable being the easiest to keep in order, with a window stripped where each board sits. Data cannot be continuous: every LED reads `DIN` and sends on from its own `DOUT`, so the line must break at every board. Keep it in short pieces, or solder a continuous data wire to both pads and cut it between them, and then check every board with a meter for no connection between `DIN` and `DOUT`: a cut forgotten shorts that LED's output to its own input, and every LED after it shows garbage. Continuous power and ground with short data pieces take about a third fewer strips, and the pull on the garland is then taken by unbroken wire rather than by solder joints. A window in silicone insulation is no easier by hand than an end, though.
 

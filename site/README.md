@@ -14,6 +14,7 @@ Static English and Russian site for **https://garland.csilab.am**, served by Clo
 | File | Role |
 |---|---|
 | `index.html` | The product: what it does, the figurines, the control unit, the portal and utility |
+| `gallery.html` | Photographs of the first garland as it was built, and animations of seven effects |
 | `roadmap.html` | What is released, the milestones to the tree, and what is planned, after `docs/stubs/ROADMAP.md` |
 | `documents.html` | Links to the documents, for owners, and for builders and contributors, and the control unit's schematic |
 | `downloads.html`, `downloads.js` | Every release's files, newest first under each product and platform, drawn from `downloads/manifest.json` |
@@ -22,7 +23,7 @@ Static English and Russian site for **https://garland.csilab.am**, served by Clo
 | `site.js` | The zoomable picture preview |
 | `downloads/manifest.json` | What the Downloads page lists, format `csigarland.downloads/2`: each product, the firmware, the utility and the root certificate, with a build for each platform, its version, release, the day it was released and, after 1.0.0, a link to its release notes; a platform not built yet as not yet |
 | `downloads/firmware-catalog-v1.json` | The catalog of firmware releases the utility reads |
-| `assets/` | The wordmark, the icon, and pictures copied from `docs/images` |
+| `assets/` | The wordmark, the icon, pictures copied from `docs/images`, and the Gallery's effect animations |
 | `_headers`, `_redirects` | Security and cache headers, and short links |
 
 Everything is served from this origin alone, as the `Content-Security-Policy` in `_headers` asks: no external scripts, styles or fonts.
@@ -35,6 +36,8 @@ The site shows what the documents show, never a mock: the renders `deploy/new-mo
 pwsh -File deploy\site-assets.ps1
 pwsh -File deploy\site-pages.ps1
 ```
+
+The photographs come from `docs/images/photos`, which `site-assets.ps1` copies too: real photographs only, captioned with what they show. The Gallery's effect animations, `assets/effect-*.gif`, live here alone, as they are the site's own and too large to keep twice in git. A program of the author's draws them, 960 pixels wide at 20 frames a second: the colours come frame by frame from the firmware's effect engine, through the same `cgo` bridge as the utility, the figurines from their 3D models, and the glow is a sketch, so the page calls them a simulation. They are 1 to 4 MB each, and the page loads them as they scroll into view. Starry Aurora is not a built-in effect but one of three layers, uploaded from a file.
 
 ## Versions of the files
 

@@ -43,6 +43,8 @@ Open the utility's **Log** page and leave it open: it reads on as the garland lo
 
 Every point is on the garland's connector, outside the box: the mains side of the box stays closed. A meter on its 10 A range for currents over 400 mA, as for the [current of the assembled garland](../stubs/TODO.md).
 
+![A meter in series with the garland's +5V: an adapter at the control unit's connector brings the line out to the probes](../images/photos/garland-current.jpg)
+
 **Before.** The Lab build on the garland, the utility paired with its **Log** page open, the meter, and the test effects of solid colours uploaded: black and white at least.
 
 ### 4.1 Power gate and standby

@@ -7,7 +7,9 @@
 #
 # The site shows what the documents show: the renders of the 3D models, and the pictures of the
 # screen, portal and utility that deploy/new-doc-images.ps1 makes from the real code. Run this after
-# either changes, so the site is never drawn apart from them.
+# either changes, so the site is never drawn apart from them. The photographs of the built garland
+# come from docs/images/photos. The effect animations of the Gallery, site/assets/effect-*.gif, are the
+# site's own and this leaves them as they are: see site/README.md.
 #
 # Example:
 #   pwsh -File deploy\site-assets.ps1
@@ -44,6 +46,10 @@ $Pictures = [ordered]@{
     'utility-tune.png'      = 'utility\tune.png'
     'utility-firmware.png'  = 'utility\firmware.png'
     'schematic.svg'         = 'schematic.svg'
+    'photo-harness-tinned.jpg' = 'photos\harness-tinned.jpg'
+    'photo-garland-current.jpg' = 'photos\garland-current.jpg'
+    'photo-controller-closed.jpg' = 'photos\controller-closed.jpg'
+    'photo-controller-inside.jpg' = 'photos\controller-inside.jpg'
 }
 
 New-Item -ItemType Directory -Path $Target -Force | Out-Null

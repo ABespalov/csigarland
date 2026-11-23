@@ -4,6 +4,8 @@ Using a finished garland: the buttons, the screen, getting into the portal, and 
 
 ## 1. Buttons
 
+![The control unit: the screen, and the POWER, EFFECT and SPEED buttons under it](../images/photos/controller-closed.jpg)
+
 Three buttons below the screen. A long press is 0.8 s.
 
 | Button | Click | Long press |

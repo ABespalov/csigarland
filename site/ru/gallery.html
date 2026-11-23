@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!-- Made by deploy/site-pages.ps1 from site/gallery.html and deploy/site-ru.json: edit those, not this. -->
+<html lang="ru">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: Photographs of the first garland as it was built, and animations of its effects
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="gallery.meta.title">Галерея — csiGarland</title>
+  <meta name="description" data-i18n-content="gallery.meta.desc" content="Фотографии первой гирлянды csiGarland, пока ее собирали и измеряли, и ее эффекты на 32 фигурках, нарисованные собственным движком прошивки.">
+  <link rel="canonical" href="https://garland.csilab.am/ru/gallery.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/gallery.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/gallery.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/gallery.html">
+  <link rel="icon" href="../assets/favicon.svg?v=c9fb4a77e3" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css?v=dc4fb616e2">
+  <script src="../lang.js?v=2fbd43acb7"></script>
+  <script src="../site.js?v=355ae332d5" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Перейти к содержимому</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="На главную csiGarland" data-i18n-aria="nav.home"><img src="../assets/wordmark.svg?v=4588a82679" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Основная навигация" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Устройство</a>
+        <a href="gallery.html" aria-current="page" data-i18n="nav.gallery">Галерея</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">План работ</a>
+        <a href="documents.html" data-i18n="nav.documents">Документация</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Загрузки</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Исходный код</a>
+      </nav>
+      <a class="lang-switch" id="lang-switch" href="../gallery.html" hreflang="en" lang="en" aria-label="English version" title="English version">EN</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow" data-i18n="gallery.eyebrow">Галерея</p>
+      <h1 data-i18n="gallery.title">Гирлянда собрана и светится</h1>
+      <p class="lead" data-i18n="gallery.lead">Фотографии первой гирлянды, пока ее собирали и измеряли, и ее эффекты на 32 фигурках. Нажмите на любую картинку, чтобы открыть ее и приблизить.</p>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="gallery.photos.title">На рабочем столе</h2>
+      <p data-i18n="gallery.photos.body">Первая гирлянда и ее блок управления в процессе сборки и замеров. Фотографии гирлянды, зажженной на елке, впереди.</p>
+      <div class="gallery gallery-shots">
+        <figure><img class="photo" src="../assets/photo-harness-tinned.jpg?v=345fb1e760" width="1280" height="720" alt="Пучок коротких зеленых проводов с залуженными концами на паяльном коврике, рядом паяльник, катушка припоя и панель плат светодиодов" data-i18n-alt="gallery.photo.harness.alt"><figcaption data-i18n="gallery.photo.harness">Жгут: 93 отрезка провода 22 AWG по 12,5 см, зачищенные и залуженные с обоих концов, а над ними панель плат светодиодов</figcaption></figure>
+        <figure><img class="photo" src="../assets/photo-garland-current.jpg?v=9511e9f988" width="1280" height="721" alt="Блок управления с включенным экраном, рядом светящиеся фигурки и щупы мультиметра на переходнике у разъема блока" data-i18n-alt="gallery.photo.current.alt"><figcaption data-i18n="gallery.photo.current">Замер тока: переходник на разъеме блока управления включает мультиметр в разрыв линии +5 В гирлянды</figcaption></figure>
+        <figure><img class="photo" src="../assets/photo-controller-closed.jpg?v=a5af625fd0" width="1280" height="721" alt="Закрытый блок управления: черный печатный корпус с надписью csiGarland, маленьким экраном и тремя круглыми кнопками" data-i18n-alt="gallery.photo.closed.alt"><figcaption data-i18n="gallery.photo.closed">Блок управления в сборе: экран, кнопки POWER, EFFECT и SPEED и предупреждение, что внутри сетевое напряжение</figcaption></figure>
+        <figure><img class="photo" src="../assets/photo-controller-inside.jpg?v=10c6a81adb" width="1280" height="721" alt="Блок управления без крышки: слева блок питания и сетевая проводка, справа плата с экраном и три кнопки" data-i18n-alt="gallery.photo.inside.alt"><figcaption data-i18n="gallery.photo.inside">Внутри прототипа: сетевой отсек с блоком питания Hi-Link за сплошной перегородкой, плата ESP32-C6 и кнопки. Желтый XT60H на сетевом вводе повторять не стоит, подробности в руководстве по сборке</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="gallery.effects.title">Эффекты</h2>
+      <p data-i18n="gallery.effects.body">Семь эффектов на 32 фигурках. Это симуляция: цвета кадр за кадром дает собственный движок эффектов прошивки, фигурки взяты из их 3D-моделей, а свечение — набросок того, как полупрозрачный PETG выглядит в темной комнате.</p>
+      <div class="gallery gallery-shots">
+        <figure class="wide"><img class="photo" src="../assets/effect-starry-aurora.gif?v=852b4f27f1" width="960" height="573" loading="lazy" alt="Анимация эффекта Starry Aurora на гирлянде" data-i18n-alt="gallery.fx.starry.alt"><figcaption data-i18n="gallery.fx.starry">Starry Aurora, эффект из трех слоев, загруженный из файла: сияние по всей гирлянде, золотые искры на звездах и сердцебиение на колокольчиках</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-figurine-parade.gif?v=46d7fca796" width="960" height="573" loading="lazy" alt="Анимация эффекта Figurine Parade" data-i18n-alt="gallery.fx.parade.alt"><figcaption data-i18n="gallery.fx.parade">Figurine Parade: фигурки каждого вида по очереди загораются своим цветом</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-fireworks.gif?v=544a9cadaa" width="960" height="573" loading="lazy" alt="Анимация эффекта Fireworks" data-i18n-alt="gallery.fx.fireworks.alt"><figcaption data-i18n="gallery.fx.fireworks">Fireworks: белые вспышки раскрываются цветными залпами и гаснут</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-comet-collision.gif?v=217cb0b51b" width="960" height="573" loading="lazy" alt="Анимация эффекта Comet Collision" data-i18n-alt="gallery.fx.comet.alt"><figcaption data-i18n="gallery.fx.comet">Comet Collision: кометы с двух концов встречаются и взрываются</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-fireplace.gif?v=218ed4f954" width="960" height="573" loading="lazy" alt="Анимация эффекта Fireplace" data-i18n-alt="gallery.fx.fireplace.alt"><figcaption data-i18n="gallery.fx.fireplace">Fireplace: симуляция тепла, а не случайное мерцание</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-icicle-drip.gif?v=0833224c27" width="960" height="573" loading="lazy" alt="Анимация эффекта Icicle Drip" data-i18n-alt="gallery.fx.icicle.alt"><figcaption data-i18n="gallery.fx.icicle">Icicle Drip: капли бегут по гирлянде, набирая скорость</figcaption></figure>
+        <figure><img class="photo" src="../assets/effect-aurora.gif?v=96a90f8ff7" width="960" height="573" loading="lazy" alt="Анимация эффекта Aurora" data-i18n-alt="gallery.fx.aurora.alt"><figcaption data-i18n="gallery.fx.aurora">Aurora: мягкие полосы цвета плывут вдоль гирлянды</figcaption></figure>
+      </div>
+      <div class="cta-row">
+        <a class="button" href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/effects.md" rel="noopener noreferrer" data-i18n="gallery.effects.cta">Все эффекты в руководстве по эффектам</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span data-i18n="footer.copy">csiGarland, проект csi Research Lab. Лицензия MIT.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security">Сообщить об уязвимости</a>
+    </div>
+  </footer>
+</body>
+</html>

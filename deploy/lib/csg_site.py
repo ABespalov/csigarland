@@ -20,7 +20,7 @@ from pathlib import Path
 
 from csg_tool import Refusal
 
-PAGES = ("index.html", "roadmap.html", "documents.html", "downloads.html")
+PAGES = ("index.html", "gallery.html", "roadmap.html", "documents.html", "downloads.html")
 ORIGIN = "https://garland.csilab.am/"
 TEXT_EXTENSIONS = (".css", ".js", ".svg", ".json", ".txt", ".webmanifest")
 TOGGLE = ('<a class="lang-switch" id="lang-switch" href="ru/([^"]*)" hreflang="ru" lang="ru" '

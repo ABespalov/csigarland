@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Copyright (c) 2026 Anton Bespalov. All rights reserved.
+    Licensed under the terms specified by the MIT License
+    Part of the csiGarland project https://github.com/ABespalov/csigarland
+
+    Purpose: Photographs of the first garland as it was built, and animations of its effects
+    Contributors: None
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="gallery.meta.title">Gallery — csiGarland</title>
+  <meta name="description" data-i18n-content="gallery.meta.desc" content="Photographs of the first csiGarland as it was built and measured, and its effects on the 32 figurines, drawn by the firmware's own engine.">
+  <link rel="canonical" href="https://garland.csilab.am/gallery.html">
+  <link rel="alternate" hreflang="en" href="https://garland.csilab.am/gallery.html">
+  <link rel="alternate" hreflang="ru" href="https://garland.csilab.am/ru/gallery.html">
+  <link rel="alternate" hreflang="x-default" href="https://garland.csilab.am/gallery.html">
+  <link rel="icon" href="assets/favicon.svg?v=c9fb4a77e3" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=dc4fb616e2">
+  <script src="lang.js?v=2fbd43acb7"></script>
+  <script src="site.js?v=355ae332d5" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="nav.skip">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html" aria-label="csiGarland home" data-i18n-aria="nav.home"><img src="assets/wordmark.svg?v=4588a82679" width="177" height="33" alt="csiGarland"></a>
+      <nav class="nav" aria-label="Primary" data-i18n-aria="nav.primary">
+        <a href="index.html" data-i18n="nav.product">Product</a>
+        <a href="gallery.html" aria-current="page" data-i18n="nav.gallery">Gallery</a>
+        <a href="roadmap.html" data-i18n="nav.roadmap">Roadmap</a>
+        <a href="documents.html" data-i18n="nav.documents">Documents</a>
+        <a href="downloads.html" data-i18n="nav.downloads">Downloads</a>
+        <a href="https://github.com/ABespalov/csigarland" rel="noopener noreferrer" data-i18n="nav.source">Source</a>
+      </nav>
+      <a class="lang-switch" id="lang-switch" href="ru/gallery.html" hreflang="ru" lang="ru" aria-label="Русская версия" title="Русская версия">RU</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <p class="eyebrow" data-i18n="gallery.eyebrow">Gallery</p>
+      <h1 data-i18n="gallery.title">The garland, built and lit</h1>
+      <p class="lead" data-i18n="gallery.lead">Photographs of the first garland as it was built and measured, and its effects on the 32 figurines. Click or tap any picture to open and zoom it.</p>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="gallery.photos.title">On the bench</h2>
+      <p data-i18n="gallery.photos.body">The first garland and its control unit, photographed while they were being built and measured. Photographs of the garland lit on the tree follow.</p>
+      <div class="gallery gallery-shots">
+        <figure><img class="photo" src="assets/photo-harness-tinned.jpg?v=345fb1e760" width="1280" height="720" alt="A bunch of short green wires with tinned ends on a soldering mat, beside a soldering iron, a reel of solder and a panel of LED boards" data-i18n-alt="gallery.photo.harness.alt"><figcaption data-i18n="gallery.photo.harness">The harness: 93 pieces of 22 AWG wire, 12.5 cm each, stripped and tinned at both ends, and a panel of the LED boards above them</figcaption></figure>
+        <figure><img class="photo" src="assets/photo-garland-current.jpg?v=9511e9f988" width="1280" height="721" alt="The control unit with its screen on, the lit figurines beside it, and a multimeter's probes on an adapter at the unit's connector" data-i18n-alt="gallery.photo.current.alt"><figcaption data-i18n="gallery.photo.current">Measuring the current: an adapter at the control unit's connector puts the meter in series with the garland's +5 V</figcaption></figure>
+        <figure><img class="photo" src="assets/photo-controller-closed.jpg?v=a5af625fd0" width="1280" height="721" alt="The closed control unit: a black printed box with the csiGarland name, a small screen and three round buttons" data-i18n-alt="gallery.photo.closed.alt"><figcaption data-i18n="gallery.photo.closed">The control unit, closed: its screen, the POWER, EFFECT and SPEED buttons, and a warning that mains is inside</figcaption></figure>
+        <figure><img class="photo" src="assets/photo-controller-inside.jpg?v=10c6a81adb" width="1280" height="721" alt="The control unit with its lid off: the power supply and mains wiring on the left, the board with its screen and the three buttons on the right" data-i18n-alt="gallery.photo.inside.alt"><figcaption data-i18n="gallery.photo.inside">Inside the prototype: the mains bay with the Hi-Link supply behind a solid wall, and the ESP32-C6 board with the buttons. Its yellow XT60H mains inlet is not one to copy: see Building the Hardware</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 data-i18n="gallery.effects.title">Effects</h2>
+      <p data-i18n="gallery.effects.body">Seven effects on the 32 figurines. These are simulations: the colours come frame by frame from the firmware's own effect engine, the figurines from their 3D models, and the glow is a sketch of translucent PETG in a dark room.</p>
+      <div class="gallery gallery-shots">
+        <figure class="wide"><img class="photo" src="assets/effect-starry-aurora.gif?v=852b4f27f1" width="960" height="573" loading="lazy" alt="Animation of the Starry Aurora effect on the garland" data-i18n-alt="gallery.fx.starry.alt"><figcaption data-i18n="gallery.fx.starry">Starry Aurora, an effect of three layers uploaded from a file: an aurora along the whole garland, gold twinkles on the stars and a heartbeat on the bells</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-figurine-parade.gif?v=46d7fca796" width="960" height="573" loading="lazy" alt="Animation of the Figurine Parade effect" data-i18n-alt="gallery.fx.parade.alt"><figcaption data-i18n="gallery.fx.parade">Figurine Parade: each kind of figurine takes its turn, in its own colour</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-fireworks.gif?v=544a9cadaa" width="960" height="573" loading="lazy" alt="Animation of the Fireworks effect" data-i18n-alt="gallery.fx.fireworks.alt"><figcaption data-i18n="gallery.fx.fireworks">Fireworks: white flashes open into coloured bursts and fade</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-comet-collision.gif?v=217cb0b51b" width="960" height="573" loading="lazy" alt="Animation of the Comet Collision effect" data-i18n-alt="gallery.fx.comet.alt"><figcaption data-i18n="gallery.fx.comet">Comet Collision: comets from both ends meet and burst</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-fireplace.gif?v=218ed4f954" width="960" height="573" loading="lazy" alt="Animation of the Fireplace effect" data-i18n-alt="gallery.fx.fireplace.alt"><figcaption data-i18n="gallery.fx.fireplace">Fireplace: a simulation of heat, not a random flicker</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-icicle-drip.gif?v=0833224c27" width="960" height="573" loading="lazy" alt="Animation of the Icicle Drip effect" data-i18n-alt="gallery.fx.icicle.alt"><figcaption data-i18n="gallery.fx.icicle">Icicle Drip: drops run down the garland, gathering speed</figcaption></figure>
+        <figure><img class="photo" src="assets/effect-aurora.gif?v=96a90f8ff7" width="960" height="573" loading="lazy" alt="Animation of the Aurora effect" data-i18n-alt="gallery.fx.aurora.alt"><figcaption data-i18n="gallery.fx.aurora">Aurora: soft bands of colour drift along the garland</figcaption></figure>
+      </div>
+      <div class="cta-row">
+        <a class="button" href="https://github.com/ABespalov/csigarland/blob/main/docs/guides/effects.md" rel="noopener noreferrer" data-i18n="gallery.effects.cta">Every effect in the Effects Guide</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section">
+      <span data-i18n="footer.copy">csiGarland, a csi Research Lab. project. MIT License.</span>
+      <a href="https://github.com/ABespalov/csigarland/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security">Reporting a security problem</a>
+    </div>
+  </footer>
+</body>
+</html>

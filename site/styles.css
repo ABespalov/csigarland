@@ -103,6 +103,9 @@ p { margin: 0 0 16px; }
 /* The pages and windows side by side as previews of one size, from their top: the whole of each opens
    in the preview. */
 .gallery-shots .shot { aspect-ratio: 4 / 3; object-fit: cover; object-position: top; }
+/* Photographs and animations, whole, at their own proportions; a wide one takes the row. */
+.photo { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
+.gallery .wide { grid-column: 1 / -1; }
 
 .screens { display: grid; grid-template-columns: repeat(4, minmax(0, 128px)); gap: 12px; margin-top: 20px; }
 .screens img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }

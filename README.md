@@ -10,7 +10,7 @@
 [![Build and test](https://github.com/ABespalov/csigarland/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/ABespalov/csigarland/actions/workflows/build-and-test.yml)
 [![Latest release](https://img.shields.io/github/v/release/ABespalov/csigarland?label=release)](https://github.com/ABespalov/csigarland/releases)
 
-**[garland.csilab.am](https://garland.csilab.am)** · [Downloads](https://garland.csilab.am/downloads.html) · [Roadmap](https://garland.csilab.am/roadmap.html) · [Documents](https://garland.csilab.am/documents.html)
+**[garland.csilab.am](https://garland.csilab.am)** · [Gallery](https://garland.csilab.am/gallery.html) · [Downloads](https://garland.csilab.am/downloads.html) · [Roadmap](https://garland.csilab.am/roadmap.html) · [Documents](https://garland.csilab.am/documents.html)
 
 <img src="docs/images/diffusers/garland_octet_hanging.png" width="720" alt="The eight figurines of the garland on their cord: a tree, a star, a snowman, a pine cone, a lantern, a bell, an icicle and a gingerbread man">
 
