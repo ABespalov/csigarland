@@ -20,6 +20,7 @@ tell builds apart by the hashes of what they hold.
 ### Site
 
 - The Gallery's effect animations show the bell as it is printed now, and each opens on its brightest frame.
+- The Gallery opens with a video of the first garland lit on a candle chandelier.
 
 ## [1.4.1] - 2026-11-23
 

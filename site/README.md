@@ -14,7 +14,7 @@ Static English and Russian site for **https://garland.csilab.am**, served by Clo
 | File | Role |
 |---|---|
 | `index.html` | The product: what it does, the figurines, the control unit, the portal and utility |
-| `gallery.html` | Photographs of the first garland as it was built, and animations of eight effects |
+| `gallery.html` | A video of the first garland lit, photographs of it as it was built, and animations of eight effects |
 | `roadmap.html` | What is released, the milestones to the tree, and what is planned, after `docs/stubs/ROADMAP.md` |
 | `documents.html` | Links to the documents, for owners, and for builders and contributors, and the control unit's schematic |
 | `downloads.html`, `downloads.js` | Every release's files, newest first under each product and platform, drawn from `downloads/manifest.json` |
@@ -37,7 +37,7 @@ pwsh -File deploy\site-assets.ps1
 pwsh -File deploy\site-pages.ps1
 ```
 
-The photographs come from `docs/images/photos`, which `site-assets.ps1` copies too: real photographs only, captioned with what they show. The Gallery's effect animations, `assets/effect-*.gif`, live here alone, as they are the site's own and too large to keep twice in git. A program of the author's draws them, 960 pixels wide at 20 frames a second: the colours come frame by frame from the firmware's effect engine, through the same `cgo` bridge as the utility, the figurines from their 3D models, and the glow is a sketch, so the page calls them a simulation. They are 1 to 4 MB each, and the page loads them as they scroll into view. Starry Aurora is not a built-in effect but one of three layers, uploaded from a file.
+The photographs come from `docs/images/photos`, which `site-assets.ps1` copies too: real photographs only, captioned with what they show. The Gallery's video of the garland lit, `assets/video-garland-lit.mp4`, 12 s at 1280 × 720 with sound, is the site's own too and lives here alone; the page loads only its first frame until it is played. The Gallery's effect animations, `assets/effect-*.gif`, live here alone, as they are the site's own and too large to keep twice in git. A program of the author's draws them, 960 pixels wide at 20 frames a second: the colours come frame by frame from the firmware's effect engine, through the same `cgo` bridge as the utility, the figurines from their 3D models, and the glow is a sketch, so the page calls them a simulation. They are 1 to 4 MB each, and the page loads them as they scroll into view. Starry Aurora is not a built-in effect but one of three layers, uploaded from a file.
 
 ## Versions of the files
 

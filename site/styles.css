@@ -105,6 +105,9 @@ p { margin: 0 0 16px; }
 .gallery-shots .shot { aspect-ratio: 4 / 3; object-fit: cover; object-position: top; }
 /* Photographs and animations, whole, at their own proportions. */
 .photo { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
+/* The video of the garland lit, alone on its row and no wider than it was shot. */
+.gallery-video { margin: 0; max-width: 1280px; }
+.gallery-video video { background: #000; }
 
 .screens { display: grid; grid-template-columns: repeat(4, minmax(0, 128px)); gap: 12px; margin-top: 20px; }
 .screens img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
