@@ -49,6 +49,10 @@ pictures=(
     photo-garland-current.jpg=photos/garland-current.jpg
     photo-controller-closed.jpg=photos/controller-closed.jpg
     photo-controller-inside.jpg=photos/controller-inside.jpg
+    photo-figurine-star-lit.jpg=photos/figurine-star-lit.jpg
+    photo-figurine-gingerbread-lit.jpg=photos/figurine-gingerbread-lit.jpg
+    photo-figurine-pinecone-lit.jpg=photos/figurine-pinecone-lit.jpg
+    photo-figurine-icicle-lit.jpg=photos/figurine-icicle-lit.jpg
 )
 mkdir -p "$target"
 for picture in "${pictures[@]}"; do

@@ -21,6 +21,7 @@ tell builds apart by the hashes of what they hold.
 
 - The Gallery's effect animations show the bell as it is printed now, and each opens on its brightest frame.
 - The Gallery opens with a video of the first garland lit on a candle chandelier.
+- The Gallery shows four lit figurines up close: the star, the gingerbread man, the pinecone and the icicle.
 
 ## [1.4.1] - 2026-11-23
 
